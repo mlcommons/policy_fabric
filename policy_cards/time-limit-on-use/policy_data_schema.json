@@ -1,0 +1,4 @@
+{
+  "requiredDocumentID": "DID of the terms document the requester must accept",
+  "notAfter": "ISO-8601 datetime after which use is no longer permitted"
+}

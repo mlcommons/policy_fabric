@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Assets — PDO Client{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Assets</h1>
+        </div>
+        <a href="/assets/setup/" class="btn btn-primary">+ Register Asset</a>
+    </div>
+
+    {% if list_error %}
+    <div class="alert alert-error">{{ list_error }}</div>
+    {% endif %}
+
+    {% if assets %}
+    <div class="card-grid">
+        {% for a in assets %}
+        <div class="card">
+            <h3>{{ a.name }}</h3>
+            <div class="card-meta did-display">{{ a.did }}</div>
+            <div class="card-actions">
+                {% if a.is_local %}
+                <a href="{% url 'asset_dashboard' cid_url=a.cid_url %}" class="btn btn-sm btn-primary">Open</a>
+                {% elif a.federated %}
+                <!-- A federated site is never run on its own: the point of leaving
+                     the data where it is, is that several holders can be asked the
+                     same question at once. Choosing which ones is the Federated
+                     page's job, so there is nothing to click here. -->
+                <a href="{% url 'federated' %}" class="btn btn-sm">Use in a round →</a>
+                {% elif a.has_guardian %}
+                <button type="button" class="btn btn-sm btn-primary"
+                        data-action="open-use"
+                        data-asset-did="{{ a.did }}"
+                        data-asset-name="{{ a.name }}"
+                        data-guardian-type="{{ a.guardian_type }}"
+                        data-action-label="{{ a.action_label }}">Use</button>
+                {% else %}
+                <span style="display:inline-block"
+                      title="This asset is not behind a guardian yet, so it cannot be used.">
+                    <button type="button" class="btn btn-sm btn-primary" disabled>Use</button>
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-state">No assets registered yet. Click "Register Asset" to add one.</p>
+    {% endif %}
+</div>
+
+<!-- Use Asset Modal (for non-local assets only). -->
+<div id="use-modal" class="modal-backdrop hidden">
+    <form class="modal" id="use-form">
+        <input type="hidden" name="asset_did" id="use-asset-did" value="">
+        <div class="modal-header">
+            <span class="modal-title">Use Asset: <span id="use-asset-name"></span></span>
+            <button type="button" class="modal-close"
+                    data-modal-close="use-modal">&times;</button>
+        </div>
+        <!-- One wallet per role the asset's policy declares. The roles are not
+             known until the policy is queried, so the JS fills this in when the
+             modal opens, cloning #use-role-template for each. -->
+        <div id="use-roles"></div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="use-submit">Use</button>
+            <button type="button" class="btn"
+                    data-modal-close="use-modal">Cancel</button>
+        </div>
+    </form>
+</div>
+
+<!-- Cloned once per role by assets_list.js. A role is presented from whichever
+     identity holds its credentials, so both kinds are offered: the requester's
+     own wallets, and script assets (whose identity holds the credentials about
+     the script, and whose DID locates the script itself). -->
+<template id="use-role-template">
+    <div class="form-group" data-role-group>
+        <label data-role-label></label>
+        <select data-role-select>
+            <optgroup label="Wallets">
+                {% for w in wallets %}
+                <option value="{{ w.contract_id }}">{{ w.name }}</option>
+                {% empty %}
+                <option value="" disabled>No wallets — create one first</option>
+                {% endfor %}
+            </optgroup>
+            <optgroup label="Scripts">
+                {% for s in script_assets %}
+                <option value="{{ s.contract_id }}">{{ s.name }}</option>
+                {% empty %}
+                <option value="" disabled>No scripts — register one behind a public guardian</option>
+                {% endfor %}
+            </optgroup>
+        </select>
+        <small data-role-hint></small>
+    </div>
+</template>
+
+<div id="use-result-modal" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:640px">
+        <div class="modal-header">
+            <span class="modal-title" id="use-result-title">Result</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="use-result-modal">&times;</button>
+        </div>
+        <pre class="code-block" id="use-result-output"></pre>
+        <div class="form-actions">
+            <button type="button" class="btn"
+                    data-modal-close="use-result-modal">Close</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/assets_list.js"></script>
+{% endblock %}

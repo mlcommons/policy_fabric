@@ -1,0 +1,119 @@
+# Policy Card — DUO_0000029 RTN (Return to Database or Resource)
+
+Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt`).
+
+---
+
+## 1  Identification
+
+- **id:** `card.duo.0000029-rtn`
+- **version:** 1.0.0
+- **status:** released
+- **title:** Return to Database or Resource (DUO_0000029 RTN)
+- **description:** Grant access under a duty to return derived data: the requester
+  must accept the required terms and run on a compute environment attested to
+  handle results securely so the return obligation can be honoured.
+- **author:** MLCommons
+- **contact:** —
+
+## 2  Scope & Target
+
+- **target.asset:** the dataset the data owner exposes for controlled access.
+- **target.operations:** `download`.
+- **Out of scope:** enforcement of the return of derived data after delivery; the
+  card governs the download decision, not the later return step.
+
+## 3  Version History
+
+| Version | Date       | Author                        | Status   | Summary of change                                      |
+|---------|------------|-------------------------------|----------|--------------------------------------------------------|
+| 1.0.0   | 2026-07-15 | MLCommons                     | released | Initial policy card authored from the RTN policy.      |
+
+## 4  Summary & Intent
+
+Access to the dataset carries a duty to return derived or enriched data to a
+designated resource. The requester presents an `AgreementCredential` accepting the
+`requiredDocumentID` the data owner configured, together with a
+`publicKeyCredential` carrying the delivery key; both are issued to the **same
+subject**. A `ComputeEnvironmentCredential` must attest that the compute
+environment handles results securely, which is the condition that lets the return
+obligation be honoured.
+
+- **Governance objective:** allow download only to requesters who accept the terms
+  and run in a compute environment attested to handle results securely.
+
+## 5  Declarative Representation
+
+```text
+Permission: download the target dataset
+  Assignee:  the requester (subject of the AgreementCredential / publicKeyCredential)
+  Conditions (all must hold):
+    - an AgreementCredential accepts the required terms document (agreementInfo.documentID = requiredDocumentID)
+    - a publicKeyCredential provides the requester's delivery key (claim: key), same subject as the agreement
+    - a ComputeEnvironmentCredential attests hasComputeProfile.profile.SecureHandlingOfResults = true
+  On grant:  operation "do_download", with the data encrypted to that key
+  Otherwise: deny
+```
+
+## 6  Associated Credentials (Evidence Requirements)
+
+Every type resolves to a schema in [`../../credentials/`](../../credentials/).
+
+| Credential type              | Claims consumed                                | Required |
+|------------------------------|------------------------------------------------|----------|
+| `AgreementCredential`        | `agreementInfo.documentID`                     | yes      |
+| `ComputeEnvironmentCredential` | `hasComputeProfile.profile.SecureHandlingOfResults` | yes      |
+| `publicKeyCredential`        | `key`                                          | yes      |
+
+The agreement and public-key credentials are issued to the same subject (the
+requester); the compute-environment credential attests the node the work runs on.
+
+## 7  Reference Values Schema
+
+Reference values the data owner configures (see
+[`policy_data_schema.json`](policy_data_schema.json)):
+
+```json
+{
+  "requiredDocumentID": "DID of the terms document the requester must accept"
+}
+```
+
+`requiredDocumentID` is the identifier of the terms document the requester's
+`AgreementCredential` must accept (as it appears in
+`AgreementCredential.agreementInfo.documentID`).
+
+## 8  Capability Granted
+
+On success the card grants the operation below, which the Asset Guardian
+enforces without interpreting policy logic:
+
+```json
+{
+  "operation": {
+    "name": "do_download",
+    "parameters": { "channel_key": "<requester public key>" }
+  }
+}
+```
+
+- **operation:** `do_download` — the guardian operation invoked on success.
+- **parameters.channel_key:** the `key` claim of the requester's
+  `publicKeyCredential`; the guardian encrypts the delivered data to it.
+
+## 9  Codified Representation
+
+The policy is codified in Rego: [`policy.rego`](policy.rego), with unit tests in
+[`policy_test.rego`](policy_test.rego). It evaluates to allow when the same subject
+holds an `AgreementCredential` accepting the required terms and a
+`publicKeyCredential`, and a `ComputeEnvironmentCredential` attests secure handling
+of results, and returns the granted operation of section 8.
+
+## 10  Legal & Disclaimers
+
+Reference-implementation status: this card and its Rego policy are a reference
+implementation provided as-is. You are responsible for verifying its accuracy and
+fitness for your use case before relying on it — it is not a certified or legally
+reviewed compliance control. Do not use this card or policy to protect sensitive
+data (e.g., health, medical, genetic, or other legally regulated personal data)
+without independent legal and security review.

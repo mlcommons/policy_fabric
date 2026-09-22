@@ -1,0 +1,11 @@
+{
+  "type": "public",
+  "title": "Public",
+  "description": "Serves the data to any caller, unauthenticated. No policy, no capability, no contract behind it.",
+  "order": 10,
+  "options": {
+    "--interface": "bind_interface",
+    "--port": "port",
+    "--data-path": "data_path"
+  }
+}

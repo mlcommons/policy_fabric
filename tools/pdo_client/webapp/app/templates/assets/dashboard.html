@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block title %}{{ asset.name }} — Asset — PDO Client{% endblock %}
+
+{% block content %}
+<div class="container"
+     data-asset-cid-url="{{ asset.cid_url }}"
+     data-asset-did="{{ asset.did }}">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ asset.name }}</h1>
+        </div>
+        <a href="/" class="btn">Back to Assets</a>
+    </div>
+
+    {% if registry_error %}
+    <div class="alert alert-error">{{ registry_error }}</div>
+    {% endif %}
+
+    <div class="card">
+        <h2>Asset Info</h2>
+        <table class="data-table" style="margin-top:0.75rem">
+            <tbody>
+                <tr><td><strong>Name</strong></td><td>{{ asset.name }}</td></tr>
+                <tr><td><strong>DID</strong></td><td class="did-display">{{ asset.did }}</td></tr>
+                {% if has_policy %}
+                <tr><td><strong>Policy id</strong></td><td class="did-display">{{ policy_contract_id }}</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2 style="margin:0 0 0.5rem">Guardian</h2>
+        {% if guardian_deployed %}
+        <p style="margin:0">Your asset is behind a <strong>{{ guardian_type }}</strong>
+            guardian running on <strong>{{ guardian_endpoint }}</strong>{% if serve_on %},
+            serving on <strong>{{ serve_on }}</strong>{% endif %}.</p>
+        {% else %}
+        <p style="color:#999;margin:0">No guardian recorded for this asset.</p>
+        {% endif %}
+    </div>
+
+    {% if has_policy %}
+
+    <div class="card">
+        <h2>Policy Data</h2>
+        {% if policy_data_error %}
+        <div class="alert alert-error">{{ policy_data_error }}</div>
+        {% endif %}
+        <form id="update-policy-data-form">
+            <div class="form-group">
+                <textarea id="policy-data-textarea" name="policy_data" class="mono" rows="10">{{ policy_data_json }}</textarea>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Update</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <div class="card-header" style="margin-bottom:0.75rem">
+            <h2 style="margin:0">Trusted Issuers</h2>
+            <button type="button" class="btn btn-sm btn-primary"
+                    data-modal-open="register-policy-issuer-modal">+ Register Issuer</button>
+        </div>
+
+        {% if policy_issuers_error %}
+        <div class="alert alert-error">{{ policy_issuers_error }}</div>
+        {% endif %}
+
+        {% if policy_issuers %}
+        <table class="data-table">
+            <thead>
+                <tr><th>Issuer DID</th><th>Credential types</th></tr>
+            </thead>
+            <tbody>
+                {% for row in policy_issuers %}
+                <tr>
+                    <td class="did-display">{{ row.did }}</td>
+                    <td>{{ row.credential_types|join:", " }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:#999">No trusted issuers registered yet.</p>
+        {% endif %}
+    </div>
+
+    {% elif guardian_deployed and supports_policy %}
+    <div class="card">
+        <div class="card-header" style="margin-bottom:0.75rem">
+            <h2 style="margin:0">Expose</h2>
+            <button type="button" class="btn btn-sm btn-primary"
+                    data-modal-open="expose-modal">Expose</button>
+        </div>
+    </div>
+    {% elif guardian_deployed %}
+    <div class="card">
+        <p style="color:#999;margin:0">This asset is served in the clear by a
+            <strong>{{ guardian_type }}</strong> guardian, so there is no policy to attach.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% if has_policy %}
+<div id="use-modal" class="modal-backdrop hidden">
+    <form class="modal" id="use-form">
+        <input type="hidden" name="asset_did" id="use-asset-did" value="{{ asset.did }}">
+        <div class="modal-header">
+            <span class="modal-title">Use Asset: {{ asset.name }}</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="use-modal">&times;</button>
+        </div>
+        <div class="form-group">
+            <label for="use-wallet-select">Wallet</label>
+            <select id="use-wallet-select" name="wallet_id" required>
+                {% for w in wallets %}
+                <option value="{{ w.contract_id }}">{{ w.name }}</option>
+                {% empty %}
+                <option value="">No wallets — create one first</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" {% if not wallets %}disabled{% endif %}>Request Download</button>
+            <button type="button" class="btn"
+                    data-modal-close="use-modal">Cancel</button>
+        </div>
+    </form>
+</div>
+
+<div id="use-result-modal" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:640px">
+        <div class="modal-header">
+            <span class="modal-title">Decrypted Data</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="use-result-modal">&times;</button>
+        </div>
+        <pre class="code-block" id="use-result-output"></pre>
+        <div class="form-actions">
+            <button type="button" class="btn"
+                    data-modal-close="use-result-modal">Close</button>
+        </div>
+    </div>
+</div>
+
+<div id="register-policy-issuer-modal" class="modal-backdrop hidden">
+    <form class="modal" id="register-policy-issuer-form" style="max-width:480px">
+        <div class="modal-header">
+            <span class="modal-title">Register Trusted Issuer</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="register-policy-issuer-modal">&times;</button>
+        </div>
+
+        {% if credential_templates_error %}
+        <div class="alert alert-error">{{ credential_templates_error }}</div>
+        {% endif %}
+
+        <div class="form-group">
+            <label for="rpi-issuer-did">Issuer DID</label>
+            <input type="text" id="rpi-issuer-did" name="issuer_did" required
+                   placeholder="did:pdo:&lt;contract_id&gt;">
+        </div>
+        <div class="form-group">
+            <label>Credential Types</label>
+            <div id="rpi-credential-types" class="checkbox-list">
+                {% for t in credential_templates %}
+                <label class="checkbox-item">
+                    <input type="checkbox" name="credential_types" value="{{ t.template_type }}">
+                    <span>{{ t.template_type }}</span>
+                </label>
+                {% empty %}
+                <p style="color:#999;margin:0">No credential templates available.</p>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary"
+                    {% if not credential_templates %}disabled{% endif %}>Register</button>
+            <button type="button" class="btn"
+                    data-modal-close="register-policy-issuer-modal">Cancel</button>
+        </div>
+    </form>
+</div>
+
+{% else %}
+<div id="expose-modal" class="modal-backdrop hidden">
+    <form class="modal" id="expose-form" method="post"
+          action="{% url 'asset_expose' cid_url=asset.cid_url %}">
+        {% csrf_token %}
+        <div class="modal-header">
+            <span class="modal-title">Expose Asset</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="expose-modal">&times;</button>
+        </div>
+
+        {% if templates_error %}
+        <div class="alert alert-error">{{ templates_error }}</div>
+        {% endif %}
+
+        <div class="form-group">
+            <label>Policies</label>
+            <div id="id_policy_templates" class="checkbox-list">
+                {% for t in templates %}
+                <div class="checkbox-item">
+                    <input type="checkbox" id="pol-{{ t.id }}" name="policy_templates"
+                           value="{{ t.id }}" data-schema="{{ t.policy_data_schema_json }}">
+                    <label for="pol-{{ t.id }}" style="flex:1;margin:0">{{ t.name }}</label>
+                    <button type="button" class="btn btn-sm"
+                            data-action="view-policy" data-policy-id="{{ t.id }}">View</button>
+                </div>
+                {% empty %}
+                <p style="color:#999;margin:0">No policies available.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="id_policy_data">Policy Data</label>
+            <textarea id="id_policy_data" name="policy_data" class="mono" rows="8"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Trusted Issuers</label>
+            <p style="color:#999;margin:0 0 0.5rem;font-size:0.85rem">
+                Issuers whose signed credentials this policy will trust. Optional
+                here — you can also add them later from the dashboard.</p>
+            {% if credential_templates_error %}
+            <div class="alert alert-error">{{ credential_templates_error }}</div>
+            {% endif %}
+            <div id="expose-trusted-issuers"></div>
+            <button type="button" class="btn btn-sm" id="expose-add-issuer">+ Add a trusted issuer</button>
+        </div>
+        <input type="hidden" name="trusted_issuers" id="expose-trusted-issuers-json">
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary"
+                    {% if not templates %}disabled{% endif %}>Create Policy &amp; Expose</button>
+            <button type="button" class="btn"
+                    data-modal-close="expose-modal">Cancel</button>
+        </div>
+    </form>
+</div>
+
+{{ policy_details|json_script:"policy-details-data" }}
+{{ credential_type_options|json_script:"expose-credential-types-data" }}
+<div id="policy-detail-modal" class="modal-backdrop hidden">
+    <div class="modal policy-detail-modal" style="max-width:860px">
+        <div class="modal-header">
+            <span class="modal-title" id="policy-detail-title">Policy</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="policy-detail-modal">&times;</button>
+        </div>
+        <div class="tabs" id="policy-detail-tabs">
+            <button type="button" class="tab-btn active" data-policy-tab="readme">Overview</button>
+            <button type="button" class="tab-btn" data-policy-tab="rego">Rego source</button>
+        </div>
+        <div class="tab-panel active" data-policy-panel="readme">
+            <div class="markdown-body" id="policy-detail-readme"></div>
+        </div>
+        <div class="tab-panel" data-policy-panel="rego">
+            <pre class="code-viewer"><code class="rego-code" id="policy-detail-rego"></code></pre>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/asset_dashboard.js"></script>
+{% endblock %}

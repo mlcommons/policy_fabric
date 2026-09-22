@@ -1,0 +1,22 @@
+{
+  "type": "inference",
+  "title": "Inference",
+  "description": "Keeps the data in place and runs an authorized script on it, against a do_inference capability.",
+  "order": 30,
+  "image": {
+    "env": "INFERENCE_GUARDIAN_IMAGE",
+    "default": "mlcommons/toy_inference_guardian:v2"
+  },
+  "options": {
+    "--image": "image",
+    "--interface": "bind_interface",
+    "--port": "port",
+    "--sservice-port": "storage_port",
+    "--guardian-host": "advertised_host",
+    "--data-path": "data_path",
+    "--fl-server-url": "fl_server_url",
+    "--fl-client-id": "fl_client_id",
+    "--asset-did": "asset_did",
+    "--asset-name": "asset_name"
+  }
+}

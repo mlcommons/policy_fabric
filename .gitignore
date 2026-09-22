@@ -1,0 +1,7 @@
+*.pyc
+*.sqlite3
+*.log
+
+# Runtime state the docker orchestration writes next to the scripts: the
+# webapp's scratch dir, and the guardian deploy requests inside it.
+tools/pdo_scratch/

@@ -1,0 +1,18 @@
+{
+  "type": "download",
+  "title": "Download",
+  "description": "Releases the data encrypted to the requester's session key, against a do_download capability.",
+  "order": 20,
+  "image": {
+    "env": "GUARDIAN_IMAGE",
+    "default": "mlcommons/toy_guardian:v2"
+  },
+  "options": {
+    "--image": "image",
+    "--interface": "bind_interface",
+    "--port": "port",
+    "--sservice-port": "storage_port",
+    "--guardian-host": "advertised_host",
+    "--data-path": "data_path"
+  }
+}

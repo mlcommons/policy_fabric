@@ -1,0 +1,28 @@
+{
+    "name": "PDO Policy-Gated Data Sharing",
+    // A codespace's disk holds this devcontainer's own image alongside every
+    // image the inner Docker daemon pulls, and the PDO stack is about 8GB of
+    // those. The container therefore starts from a minimal base and adds only
+    // Docker, leaving the rest of the disk for the stack.
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+    "features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    },
+    // The storage figure is what picks the machine type: the smaller types come
+    // with a 32GB disk, which the stack shares with the devcontainer image and
+    // everything the services write while running.
+    "hostRequirements": {
+        "cpus": 8,
+        "memory": "8gb",
+        "storage": "64gb"
+    },
+    "forwardPorts": [8000],
+    "portsAttributes": {
+        "8000": {
+            "label": "PDO WebUI",
+            "onAutoForward": "notify"
+        }
+    },
+    "postStartCommand": "bash .devcontainer/start.sh",
+    "waitFor": "postStartCommand"
+}

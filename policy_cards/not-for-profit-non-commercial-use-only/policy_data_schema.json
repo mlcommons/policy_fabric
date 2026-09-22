@@ -1,0 +1,4 @@
+{
+  "nonprofitLegalForms": ["list of not-for-profit ISO 20275 ELF codes"],
+  "prohibitedPurposes": ["list of prohibited purpose terms"]
+}

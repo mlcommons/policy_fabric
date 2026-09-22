@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Issuers — PDO Client{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Issuers</h1>
+        </div>
+        <button type="button" class="btn btn-primary"
+                data-modal-open="create-issuer-modal">+ Create Issuer</button>
+    </div>
+
+    {% if issuers %}
+    <div class="card-grid">
+        {% for i in issuers %}
+        <div class="card">
+            <h3>{{ i.name }}</h3>
+            <div class="card-meta">{{ i.kind_label }}</div>
+            <div class="card-meta did-display">{{ i.did }}</div>
+            <div class="card-actions">
+                <a href="{% url 'issuer_detail' cid_url=i.cid_url %}" class="btn btn-sm">Open</a>
+                <button type="button" class="btn btn-sm" data-copy="{{ i.did }}">Copy DID</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-state">No issuers yet. Create one to start issuing or binding credentials.</p>
+    {% endif %}
+</div>
+
+<!-- Create Issuer Modal -->
+<div id="create-issuer-modal" class="modal-backdrop hidden">
+    <form class="modal" style="max-width:440px" method="post">
+        {% csrf_token %}
+        <div class="modal-header">
+            <span class="modal-title">Create Issuer</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="create-issuer-modal">&times;</button>
+        </div>
+        <div class="form-group">
+            <label for="issuer-name-input">Name</label>
+            <input type="text" id="issuer-name-input" name="name" placeholder="e.g. university" required>
+        </div>
+        <div class="form-group">
+            <label>Issuer Type</label>
+            <div class="checkbox-list">
+                <label class="checkbox-item">
+                    <input type="radio" name="issuer_type" value="manual" checked>
+                    <span>Manual (hand-sign credentials yourself)</span>
+                </label>
+                <label class="checkbox-item">
+                    <input type="radio" name="issuer_type" value="external_key_authority">
+                    <span>Session Key (automatically issues a publicKeyCredential when a policy needs one)</span>
+                </label>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Create</button>
+            <button type="button" class="btn"
+                    data-modal-close="create-issuer-modal">Cancel</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

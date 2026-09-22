@@ -1,0 +1,15 @@
+# Build context is the pdo_client folder. Keep the image lean and never bake
+# host-only or runtime state into it.
+**/__pycache__/
+*.pyc
+*.pyo
+**/.ruff_cache/
+.git/
+.gitignore
+
+# Webapp runtime/local state (configuration is passed as args at runtime).
+webapp/db.sqlite3
+webapp/runserver.log
+webapp/scratch/
+webapp/channel_key/
+webapp/.gitignore

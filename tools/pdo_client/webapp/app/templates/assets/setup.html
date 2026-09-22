@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Register Asset — PDO Client{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Register Asset</h1>
+        </div>
+        <a href="/" class="btn">Cancel</a>
+    </div>
+
+    <div class="card card-narrow">
+        {% if error %}
+        <div class="alert alert-error">{{ error }}</div>
+        {% endif %}
+        <form method="post"
+              data-progress-url="{% url 'asset_setup_stream' %}"
+              data-progress-title="Registering the asset…">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="id_name">Name</label>
+                <input type="text" id="id_name" name="name"
+                       value="{{ form.name|default:'' }}"
+                       placeholder="e.g. genomics_dataset_1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="id_data_source">Data Path</label>
+                <input type="text" id="id_data_source" name="data_source"
+                       value="{{ form.data_source|default:'' }}"
+                       placeholder="/path/to/data/file.txt" required>
+            </div>
+
+            <div class="form-group">
+                <label for="id_guardian_type">Guardian Type</label>
+                <select id="id_guardian_type" name="guardian_type" required>
+                    {% for g in guardians %}
+                    <option value="{{ g.type }}" {% if g.type == guardian_type %}selected{% endif %}>{{ g.title }}</option>
+                    {% empty %}
+                    <option value="">No guardians found — check GUARDIANS_DIR</option>
+                    {% endfor %}
+                </select>
+                <small>
+                    {% for g in guardians %}
+                    <strong>{{ g.title }}</strong> — {{ g.description }}<br>
+                    {% endfor %}
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="id_serve_on">Serve On</label>
+                <select id="id_serve_on" name="serve_on" required>
+                    {% for s in serve_on_choices %}
+                    <option value="{{ s }}" {% if s == serve_on %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+                <small>
+                    Which addresses the guardian listens on. An inference guardian is
+                    reached over the loopback interface by the FL client bundled with it,
+                    so <strong>localhost</strong> is enough for it — but only when this
+                    app runs on the same host. Running in a container, as it does in the
+                    tutorials, it has to reach the guardian too, so leave this at
+                    <strong>0.0.0.0</strong>.
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="id_port">Port</label>
+                <input type="number" id="id_port" name="port" min="1" max="65535"
+                       value="{{ port }}" required>
+                <small>
+                    The download and inference guardians also take the next port up for
+                    their storage service.
+                </small>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Register Asset</button>
+                <a href="/" class="btn">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

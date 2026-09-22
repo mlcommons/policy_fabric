@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Federated — PDO Client{% endblock %}
+
+{% block content %}
+<div class="container" data-default-server-url="{{ default_server_url }}">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Federated</h1>
+            <p class="subtitle">Run one script across several sites at once. Each site's
+                own policy decides whether it takes part; none of them hands over data.</p>
+        </div>
+    </div>
+
+    <!-- The FL server is chosen, not configured: it is the job board this round
+         goes through, and the sites listed below are whoever is connected to it. -->
+    <div class="card">
+        <form id="fl-server-form" class="form-row" style="align-items:flex-end">
+            <div class="form-group" style="flex:1;margin-bottom:0">
+                <label for="fl-server-url">FL server</label>
+                <input type="text" id="fl-server-url" name="server_url"
+                       value="{{ default_server_url }}" placeholder="http://localhost:7920">
+                <small>The sites below are the ones whose FL clients are connected here.</small>
+            </div>
+            <button type="submit" class="btn btn-primary" id="fl-connect">Connect</button>
+        </form>
+        <div id="fl-server-status" style="margin-top:0.75rem"></div>
+        <!-- Offered only after a failed connection. A round always goes to a
+             server that is already running; this is for the case where there is
+             nothing running yet and nobody else to ask. It starts the one this
+             deployment is configured for, and says so. -->
+        <div id="fl-server-start" class="hidden" style="margin-top:0.5rem">
+            <button type="button" class="btn btn-sm" id="fl-start-server">
+                Start an FL server at {{ default_server_url }}</button>
+            <small style="display:block;margin-top:0.35rem;color:#888">
+                Runs it as a container on this machine. Any site that should join it
+                has to be registered after it is up.</small>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header" style="margin-bottom:0.75rem">
+            <h2 style="margin:0">Connected sites</h2>
+            <button type="button" class="btn btn-primary" id="fl-run" disabled>
+                Run on selected sites</button>
+        </div>
+
+        <div id="fl-sites-empty" class="empty-state">
+            Connect to an FL server to see the sites holding data behind an
+            inference guardian.
+        </div>
+
+        <table class="data-table hidden" id="fl-sites-table">
+            <thead>
+                <tr>
+                    <th style="width:2.5rem"></th>
+                    <th>Asset</th>
+                    <th>DID</th>
+                    <th>Guardian</th>
+                    <th>FL client</th>
+                    <th>State</th>
+                </tr>
+            </thead>
+            <tbody id="fl-sites-body"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- One row per site. Cloned by federated.js; a site that cannot take part is
+     rendered with its checkbox disabled and the reason in the State column. -->
+<template id="fl-site-template">
+    <tr>
+        <td><input type="checkbox" data-site-check></td>
+        <td><strong data-site-name></strong></td>
+        <td class="did-display" data-site-did></td>
+        <td data-site-guardian></td>
+        <td data-site-client></td>
+        <td data-site-state></td>
+    </tr>
+</template>
+
+<!-- The roles come from the selected sites' policies — the union of them, since
+     each site decides for itself what it wants to see. -->
+<div id="fl-run-modal" class="modal-backdrop hidden">
+    <form class="modal" id="fl-run-form">
+        <div class="modal-header">
+            <span class="modal-title">Run on <span id="fl-run-count"></span></span>
+            <button type="button" class="modal-close"
+                    data-modal-close="fl-run-modal">&times;</button>
+        </div>
+        <div id="fl-run-sites" class="alert alert-info" style="font-size:0.85rem"></div>
+        <div id="fl-run-problems" class="alert alert-warning hidden"
+             style="font-size:0.85rem"></div>
+        <div id="fl-run-roles"></div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="fl-run-submit">
+                Request Federated Inference</button>
+            <button type="button" class="btn" data-modal-close="fl-run-modal">Cancel</button>
+        </div>
+    </form>
+</div>
+
+<template id="fl-role-template">
+    <div class="form-group" data-role-group>
+        <label data-role-label></label>
+        <select data-role-select>
+            <optgroup label="Wallets">
+                {% for w in wallets %}
+                <option value="{{ w.contract_id }}">{{ w.name }}</option>
+                {% empty %}
+                <option value="" disabled>No wallets — create one first</option>
+                {% endfor %}
+            </optgroup>
+            <optgroup label="Scripts">
+                {% for s in script_assets %}
+                <option value="{{ s.contract_id }}">{{ s.name }}</option>
+                {% empty %}
+                <option value="" disabled>No scripts — register one behind a public guardian</option>
+                {% endfor %}
+            </optgroup>
+        </select>
+        <small data-role-hint></small>
+    </div>
+</template>
+
+<div id="fl-result-modal" class="modal-backdrop hidden">
+    <div class="modal" style="max-width:720px">
+        <div class="modal-header">
+            <span class="modal-title">Federated Round</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="fl-result-modal">&times;</button>
+        </div>
+        <div id="fl-result-body"></div>
+        <div class="form-actions">
+            <button type="button" class="btn" data-modal-close="fl-result-modal">Close</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/federated.js"></script>
+{% endblock %}

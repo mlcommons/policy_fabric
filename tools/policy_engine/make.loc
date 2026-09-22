@@ -1,0 +1,8 @@
+DOCKER_BUILDARGS += --build-arg PDO_MEMORY_CONFIG=LARGE
+
+# The ledger image is built on mcr.microsoft.com/ccf/app/dev, an Ubuntu 20.04
+# image whose CA bundle predates the chain download.01.org now serves. Fetching
+# the Intel SGX repo key from it fails there with "unable to get local issuer
+# certificate", which stops the build. Installing a current ca-certificates in
+# the same apt step that runs before that fetch is enough.
+DOCKER_BUILDARGS += --build-arg ADD_APT_PKGS=ca-certificates

@@ -1,0 +1,6 @@
+scratch
+channel_key
+db.sqlite3
+runserver.log
+__pycache__/
+*.pyc

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}{{ issuer.name }} — Issuer — PDO Client{% endblock %}
+
+{% block content %}
+<div class="container"
+     data-issuer-cid-url="{{ issuer.cid_url }}"
+     data-issuer-did="{{ issuer.did }}"
+     data-issuer-kind="{{ issuer.kind }}">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ issuer.name }}</h1>
+        </div>
+        <div class="card-actions">
+            <button type="button" class="btn btn-sm" data-modal-open="update-name-modal">Edit Name</button>
+            {% if issuer.kind == "manual" %}
+            <button type="button" class="btn btn-sm btn-primary"
+                    data-modal-open="sign-credential-modal">Sign Credential</button>
+            {% endif %}
+            <a href="/issuers/" class="btn">Back to Issuers</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Issuer Info</h2>
+        <table class="data-table" style="margin-top:0.75rem">
+            <tbody>
+                <tr><td><strong>Name</strong></td><td>{{ issuer.name }}</td></tr>
+                <tr><td><strong>Type</strong></td><td>{{ issuer.kind_label }}</td></tr>
+                <tr><td><strong>DID</strong></td>
+                    <td>
+                        <span class="did-display">{{ issuer.did }}</span>
+                        <button type="button" class="btn btn-sm" data-copy="{{ issuer.did }}">Copy</button>
+                    </td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <div class="card-header" style="margin-bottom:0.75rem">
+            <h2 style="margin:0">Stored Credentials</h2>
+            <button type="button" class="btn btn-sm btn-primary"
+                    data-modal-open="add-vc-modal">+ Add Credential</button>
+        </div>
+
+        {% if vcs_error %}
+        <div class="alert alert-error">{{ vcs_error }}</div>
+        {% elif vcs %}
+        <table class="data-table">
+            <thead><tr><th>Type</th><th>Credential</th></tr></thead>
+            <tbody>
+                {% for type, vc in vcs.items %}
+                <tr>
+                    <td><strong>{{ type }}</strong></td>
+                    <td><pre class="code-block" style="margin:0">{{ vc|stringformat:'s' }}</pre></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:#999">No credentials stored yet.</p>
+        {% endif %}
+    </div>
+
+</div>
+
+<div id="update-name-modal" class="modal-backdrop hidden">
+    <form class="modal" style="max-width:400px" id="update-name-form">
+        <div class="modal-header">
+            <span class="modal-title">Edit Name</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="update-name-modal">&times;</button>
+        </div>
+        <div class="form-group">
+            <label for="update-name-input">Name</label>
+            <input type="text" id="update-name-input" name="name"
+                   value="{{ issuer.name }}" required>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn"
+                    data-modal-close="update-name-modal">Cancel</button>
+        </div>
+    </form>
+</div>
+
+<div id="add-vc-modal" class="modal-backdrop hidden">
+    <form class="modal" id="add-vc-form">
+        <div class="modal-header">
+            <span class="modal-title">Add Verifiable Credential</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="add-vc-modal">&times;</button>
+        </div>
+        <div class="form-group">
+            <label for="vc-json-input">Credential JSON</label>
+            <textarea id="vc-json-input" name="vc_json" class="mono" rows="12" required></textarea>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Add Credential</button>
+            <button type="button" class="btn"
+                    data-modal-close="add-vc-modal">Cancel</button>
+        </div>
+    </form>
+</div>
+
+{% if issuer.kind == "manual" %}
+<div id="sign-credential-modal" class="modal-backdrop hidden">
+    <form class="modal" id="sign-credential-form">
+        <div class="modal-header">
+            <span class="modal-title">Sign Credential</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="sign-credential-modal">&times;</button>
+        </div>
+
+        {% if templates_error %}
+        <div class="alert alert-error">{{ templates_error }}</div>
+        {% endif %}
+
+        <div class="form-group">
+            <label for="sign-template-select">Credential Template</label>
+            <select id="sign-template-select" name="template_type" required>
+                {% for t in templates %}
+                <option value="{{ t.template_type }}"
+                        data-schema="{{ t.claims_schema_json }}">{{ t.template_type }}</option>
+                {% empty %}
+                <option value="">No templates available</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="sign-subject-did">Subject DID</label>
+            <input type="text" id="sign-subject-did" name="subject_did" required
+                   placeholder="did:pdo:abc123...">
+        </div>
+
+        <div class="form-group">
+            <label for="sign-claims-input">Claims</label>
+            <textarea id="sign-claims-input" name="claims" class="mono" rows="5"></textarea>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Sign &amp; Issue</button>
+            <button type="button" class="btn"
+                    data-modal-close="sign-credential-modal">Cancel</button>
+        </div>
+    </form>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/issuer_detail.js"></script>
+{% endblock %}

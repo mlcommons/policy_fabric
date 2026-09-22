@@ -1,0 +1,4 @@
+{
+  "allowedPurposes": ["list of allowed purpose terms"],
+  "prohibitedPurposes": ["list of prohibited purpose terms"]
+}
