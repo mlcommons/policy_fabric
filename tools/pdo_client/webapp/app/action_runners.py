@@ -227,12 +227,13 @@ class InferenceGuardianActionRunner(GuardianActionRunner):
     presented from it, and its DID resolves through the registry to the public
     guardian the script itself can be fetched from.
 
-    The capability the policy issues carries the approved digest and is redeemable
+    The capability the policy issues carries the approved digest and is accepted
     only at this asset's own guardian. It travels to the FL server and then to the
-    FL client beside that guardian, which measures the script it actually received
-    and presents that measurement when it redeems the capability. Approval and
-    running code are checked against each other at the moment the data is released,
-    not before.
+    FL client that holds this asset's data, which measures the script it actually
+    received and sends that measurement, with the capability, to its guardian. The
+    guardian answers yes only if the two digests match, and only then does the
+    client run the script over its data. Approval and running code are checked
+    against each other at the moment the job would run, not before.
 
     This runner stops there, because that is where one site's part ends: the
     script, the round, and the metrics belong to the federated flow that is asking

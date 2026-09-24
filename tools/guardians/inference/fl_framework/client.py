@@ -1,9 +1,10 @@
 """A mock federated-learning client, running beside the guardian core.
 
 This stands in for the FL framework a data holder would run inside their own
-environment. It never listens for work: it announces itself to an FL server and
-then polls it, and each job it gets back carries the script to run together with
-the capability package authorizing that run.
+environment. **It holds the data**: the dataset is mounted into this client, not
+into the guardian. It never listens for work: it announces itself to an FL server
+and then polls it, and each job it gets back carries the script to run together
+with the capability package authorizing that run.
 
 **It announces which asset it holds.** A client sits in front of exactly one
 dataset, and that dataset is an asset with a DID. Reporting that DID when it
@@ -12,16 +13,17 @@ once the requester has picked some -- hand each client the capability minted for
 *its* guardian. A capability is worth nothing at any other guardian, so an
 unlabelled client could only ever be handed work it would fail.
 
-The client is also the party that turns a claim about code into a fact about
-code. It hashes the script it actually holds and presents that digest with the
-capability to the guardian core over localhost; the guardian core releases the
-data only when the digest matches the one the capability authorizes. Everything
+**It asks before it runs.** The client hashes the script it actually holds and
+sends that digest, with the capability, to the guardian core over localhost. The
+core answers yes or no: yes only when the digest the capability authorizes is the
+one the client computed. On a yes the client reads its own data and runs; on
+anything else it reports the job failed and never opens the file. Everything
 after that is simulated -- the client prints what it would run and reports fixed
 metrics.
 
 The client deliberately depends on nothing from PDO. A real FL framework would
 not be a PDO component either; all it has to know is how to POST a capability
-package to a guardian.
+package to a guardian and read back a yes or a no.
 """
 
 import hashlib
@@ -44,8 +46,12 @@ def script_digest(script):
     return DIGEST_PREFIX + hashlib.sha256(script.encode("utf-8")).hexdigest()
 
 
+class NotAllowed(Exception):
+    """The guardian core did not say yes to this job."""
+
+
 class FLClient:
-    """Poll an FL server for jobs and run each one against the local guardian."""
+    """Poll an FL server for jobs and run each one the local guardian allows."""
 
     def __init__(
         self,
@@ -54,6 +60,7 @@ class FLClient:
         guardian_url,
         client_id,
         asset_did,
+        data_path,
         asset_name=None,
         poll_interval=3.0,
         announce_interval=30.0,
@@ -63,6 +70,7 @@ class FLClient:
         self.guardian_url = guardian_url.rstrip("/")
         self.client_id = client_id
         self.asset_did = asset_did
+        self.data_path = data_path
         self.asset_name = asset_name
         self.poll_interval = poll_interval
         self.announce_interval = announce_interval
@@ -123,12 +131,15 @@ class FLClient:
     # -----------------------------------------------------------------
     # guardian core
     # -----------------------------------------------------------------
-    def fetch_data(self, capability, calculated_digest):
-        """Redeem a capability at the local guardian core and return the asset.
+    def ask_guardian(self, capability, calculated_digest):
+        """Ask the local guardian core whether this script may run. Raise if not.
 
         ``calculated_digest`` is this client's own measurement of the script it
         holds; the guardian core compares it against the digest the capability
-        authorizes and refuses the request if they differ.
+        authorizes. Yes is HTTP 200 with ``{"allowed": true}``; no is an error
+        response (HTTP 422 for a digest mismatch). A request the core could not
+        process at all -- a capability minted for another guardian, one that does
+        not validate -- is as much a no as a mismatch.
         """
         request = dict(capability)
         request["request_context"] = {"calculated_script_digest": calculated_digest}
@@ -136,18 +147,32 @@ class FLClient:
         resp = requests.post(
             f"{self.guardian_url}/process_capability", json=request, timeout=self.timeout
         )
-        resp.raise_for_status()
-        return resp.json()
+        if resp.status_code != 200:
+            raise NotAllowed(f"the guardian said no ({_error_text(resp)})")
+
+        answer = resp.json()
+        if not (isinstance(answer, dict) and answer.get("allowed") is True):
+            raise NotAllowed(f"the guardian did not say yes: {answer}")
+        return answer
 
     # -----------------------------------------------------------------
     # the run itself
     # -----------------------------------------------------------------
+    def load_data(self):
+        """Read the dataset this client holds.
+
+        Read per job, and only once the guardian has said yes, so that a job the
+        guardian refused never touches the data at all.
+        """
+        with open(self.data_path) as f:
+            return f.read()
+
     def run_script(self, job, script, data):
         """Stand in for executing the script over the data.
 
         A real client hands both to the training framework here. This one narrates
-        the run and returns fixed metrics, which is enough to show the data
-        reaching the compute without ever leaving the guardian's host.
+        the run and returns fixed metrics, which is enough to show the code reaching
+        the data without the data ever leaving the data holder.
         """
         print(
             f"[fl_client:{self.client_id}] running job {job['job_id']} "
@@ -163,7 +188,7 @@ class FLClient:
         }
 
     def handle_job(self, job):
-        """Run one job end to end: measure, redeem, run, report."""
+        """Run one job end to end: measure, ask, run, report."""
         job_id = job["job_id"]
         script = job["script"]
         capability = job["capability"]
@@ -172,13 +197,14 @@ class FLClient:
         logger.info("job %s: computed script digest %s", job_id, digest)
 
         try:
-            data = self.fetch_data(capability, digest)
+            self.ask_guardian(capability, digest)
         except Exception as e:
-            logger.exception("job %s: guardian refused the capability", job_id)
-            self.report_failure(job_id, f"guardian refused the capability: {e}")
+            logger.warning("job %s: not allowed to run: %s", job_id, e)
+            self.report_failure(job_id, f"not allowed to run: {e}")
             return
+        logger.info("job %s: the guardian allowed %s", job_id, digest)
 
-        metrics = self.run_script(job, script, data)
+        metrics = self.run_script(job, script, self.load_data())
         self.report_metrics(job_id, metrics)
         logger.info("job %s: reported metrics %s", job_id, metrics)
 
@@ -201,9 +227,10 @@ class FLClient:
         only the two things routing needs.
         """
         logger.info(
-            "fl client %s (holding %s) polling %s every %ss, guardian at %s",
+            "fl client %s (holding %s at %s) polling %s every %ss, guardian at %s",
             self.client_id,
             self.asset_did,
+            self.data_path,
             self.server_url,
             self.poll_interval,
             self.guardian_url,
@@ -230,3 +257,9 @@ class FLClient:
                 self.handle_job(job)
             except Exception:
                 logger.exception("job %s failed", job.get("job_id"))
+
+
+def _error_text(resp):
+    """The error a guardian returned, as briefly as it can be said."""
+    text = (resp.text or "").strip()
+    return f"HTTP {resp.status_code}: {text[:200]}" if text else f"HTTP {resp.status_code}"

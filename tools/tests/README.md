@@ -111,8 +111,13 @@ the clicks working:
   the two sites declared, not what either wants alone. Hospital A's FL-DS never
   asks about the requester; Hospital B's pair does;
 * the round's aggregate `total_samples` must equal the two cohorts' real byte
-  sizes added together (295 + 427 = 722). It only adds up if each guardian
-  released the file it actually holds.
+  sizes added together (295 + 427 = 722). It only adds up if each guardian said
+  yes and each FL client then ran over the file it actually holds.
+
+After the round the test also checks where the data is: each guardian core's
+container must have **no** data mount, and each FL client's container must have
+its hospital's cohort mounted. The guardian only answers yes or no; the dataset
+belongs to the FL client.
 
 A site whose policies refuse is reported in the result rather than failing the
 flow, so the test also fails if any site comes back refused — otherwise a round
@@ -157,10 +162,12 @@ Things that have actually gone wrong here:
 | `No bare-metal PDO client at PDO_INSTALL_ROOT=...` | see `onboarding.md`; the webapp needs one on the host |
 | `Timed out ... waiting for the enclave services` | a previous run's ledger container is still up on the old workspace; tear down and retry |
 | every step fails at the identity dropdown | the webapp is up but its PDO client cannot reach the ledger — check `/tmp/pdo_webapp.log` |
-| registering a cohort fails at "Waiting for the guardian to be healthy" | the inference guardian container did not come up; see `/tmp/pdo_scratch/guardian_run.log` |
+| registering a cohort fails at "Waiting for the guardian to be healthy" | the inference guardian's core container did not come up; see `/tmp/pdo_scratch/guardian_run.log` |
 | `sites [...] were not all ready within 120s` | a guardian is up but its FL client never announced — check that the FL server was running before the guardian started, and look for `client ... joined` in `/tmp/pdo_fl_server.log` |
 | `step 'contract' failed: ... Replication task failed for request number N` | not this codebase. Look just above it in `/tmp/pdo_webapp.log` for `store_blocks ... Read timed out` — a PDO storage service (ports 72xx) did not answer within its 10s timeout while the new contract's state was being replicated, and the creation was abandoned. It happens under load; re-run on a quiet machine rather than retrying the step |
-| a round hangs at "Waiting for ... to report" | that site's FL client crashed, or is polling a different FL server |
+| a round hangs at "Waiting for ... to report" | that site's FL client crashed, or is polling a different FL server — `docker logs pdo-inference-guardian-<port>-fl-client` |
+| a site reports `not allowed to run: the guardian said no (HTTP 422: operation failed)` | the digest the FL client computed does not match the one the capability authorizes — the script changed after its `ScriptHashCredential` was signed. The core logs both digests (`denied: ...`) in `/pdo_install/opt/pdo/logs/` inside `pdo-inference-guardian-<port>` |
+| a site reports `not allowed to run: the guardian said no (HTTP 400: ...)` | the guardian refused the capability itself before comparing anything — typically one minted for a different guardian |
 | `Not recording: Xvfb is not installed` | see the requirements table above |
 
 ## 5. Clean up

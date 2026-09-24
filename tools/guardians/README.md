@@ -6,11 +6,13 @@ One folder per guardian type. An asset picks one when it is registered.
 |---------------|-----------------------------------------------------------------------|
 | `public/`     | serves the data to any caller, unauthenticated; no policy at all      |
 | `download/`   | `do_download` releases the data encrypted to the requester's key      |
-| `inference/`  | `do_inference` plus the FL client that redeems it; the data stays put |
+| `inference/`  | `do_inference` answers yes/no; the FL client beside it holds the data |
 
-An inference guardian is one site in a federated round. Its FL client announces
-the asset DID it was started with to the FL server, and that announcement is both
-how a requester discovers the site and how the server knows which of a round's
+An inference guardian is one site in a federated round. It holds no data: the
+dataset is mounted into its FL client, which asks the guardian core, per job,
+whether the script it was sent may run. The FL client also announces the asset
+DID it was started with to the FL server, and that announcement is both how a
+requester discovers the site and how the server knows which of a round's
 capabilities belongs to it.
 
 ## The contract with the webapp
@@ -49,13 +51,13 @@ actually takes:
 
 | Value              | What it is                                             |
 |--------------------|--------------------------------------------------------|
-| `data_path`        | host path of the file the guardian serves              |
+| `data_path`        | host path of the asset's data file (for `inference/`, mounted into its FL client, not the guardian) |
 | `bind_interface`   | interface to listen on                                 |
 | `advertised_host`  | host others use to reach it                            |
 | `port`             | port to publish                                        |
 | `storage_port`     | the paired PDO storage service port (`port` + 1)       |
 | `image`            | the image resolved from the `image` block              |
-| `fl_server_url`    | FL server, as addressable from inside the guardian     |
+| `fl_server_url`    | FL server, as addressable from inside the FL client's container |
 | `fl_client_id`     | name this guardian's FL client is known by             |
 | `asset_did`        | DID of the asset this guardian is being started for    |
 | `asset_name`       | that asset's display name                              |

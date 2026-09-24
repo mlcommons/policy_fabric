@@ -91,7 +91,7 @@ def guardian_run_command(
     """Return ``(command, advertised_host, port)`` for one guardian.
 
     ``command`` is the ``run.sh`` invocation that starts a guardian of
-    ``guardian_type`` serving ``data_path``, with exactly the options its manifest
+    ``guardian_type`` for the data at ``data_path``, with exactly the options its manifest
     declares, in the order it declares them. Every value is quoted: a data path or
     an asset name is whatever its owner typed, and this string is run by a shell.
     """
@@ -115,7 +115,10 @@ def guardian_run_command(
 def deploy_guardian(
     data_path, *, guardian_type, serve_on, port, asset_did="", asset_name=""
 ):
-    """Start a guardian serving ``data_path`` and return ``(host, port)``.
+    """Start a guardian for the data at ``data_path`` and return ``(host, port)``.
+
+    For an inference guardian the data goes to its FL client, not to the guardian
+    core: the core only answers whether a job may run.
 
     ``asset_did`` names the asset this guardian is being started for. An inference
     guardian passes it to its FL client, which announces it to the FL server — so

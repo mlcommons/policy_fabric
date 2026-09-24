@@ -16,8 +16,9 @@ browser instead, in the same order and with nothing added:
   the two sites ask for, and gets per-site metrics and one aggregate back.
 
 What the run proves, beyond "it works": the aggregate's ``total_samples`` is the
-sum of the two cohorts' real sizes, so it only adds up if each guardian released
-the file it actually holds; and the Use form asks for exactly ``Script`` and
+sum of the two cohorts' real sizes, so it only adds up if each guardian said yes
+and each FL client then ran over the file it actually holds; the data is mounted
+into the FL clients' containers and into neither guardian core's; and the Use form asks for exactly ``Script`` and
 ``User``, which is the union of what A and B declared and not what either asked
 for alone.
 
@@ -35,6 +36,7 @@ import argparse
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import time
 import traceback
@@ -221,9 +223,15 @@ def wait(driver, timeout=SHORT_WAIT):
 
 
 def visible(driver, selector, timeout=SHORT_WAIT):
+    """The first element matching ``selector`` that is visible.
+
+    Any match, not the first one: for a selector list such as "#empty, #table",
+    selenium's own check looks only at whichever comes first in the DOM, and
+    waits forever on a placeholder the page has already hidden.
+    """
     return wait(driver, timeout).until(
-        EC.visibility_of_element_located((By.CSS_SELECTOR, selector))
-    )
+        EC.visibility_of_any_elements_located((By.CSS_SELECTOR, selector))
+    )[0]
 
 
 def click(driver, selector, timeout=SHORT_WAIT):
@@ -710,6 +718,32 @@ def request_round(runner, *, sites, roles):
     return round_result
 
 
+def container_mounts(name):
+    """The host paths bind-mounted into a running container, by container path."""
+    out = subprocess.run(
+        ["docker", "inspect", name, "--format", "{{json .Mounts}}"],
+        capture_output=True,
+        text=True,
+    )
+    if out.returncode != 0:
+        raise StepFailed(f"no container {name}: {out.stderr.strip()}")
+    return {m["Destination"]: m["Source"] for m in json.loads(out.stdout) or []}
+
+
+def expect_data_only_in_fl_client(port, data_path):
+    """The guardian core holds no dataset; the FL client beside it holds this one."""
+    core = f"pdo-inference-guardian-{port}"
+    core_mounts = container_mounts(core)
+    if core_mounts:
+        raise StepFailed(f"guardian core {core} has data mounted: {core_mounts}")
+    client_mounts = container_mounts(f"{core}-fl-client")
+    if os.path.realpath(data_path) not in map(os.path.realpath, client_mounts.values()):
+        raise StepFailed(
+            f"the FL client beside {core} does not hold {data_path}: {client_mounts}"
+        )
+    print(f"      {core}: no data; its FL client holds {data_path}", flush=True)
+
+
 def aggregate_of(round_result):
     try:
         return json.loads(round_result["aggregate"])
@@ -947,7 +981,8 @@ def run_workflow(runner):
         if aggregate.get("sites") != 2:
             raise StepFailed(f"expected 2 sites in the aggregate: {aggregate}")
         # Proof that both hospitals really ran it over their own file: the totals
-        # only add up if each guardian released the cohort it actually holds.
+        # only add up if each guardian said yes and each FL client then ran over
+        # the cohort it actually holds.
         expected = sizes[ASSET_A] + sizes[ASSET_B]
         if aggregate.get("total_samples") != expected:
             raise StepFailed(
@@ -955,6 +990,9 @@ def run_workflow(runner):
                 f"data, but the two cohorts are {expected} together -- the sites "
                 "did not both run over their real files"
             )
+        # And that the data is where the design says: with the FL clients.
+        expect_data_only_in_fl_client(GUARDIAN_PORT_A, COHORT_A_PATH)
+        expect_data_only_in_fl_client(GUARDIAN_PORT_B, COHORT_B_PATH)
 
     runner.step(
         "Run one round across both hospitals, and get an aggregate over both",

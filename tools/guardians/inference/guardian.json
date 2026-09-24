@@ -1,7 +1,7 @@
 {
   "type": "inference",
   "title": "Inference",
-  "description": "Keeps the data in place and runs an authorized script on it, against a do_inference capability.",
+  "description": "Keeps the data with an FL client on the owner's host; the guardian only answers whether an approved script may run, against a do_inference capability.",
   "order": 30,
   "image": {
     "env": "INFERENCE_GUARDIAN_IMAGE",

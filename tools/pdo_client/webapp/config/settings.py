@@ -123,10 +123,10 @@ DEFAULT_SERVE_ON = "0.0.0.0"
 # running already — the webapp joins a federation, it does not convene one.
 FL_SERVER_URL = os.environ.get("FL_SERVER_URL", "http://localhost:7920")
 
-# How the inference guardian's container names the FL server. It is passed to the
-# guardian's run.sh rather than used by the webapp: a container cannot reach a
-# host-published port as "localhost", so this defaults to the host gateway alias
-# run.sh maps in.
+# How an inference guardian's FL client names the FL server, from inside its
+# container. It is passed to the guardian's run.sh rather than used by the
+# webapp: a container cannot reach a host-published port as "localhost", so this
+# defaults to the host gateway alias run.sh maps in.
 FL_SERVER_URL_FROM_GUARDIAN = os.environ.get(
     "FL_SERVER_URL_FROM_GUARDIAN", "http://host.docker.internal:7920"
 )

@@ -4,11 +4,11 @@ set -e
 # the inference tutorial asks for.
 #
 # The download tutorial needs one file to hand out. The inference tutorial needs
-# three: two cohorts, held by two different hospitals, that stay behind their own
-# guardians, and the script that travels to both of them. The script's digest is
-# what each owner's policy approves and what every FL client re-measures at
-# redemption time, so it is printed here rather than left for the reader to
-# derive.
+# three: two cohorts, held by two different hospitals' FL clients, that never
+# leave them, and the script that travels to both of them. The script's digest is
+# what each owner's policy approves and what every FL client re-measures before
+# asking its guardian whether it may run, so it is printed here rather than left
+# for the reader to derive.
 #
 # The two cohorts are deliberately different sizes. A federated round reports one
 # aggregate weighted by how much data each site ran over, and two identical files
@@ -26,7 +26,8 @@ SCRIPT_FILE=/tmp/inference_script.py
 echo "The eagle lands at midnight." > "$DATA_FILE"
 
 # ---- the inference tutorial's first cohort -------------------------------
-# Never leaves its guardian's host; only the metrics computed over it come back.
+# Held by hospital A's FL client and never leaves it; only the metrics computed
+# over it come back.
 cat > "$COHORT_A_FILE" <<'EOF'
 patient_id,age,sex,hba1c,bmi,diagnosis
 A001,54,F,7.8,31.2,type-2-diabetes
@@ -66,8 +67,9 @@ EOF
 cat > "$SCRIPT_FILE" <<'EOF'
 """Cohort summary for a type-2 diabetes study.
 
-Runs where the data is. Reads the cohort the guardian released to the FL client
-on this host and reports aggregate metrics -- never rows. Every site in a
+Runs where the data is. Reads the cohort the FL client on this host holds, once
+its guardian has approved this exact script, and reports aggregate metrics --
+never rows. Every site in a
 federated round runs this same file over its own patients, and only what it
 returns here is ever combined.
 """

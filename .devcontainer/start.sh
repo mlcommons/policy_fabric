@@ -119,7 +119,7 @@ echo "==> Creating the tutorial files"
 bash make_tutorial_files.sh
 
 # The inference tutorial's job board. Both the webapp (which submits rounds) and
-# the FL client bundled with each inference guardian (which announces itself to it
+# the FL client beside each inference guardian (which announces itself to it
 # and claims work from it) talk to it, so it comes up before either of them -- a
 # client that starts with no server to announce to is a site nobody can see.
 echo "==> Starting the FL server"

@@ -36,7 +36,7 @@ MANIFEST_NAME = "guardian.json"
 # The values a manifest's options may draw on. The launcher computes all of them
 # for every guardian; a manifest names the ones its run.sh actually takes.
 LAUNCH_VALUES = (
-    "data_path",  # host path of the file the guardian serves
+    "data_path",  # host path of the asset's data (an inference guardian's FL client holds it)
     "bind_interface",  # interface to listen on
     "advertised_host",  # host others use to reach it
     "port",  # port to publish

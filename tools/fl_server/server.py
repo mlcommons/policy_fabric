@@ -68,9 +68,9 @@ class ClientRegistry:
     A client is known by the name it claims (``client_id``) and the asset it sits
     in front of (``asset_did``). Registration is not authenticated and is not
     meant to be: this server is a job board, and the thing that actually decides
-    whether a client may have an asset's data is the capability, which the
-    guardian checks. Claiming someone else's DID here gets you their job and a
-    capability you cannot redeem.
+    whether a job may run over an asset's data is the capability, which that
+    asset's guardian checks. Claiming someone else's DID here gets you their job
+    and a capability your guardian will refuse.
     """
 
     def __init__(self, ttl=CLIENT_TTL_SECONDS):

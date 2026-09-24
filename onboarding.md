@@ -25,7 +25,7 @@ work:
 | Piece | Where | What it is |
 | --- | --- | --- |
 | **Asset** | `tools/asset_registry/` | a dataset or a script, named by a DID (`did:pdo:<contract_id>`), listed in a registry anyone can read |
-| **Guardian** | `tools/guardians/` | the service standing in front of an asset. It holds the bytes and releases them only against a *capability* |
+| **Guardian** | `tools/guardians/` | the service standing in front of an asset. It acts only against a *capability*: a download guardian releases the bytes encrypted; an inference guardian holds no bytes and only answers whether a script may run over data its FL client holds |
 | **Policy** | `policy_cards/` | a Rego module, provisioned into a `rego_policy_agent` contract, that reads credentials and decides |
 | **Credential** | `credentials/` | a signed statement about a subject — a person, a wallet, or a script |
 | **Capability** | pdo-contracts | what a policy's approval turns into: a sealed instruction to one guardian to perform one operation |
@@ -82,8 +82,11 @@ Do not try to read it all. The webapp touches four families; follow them from
 | `common-contract/` | `pdo/contracts/guardian/wsgi/{info,process_capability}.py` | the two endpoints every guardian serves. `process_capability` decrypts the operation out of the capability and dispatches to a handler |
 
 The handler on the other side of that dispatch, for this repo, is
-`tools/guardians/inference/guardian_core/inference.py` — 80 lines, and the place
-where "the code that was approved" is compared against "the code that is running".
+`tools/guardians/inference/guardian_core/inference.py` — under 90 lines, and the
+place where "the code that was approved" is compared against "the code that is
+about to run". It holds no data and returns only a yes (`{"allowed": true}`) or
+a no (`422 operation failed`) — the same answer as
+`tools/dev/mock_inference_guardian`.
 
 ### 2.3 How the two relate
 
@@ -117,8 +120,8 @@ registering an asset:  mint identity contract (asset gets a DID)
                        register in the asset registry
 ```
 
-The DID must come first, because the inference guardian's bundled FL client
-announces it:
+The DID must come first, because the inference guardian's FL client — the
+process that holds the dataset — announces it:
 
 ```
 FL client  ──POST /clients {client_id, asset_did}──►  FL server
@@ -138,8 +141,10 @@ POST /rounds { script, participants: [{asset_did, capability}, ...] }
 FL server hands each client the job addressed to the DID that client announced
    │
    ▼
-each FL client re-hashes the script, redeems its capability at its own guardian,
-runs, and reports metrics; the FL server aggregates them, weighted by samples
+each FL client re-hashes the script and sends that digest + the capability to
+its own guardian core, which answers yes/no; on a yes the client runs the script
+over the data it holds and reports metrics; the FL server aggregates them,
+weighted by samples
 ```
 
 **The DID is the routing key.** That is the answer to "how does the FL server know

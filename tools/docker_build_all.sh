@@ -3,8 +3,8 @@ set -e
 # pdo-contracts revision the client image (and therefore the compiled contract
 # binaries) is built from. It must be one that carries rego_token's
 # create_capability op and the guardian request context, since the inference
-# flow issues a capability the FL client redeems later rather than redeeming it
-# inline.
+# flow issues a capability the FL client presents to its guardian later rather
+# than redeeming it inline.
 REPOSITORY=https://github.com/mlcommons/pdo-contracts
 BRANCH=a4323c18a2f9dc3e54652c0a08c9692b2d13dacc
 

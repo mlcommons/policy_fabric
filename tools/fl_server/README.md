@@ -28,13 +28,14 @@ what makes two things possible:
 
 The second is not a convenience. A capability is minted for one guardian and is
 refused at every other, so an unlabelled pile of them could only be handed out by
-guessing — and every wrong guess is a site failing on a capability it was never
-able to redeem.
+guessing — and every wrong guess is a site failing on a capability its guardian
+was always going to refuse.
 
 Announcing is not authenticated and is not meant to be. This is a job board;
-what actually decides whether a client may have an asset's data is the
-capability, which that asset's own guardian checks. Claiming someone else's DID
-here gets you their job and a capability you cannot redeem.
+what actually decides whether a job may run over an asset's data is the
+capability, which that asset's own guardian checks when the FL client holding
+the data asks it. Claiming someone else's DID here gets you their job and a
+capability your guardian will refuse.
 
 ## API
 
@@ -61,5 +62,6 @@ sample-weighted mean of what the sites reported — the only part of this that i
 recognisably an aggregator, and the only place the sites' numbers meet.
 
 The submitter is the webapp's federated flow
-(`pdo_client/webapp/app/views/federated.py`); the consumer is the FL client
-bundled with the inference guardian (`tools/guardians/inference/fl_framework/`).
+(`pdo_client/webapp/app/views/federated.py`); the consumer is the FL client that
+runs beside each inference guardian and holds its data
+(`tools/guardians/inference/fl_framework/`).

@@ -27,8 +27,8 @@ the image tag in one place at the top.
 5. Start the policies client
 
 For the inference flow, also start the FL server (`start_fl_server.sh`) **before**
-registering any asset behind an inference guardian. The guardian's bundled FL
-client announces itself to that server as soon as it comes up, and a site that
+registering any asset behind an inference guardian. The guardian's FL client
+announces itself to that server as soon as it comes up, and a site that
 never announced is a site no round can be addressed to.
 
 `make_tutorial_files.sh` writes the files both tutorials register as assets, and
@@ -53,7 +53,13 @@ one capability per selected site, each from that site's own policy
    ▼
 FL server ──hands each client the capability for the DID it announced──►
                                                           FL client ──► guardian
+                                           (digest + capability)   ◄── yes / no
 ```
+
+The FL client holds the data, not the guardian. It hashes the script it was
+sent and asks its guardian core, with the capability; the core compares that
+digest against the one the capability authorizes and answers yes or no, and the
+client runs the script over its data only on a yes.
 
 The asset list has no Use button for these; it points at the Federated page
 instead.

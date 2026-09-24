@@ -20,7 +20,7 @@ def main():
         "-g",
         "--guardian-url",
         default=os.environ.get("GUARDIAN_CORE_URL", "http://localhost:7900"),
-        help="guardian core to redeem capabilities at (default: $GUARDIAN_CORE_URL)",
+        help="guardian core to ask before running a job (default: $GUARDIAN_CORE_URL)",
     )
     parser.add_argument(
         "-c",
@@ -33,6 +33,12 @@ def main():
         "--asset-did",
         default=os.environ.get("ASSET_DID"),
         help="DID of the asset this client holds (default: $ASSET_DID)",
+    )
+    parser.add_argument(
+        "-D",
+        "--data-path",
+        default=os.environ.get("FL_DATA_PATH"),
+        help="the dataset this client holds and runs jobs over (default: $FL_DATA_PATH)",
     )
     parser.add_argument(
         "-N",
@@ -56,6 +62,12 @@ def main():
     # that does not say what it holds is not a participant, it is noise.
     if not args.asset_did:
         parser.error("an asset DID is required: pass --asset-did or set ASSET_DID")
+    # The data lives with the client, not with the guardian, so a client without
+    # it has nothing to run a job over however many the guardian allows.
+    if not args.data_path:
+        parser.error("a dataset is required: pass --data-path or set FL_DATA_PATH")
+    if not os.path.isfile(args.data_path):
+        parser.error(f"no dataset at {args.data_path}")
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     FLClient(
@@ -63,6 +75,7 @@ def main():
         guardian_url=args.guardian_url,
         client_id=args.client_id,
         asset_did=args.asset_did,
+        data_path=args.data_path,
         asset_name=args.asset_name,
         poll_interval=args.poll_interval,
     ).run_forever()

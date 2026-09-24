@@ -270,7 +270,7 @@ class AssetSetupView(BaseView):
     the asset.
 
     Registering an asset does three things in this order: mint the identity
-    contract that gives the asset its DID, start a guardian serving the given data
+    contract that gives the asset its DID, start a guardian for the given data
     path (told that DID), and — once the guardian answers — record the asset in
     the registry.
 

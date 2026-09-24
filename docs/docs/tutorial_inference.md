@@ -1,6 +1,6 @@
 # End-to-End Tutorial: Federated, Policy-Gated Inference
 
-This tutorial walks you through the **entire flow using a web UI**. By the end, a **Script Owner** runs one piece of code across **two hospitals at once** and never sees either of their datasets. Neither dataset leaves the **Guardian** that holds it; the code travels to the data instead, and only aggregate numbers come back. Each hospital has independently decided what it will allow, and the two have decided differently.
+This tutorial walks you through the **entire flow using a web UI**. By the end, a **Script Owner** runs one piece of code across **two hospitals at once** and never sees either of their datasets. Neither dataset leaves the hospital's own **FL client** that holds it; the code travels to the data instead, the hospital's **Guardian** decides whether it may run, and only aggregate numbers come back. Each hospital has independently decided what it will allow, and the two have decided differently.
 
 If you have not done the [download tutorial](tutorial.md) yet, do that one first. It introduces wallets, issuer objects, credentials and policies with a simpler flow. This tutorial assumes those terms.
 
@@ -73,19 +73,19 @@ Everything runs against a single client identity at a time. You change roles by 
 
     - **Guardian** — the service standing in front of an asset. This tutorial uses two kinds:
         - **Public** — hands the file to anyone who asks, with no policy at all. The script lives behind one of these, because the whole point of a script is that everyone can read the code being judged.
-        - **Inference** — never hands the data out. It releases it only to an FL client on its own host, and only against a capability naming the digest of the code about to run.
+        - **Inference** — holds no data at all. The dataset is mounted into the **FL client** that runs beside it; the guardian only answers that client **yes or no**: may the script it was sent run? It says yes only against a capability naming the digest of exactly that code.
     - **Script asset** — a script registered as an asset. It has its own identity (a DID), and the credentials *about the code* live on it, exactly as a person's credentials live in their wallet. Its DID is also how the runner finds the public guardian to fetch the code from — one identity settles both.
     - **Digest** — `sha256:<hex>` over the script's bytes. The policy approves a digest; every FL client re-computes it from the code it actually holds.
     - **FL server** — the job board every site connects to. It knows nothing about PDO. A requester submits a **round** to it; it hands each site the capability minted for that site.
-    - **FL client** — runs next to a guardian, inside one data holder's environment. It is the party that turns a *claim* about code into a *fact* about code.
-    - **Site** — one dataset, behind one inference guardian, with one FL client announcing it.
+    - **FL client** — runs next to a guardian, inside one data holder's environment, and **holds that data holder's dataset**. It is the party that turns a *claim* about code into a *fact* about code: it hashes the script it received and asks its guardian before running it.
+    - **Site** — one dataset, held by one FL client, with one inference guardian deciding what may run over it.
     - **Round** — one script, several sites, one submission.
 
 ### How the FL server knows whose capability is whose
 
 This is the one piece of plumbing worth understanding before you start, because it is what makes a round over several sites possible at all.
 
-A capability is minted by **one** asset's policies, for **one** guardian, and is refused at every other guardian. So when the webapp hands an FL server several capabilities at once, the server cannot simply give them out to whoever asks first — nearly every such handout would be a site receiving a capability it cannot redeem.
+A capability is minted by **one** asset's policies, for **one** guardian, and is refused at every other guardian. So when the webapp hands an FL server several capabilities at once, the server cannot simply give them out to whoever asks first — nearly every such handout would be a site receiving a capability its guardian will refuse.
 
 The answer is that each site says who it is:
 
@@ -105,7 +105,7 @@ round submitted: [ { asset_did: A, capability: cap_A },
                         the client that announced DID A gets cap_A, and only that
 ```
 
-The asset's DID is passed to the guardian when it is deployed, which is why registering an asset creates its identity contract *before* starting its guardian. Nothing here is a trust decision: announcing a DID gets you the job for it, and a capability you can only redeem if you really are that guardian.
+The asset's DID is passed to the guardian (and its FL client) when it is deployed, which is why registering an asset creates its identity contract *before* starting its guardian. Nothing here is a trust decision: announcing a DID gets you the job for it, and a capability that only that asset's guardian will say yes to.
 
 ---
 
@@ -299,9 +299,9 @@ This is where credentials *about the requester* will live. Hospital A will never
       - **Guardian Type:** **Inference**
       - **Serve On:** leave as `0.0.0.0`
       - **Port:** `7900`
-3. Click **Register Asset**. This takes longer than a public guardian — the app is starting a container that brings up a storage service, the guardian core, and the FL client that sits beside it, and waits for all of it to answer.
+3. Click **Register Asset**. This takes longer than a public guardian — the app is starting two containers, the guardian core (with its storage service) and the FL client that sits beside it, and waits for the guardian to answer.
 
-*What's happening:* registering the asset first mints its identity contract, so the asset has a DID, and then starts an **inference guardian** on `/tmp/hospital_a_cohort.csv` **carrying that DID**. Unlike the download guardian, it has no operation that hands the file to a remote caller at all. Its one capability handler, `do_inference`, releases the data over loopback to the FL client bundled with it — and only when the digest that client reports matches the one the capability authorizes. That FL client, meanwhile, announces the DID to the FL server, which is how this hospital becomes a site anyone can address a round to.
+*What's happening:* registering the asset first mints its identity contract, so the asset has a DID, and then starts an **inference guardian** for `/tmp/hospital_a_cohort.csv` **carrying that DID**. The file goes to the **FL client**, not to the guardian: it is mounted into the client's container, and the guardian core's container has no data at all. The core's one capability handler, `do_inference`, takes a capability and the digest the client computed over its script and answers yes (`{"allowed": true}`) or no (`422 operation failed`) — yes only when the two digests match. The FL client, meanwhile, announces the DID to the FL server, which is how this hospital becomes a site anyone can address a round to.
 
 ### 3.2 Expose the dataset behind FL-DS
 
@@ -398,7 +398,7 @@ The two hospitals have agreed about nothing except, coincidentally, the same dis
     }
     ```
 
-    and below it, what each hospital reported on its own. (The FL client in this demo reports fixed accuracy and loss rather than really executing the script; `samples` is the size in bytes of the cohort it was handed — 295 at Hospital A and 427 at Hospital B, which is why the total is 722. What is real is everything up to that point: the approvals, the digest checks, the releases, and the fact that the two numbers were combined without either file moving.)
+    and below it, what each hospital reported on its own. (The FL client in this demo reports fixed accuracy and loss rather than really executing the script; `samples` is the size in bytes of the cohort it holds — 295 at Hospital A and 427 at Hospital B, which is why the total is 722. What is real is everything up to that point: the approvals, the digest checks, the guardians' yes, and the fact that the two numbers were combined without either file moving.)
 
 *What's happening in the background* (the whole handshake, end to end):
 
@@ -406,11 +406,11 @@ The two hospitals have agreed about nothing except, coincidentally, the same dis
 2. **Each hospital's policy agent is asked separately.** Hospital A's evaluates FL-DS: the two credentials presented from the script's identity were signed by an issuer *it* trusts, the declared disease overlaps *its* `allowedDiseases`, and both name the same script. Hospital B's evaluates FL-DS **and** FL-IS over the same presentation — and because FL-IS wants a `publicKeyCredential` the wallet does not have yet, the app first asks B's trusted external key authority for one, which gets a `WalletVerifyingKeyCredential` from the wallet key authority and then binds a fresh session key. Both land in the wallet. FL-IS then checks the affiliation, the session key, the wallet key and the self-signed ownership claim all name **one** wallet, and that the ownership claim and the digest name **one** script.
 3. Each hospital issues its own **capability** for `do_inference`, carrying the **approved digest** and bound to its own guardian.
 4. The app submits **one round** to the FL server: the script, and the two capabilities, each tagged with the DID of the asset it was minted for. It never contacts either guardian itself.
-5. **Each FL client** claims the job addressed to the DID it announced, **hashes the script it received**, and posts its capability to its own guardian core over loopback with that measurement attached.
-6. **Each guardian core** compares the digest its capability authorized against the digest its client computed. They match, so each releases its own cohort — to a process on its own host, over loopback.
-7. Each client runs the script over its own data and reports **metrics** to the FL server, which combines them weighted by how much data each site ran over. That combination is the only place the two hospitals' numbers ever meet.
+5. **Each FL client** claims the job addressed to the DID it announced, **hashes the script it received**, and sends that digest and the capability to its own guardian core, asking: *may I run this?*
+6. **Each guardian core** — which holds no data — compares the digest its capability authorized against the digest its client computed. They match, so each answers **yes**. Had anyone changed the script after the issuer signed its digest, the answer would be **no**, the client would report the job failed, and it would never open its data.
+7. On the yes, each client runs the script over the data **it** holds and reports **metrics** to the FL server, which combines them weighted by how much data each site ran over. That combination is the only place the two hospitals' numbers ever meet.
 
-Neither dataset left its guardian's host. Nobody but each guardian ever held either one.
+Neither dataset left its FL client. Neither guardian ever held either one — they only said yes.
 
 ---
 
@@ -447,17 +447,19 @@ session key issuer   ──► publicKeyCredential        (fresh key)       ─�
                                     │         DID that client announced
             ┌───────────────────────┴───────────────────────┐
             ▼                                               ▼
-     FL client at A                                  FL client at B
-     re-hashes the code                              re-hashes the code
+     FL client at A (holds cohort A)                 FL client at B (holds cohort B)
+     re-hashes the code, asks guardian A             re-hashes the code, asks guardian B
             ▼                                               ▼
-     guardian A releases ONLY if                     guardian B releases ONLY if
+     guardian A (no data) says YES ONLY if           guardian B (no data) says YES ONLY if
      measured == approved digest                     measured == approved digest
+            ▼                                               ▼
+     client A runs over cohort A                     client B runs over cohort B
             └───────────────────────┬───────────────────────┘
                                     ▼
                           metrics, aggregated  ──►  data_user
 ```
 
-Neither **Dataset Owner** reviewed the requester by hand, neither **Guardian** evaluated a policy, neither **Policy** saw any data, the **FL server** understood none of it, and neither dataset moved. What crossed each boundary was a digest on the way in and a handful of numbers on the way out — and the only place the two hospitals' numbers met was in the aggregate.
+Neither **Dataset Owner** reviewed the requester by hand, neither **Guardian** evaluated a policy or held any data, neither **Policy** saw any data, the **FL server** understood none of it, and neither dataset moved. What crossed each boundary was a digest on the way in and a handful of numbers on the way out — and the only place the two hospitals' numbers met was in the aggregate.
 
 The wallet, meanwhile, is never an authority. It gets to assert something about itself only because someone else, independently, put its key on the record — which is the whole reason Hospital B can rely on a claim the requester made about themselves.
 

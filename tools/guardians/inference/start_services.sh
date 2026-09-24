@@ -3,9 +3,6 @@
 : "${F_GUARDIAN_HOST?Missing environment variable F_GUARDIAN_HOST}"
 : "${PDO_INSTALL_ROOT?Missing environment variable PDO_INSTALL_ROOT}"
 : "${PDO_CONTRACTS_ROOT?Missing environment variable PDO_CONTRACTS_ROOT}"
-: "${GUARDIAN_DATA_PATH?Missing environment variable GUARDIAN_DATA_PATH}"
-: "${FL_SERVER_URL?Missing environment variable FL_SERVER_URL}"
-: "${ASSET_DID?Missing environment variable ASSET_DID}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -46,8 +43,7 @@ try ${PDO_HOME}/contracts/contracts/scripts/gs_start.sh -c -o ${PDO_HOME}/logs -
 
 sleep 3
 
-# Start the FL client alongside the core. It reaches the core over the loopback
-# address rather than F_GUARDIAN_HOST: the two ship together and the data the core
-# returns is in the clear, so that hop must never leave the host.
-export GUARDIAN_CORE_URL="${GUARDIAN_CORE_URL:-http://localhost:7900}"
-python -u -m fl_framework
+# Both services run in the background; keep the container up with them. The core
+# holds no data: the FL client (start_fl_client.sh, in its own container) holds
+# that, and asks the core, per job, whether it may run.
+tail -f /dev/null
