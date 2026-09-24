@@ -44,14 +44,14 @@ federated round, and the webapp's Federated page is where a requester picks the
 sites and runs one script across all of them:
 
 ```
-webapp ──lists──► FL server ──► the sites whose FL clients are connected
-                                (each announced the asset DID it holds)
-   │ joins them against the asset registry, on the DID
+webapp ──lists──► FL server ──► its DID -> FL client mapping: the connected sites
+                                (each client joined with the asset DID it holds)
+   │ resolves each DID through the asset registry
    ▼
 one capability per selected site, each from that site's own policy
    │ submitted together, each tagged with its asset DID
    ▼
-FL server ──hands each client the capability for the DID it announced──►
+FL server ──matches each DID to its client, addresses the job to it──►
                                                           FL client ──► guardian
                                            (digest + capability)   ◄── yes / no
 ```

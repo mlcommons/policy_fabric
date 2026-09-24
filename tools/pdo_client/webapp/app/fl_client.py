@@ -4,9 +4,9 @@ Every call takes the server's base URL rather than reading one from settings: an
 FL server is a thing a requester chooses, not a property of this deployment.
 ``settings.FL_SERVER_URL`` is only the address the Federated page offers first.
 
-Used server-side by the federated flow, for three things: listing the sites
-connected to a server, submitting a round to it, and waiting for the round to
-come back.
+Used server-side by the federated flow, for three things: reading which FL
+client holds which asset DID (the server's DID -> client mapping), submitting a
+round to it, and waiting for the round to come back.
 """
 
 import logging
@@ -45,15 +45,30 @@ def info(server_url, *, timeout=10):
 
 
 def list_clients(server_url, *, timeout=10):
-    """Return the sites connected to this FL server.
+    """Return the FL clients this server knows, one per asset DID.
 
-    Each entry carries the ``asset_did`` its FL client announced, which is what
-    lets the caller join this list against the asset registry and show a requester
-    what is actually available to run against.
+    Each entry is one row of the server's DID -> client mapping: the
+    ``client_id`` a client joined under, the ``asset_did`` it announced, and
+    whether it is ``online``. The DID is what lets the caller resolve each one
+    through the asset registry and show a requester what is actually available
+    to run against.
     """
     resp = requests.get(_url(server_url, "/clients"), timeout=timeout)
     resp.raise_for_status()
     return resp.json().get("clients") or []
+
+
+def connected_sites(server_url, *, timeout=10):
+    """The server's DID -> client mapping, connected clients only.
+
+    Returns ``{asset_did: client}``. An asset whose DID is missing has no FL
+    client that could run anything over it now, however healthy its guardian.
+    """
+    return {
+        client["asset_did"]: client
+        for client in list_clients(server_url, timeout=timeout)
+        if client.get("online") and client.get("asset_did")
+    }
 
 
 def submit_round(server_url, script, participants, *, script_name=None, round_name=None):
@@ -61,8 +76,10 @@ def submit_round(server_url, script, participants, *, script_name=None, round_na
 
     ``participants`` is a list of ``{"asset_did", "capability"}``: one capability
     per site, each minted by that site's own policy. The server does the
-    disseminating — it hands each capability to the client that announced the
-    matching DID — which is the only reason the DID has to travel with it.
+    disseminating — it matches each capability, by its DID, to the FL client
+    holding that DID and addresses the job to that client alone — which is the
+    only reason the DID has to travel with it. The record it returns names the
+    ``client_id`` each site was matched to.
     """
     payload = {
         "script": script,

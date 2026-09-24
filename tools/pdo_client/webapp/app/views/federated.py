@@ -10,30 +10,36 @@ Three things have to line up for that, and this module is where they meet.
 **Who is out there.** The sites are discovered from an FL server, not from the
 asset registry: the registry knows which assets exist, but only the FL server
 knows which of them currently have a client connected and ready to run. Each FL
-client announces the DID of the asset it holds, so the two lists join on the DID —
-the FL server says *a client holding this DID is up*, the registry says *this DID
-is called `hospital_a_cohort` and sits behind a guardian at this address*. An
-announced DID the registry has never heard of is shown as it is, unresolved,
-rather than dropped; it is a real site, just not one this registry knows.
+client joins under its own ID and announces the DID of the asset it holds, and
+the server keeps that DID -> client mapping. The site list starts from it — *the
+client `host:7900` is up and holds this DID* — and resolves each DID through the
+registry — *this DID is called `hospital_a_cohort` and sits behind a guardian at
+this address*. A DID the registry has never heard of is shown as it is,
+unresolved, rather than dropped; it is a real site, just not one this registry
+knows.
 
 **What each site will allow.** Nothing about a round is decided centrally. Every
 selected asset's own policy is asked separately, and each answers with a
 capability minted for its own guardian — or refuses. A refusal removes that site
 from the round and is reported; it does not stop the others. That is the honest
 federated behaviour: the point of per-site policy is that one site saying no is a
-fact about that site.
+fact about that site. A policy is only asked once the mapping says the site's FL
+client is still connected: a capability minted for a site nobody can run it at is
+a policy evaluation spent on nothing.
 
 **Which capability is whose.** The capabilities are handed to the FL server
 together, each tagged with the DID of the asset it was minted for, and the server
-gives each client the one matching the DID that client announced. Nothing else
-would work: a capability is bound to one guardian and is refused at every other,
-so an untagged pile of them could only be handed out by guessing.
+matches each one to the client its mapping says holds that DID, addressing the
+job to that client alone. Nothing else would work: a capability is bound to one
+guardian and is refused at every other, so an untagged pile of them could only be
+handed out by guessing.
 """
 
 import json
 import logging
 import time
 
+import requests
 from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -74,34 +80,35 @@ def _json_body(request):
         return {}
 
 
-def _federated_assets_by_did():
-    """Every registered asset that is a federated site, keyed by DID."""
-    assets = {}
-    for asset in registry_client.list_assets() or []:
-        metadata = asset.get("metadata") or {}
-        runner_class = action_runners.RUNNERS.get(
-            action_runners.guardian_type_of(metadata)
-        )
-        if not (runner_class and runner_class.federated):
-            continue
-        assets[asset["did"]] = asset
-    return assets
+def _registered_site(asset_did):
+    """This registry's federated asset under a DID an FL client announced, or ``None``.
+
+    ``None`` for a DID the registry has never heard of, and for one it knows as
+    something other than an asset behind an inference guardian: neither is
+    anything a round here can ask a policy of.
+    """
+    try:
+        asset = registry_client.get_asset_by_did(asset_did)
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
+            return None
+        raise
+    metadata = (asset or {}).get("metadata") or {}
+    runner_class = action_runners.RUNNERS.get(action_runners.guardian_type_of(metadata))
+    return asset if runner_class and runner_class.federated else None
 
 
 def _site_rows(server_url):
-    """Join what an FL server reports against what the asset registry knows.
+    """The FL server's DID -> client mapping, each DID resolved in the registry.
 
-    One row per connected client. ``known`` says whether this registry has an
-    asset under that DID — an unknown one is still a site, and is shown as such,
-    because a federation is not required to share one registry.
+    One row per client the server knows. ``known`` says whether this registry has
+    an asset under that DID — an unknown one is still a site, and is shown as
+    such, because a federation is not required to share one registry.
     """
-    clients = fl_client.list_clients(server_url)
-    registered = _federated_assets_by_did()
-
     rows = []
-    for client in clients:
+    for client in fl_client.list_clients(server_url):
         did = client.get("asset_did") or ""
-        asset = registered.get(did)
+        asset = _registered_site(did) if did else None
         metadata = (asset or {}).get("metadata") or {}
         rows.append(
             {
@@ -306,8 +313,9 @@ class FederatedRunStreamView(BaseView):
 
     The steps are emitted by hand rather than through ``stream_steps`` because the
     shape of this flow depends on what the requester selected: one capability step
-    per site, then the round. A site the policy refuses is reported as an error on
-    its own step and dropped; the round goes ahead with whoever is left.
+    per site, then the round. A site whose FL client is no longer connected, or
+    whose policy refuses, is reported as an error on its own step and dropped; the
+    round goes ahead with whoever is left.
     """
 
     http_method_names = ["post"]
@@ -369,6 +377,28 @@ class FederatedRunStreamView(BaseView):
     # -----------------------------------------------------------------
     def _events(self, *, user_name, server_url, asset_dids, wallets, script_did, state):
         """Yield one progress event per transition, in the order they happen."""
+        names = {asset_did: self._name_of(asset_did) for asset_did in asset_dids}
+
+        # ---- the FL clients: which selected sites can still take part -------
+        # The requester picked these sites off the FL server's DID -> client
+        # mapping, but that was when the page loaded. It is read again here,
+        # because a site is only worth a policy evaluation if a client holding
+        # its DID is there to run what the policy allows.
+        step, label = "clients", "Matching sites to their FL clients"
+        yield make_event(step, "start", label)
+        try:
+            connected = fl_client.connected_sites(server_url)
+        except Exception as e:
+            logger.exception("Failed to read the FL server's clients")
+            yield make_event(step, "error", label, f"no FL server answering at {server_url}: {e}")
+            return
+        clients = {
+            asset_did: connected[asset_did]["client_id"]
+            for asset_did in asset_dids
+            if asset_did in connected
+        }
+        yield make_event(step, "done", label, self._matching(asset_dids, clients, names))
+
         # ---- the script: one piece of code, for every site in the round -----
         step = "script"
         label = "Fetching the script from its public guardian"
@@ -388,7 +418,7 @@ class FederatedRunStreamView(BaseView):
         # nothing else.
         participants = []
         refused = []
-        names = {asset_did: self._name_of(asset_did) for asset_did in asset_dids}
+        not_connected = []
         for index, asset_did in enumerate(asset_dids):
             name = names[asset_did]
             step = f"site:{index}"
@@ -397,14 +427,30 @@ class FederatedRunStreamView(BaseView):
             # slowest and most interesting moment in the flow, and it should be
             # visible while it happens rather than only in its verdict.
             yield make_event(step, "start", label)
+            client_id = clients.get(asset_did)
+            if client_id is None:
+                detail = (
+                    f"no FL client holding this asset is connected to {server_url}, "
+                    "so its policy was not asked"
+                )
+                not_connected.append({"asset_did": asset_did, "name": name, "error": detail})
+                yield make_event(step, "error", label, detail)
+                continue
             outcome = self._mint(user_name, asset_did, wallets)
             if outcome["ok"]:
                 participants.append(
                     {"asset_did": asset_did, "capability": outcome["capability"]}
                 )
-                yield make_event(step, "done", label, outcome["detail"])
+                yield make_event(step, "done", label, f"issued, for FL client {client_id}")
             else:
-                refused.append({"asset_did": asset_did, "name": name, "error": outcome["detail"]})
+                refused.append(
+                    {
+                        "asset_did": asset_did,
+                        "name": name,
+                        "client_id": client_id,
+                        "error": outcome["detail"],
+                    }
+                )
                 yield make_event(step, "error", label, outcome["detail"])
 
         if not participants:
@@ -433,7 +479,11 @@ class FederatedRunStreamView(BaseView):
             return
         round_id = record["round_id"]
         yield make_event(
-            step, "done", label, f"round {round_id} over {len(participants)} site(s)"
+            step,
+            "done",
+            label,
+            f"round {round_id} over {len(participants)} site(s), each job addressed "
+            "to its FL client",
         )
 
         # ---- waiting: one event per site, as each of them reports -----------
@@ -469,7 +519,11 @@ class FederatedRunStreamView(BaseView):
                 if status == "complete":
                     metrics = participant.get("metrics") or {}
                     yield make_event(
-                        step, "done", label, f"{metrics.get('samples', '?')} samples"
+                        step,
+                        "done",
+                        label,
+                        f"{metrics.get('samples', '?')} samples, "
+                        f"from FL client {participant.get('client_id')}",
                     )
                 else:
                     yield make_event(
@@ -496,12 +550,24 @@ class FederatedRunStreamView(BaseView):
         step, label = "aggregate", "Aggregating what the sites reported"
         yield make_event(step, "start", label)
         ran = sum(1 for p in record["participants"] if p.get("status") == "complete")
-        state["round"] = self._describe(record, refused, server_url, names)
+        state["round"] = self._describe(record, refused, not_connected, server_url, names)
         yield make_event(
             step, "done", label, f"{ran} of {len(participants)} site(s) ran it"
         )
 
     # -----------------------------------------------------------------
+    @staticmethod
+    def _matching(asset_dids, clients, names):
+        """What the mapping said: each connected site and its client, then the rest."""
+        matched = [
+            f"{names[did]} → {clients[did]}" for did in asset_dids if did in clients
+        ]
+        missing = [names[did] for did in asset_dids if did not in clients]
+        detail = ", ".join(matched) or "none of them is connected"
+        if matched and missing:
+            detail += f"; not connected: {', '.join(missing)}"
+        return detail
+
     def _name_of(self, asset_did):
         """This registry's name for an asset, or its DID if it has none."""
         try:
@@ -538,8 +604,12 @@ class FederatedRunStreamView(BaseView):
         return {"ok": True, "capability": capability, "detail": "issued"}
 
     # -----------------------------------------------------------------
-    def _describe(self, record, refused, server_url, names):
-        """The round as the page renders it: names in, DIDs kept for reference."""
+    def _describe(self, record, refused, not_connected, server_url, names):
+        """The round as the page renders it: names in, DIDs kept for reference.
+
+        Each site keeps the ``client_id`` the FL server matched it to, so the page
+        can say which client ran what.
+        """
         sites = [
             {**p, "name": names.get(p["asset_did"], p["asset_did"])}
             for p in record["participants"]
@@ -551,4 +621,5 @@ class FederatedRunStreamView(BaseView):
             "aggregate": record.get("aggregate"),
             "sites": sites,
             "refused": refused,
+            "not_connected": not_connected,
         }

@@ -6,13 +6,15 @@ GUARDIAN_HOST=""
 DATA_PATH=""
 FL_SERVER_URL=""
 # The DID of the asset this guardian holds. The bundled FL client announces it to
-# the FL server, which is how a requester sees this site in the list of connected
-# ones and how the server knows which capability in a round belongs here.
+# the FL server together with its own ID (below), and the server keeps the pair:
+# that is how a requester sees this site in the list of connected ones, and how
+# the server knows which capability in a round belongs here.
 ASSET_DID=""
 ASSET_NAME=""
-# Defaults to the container hostname inside the image, which is fine for a lone
-# guardian and confusing as soon as there are two: it is the name this client's
-# activity is logged and displayed under.
+# The ID the bundled FL client joins the FL server as, and the one each round's
+# job for ASSET_DID is addressed to. It must be unique among that server's
+# clients. Defaults to the container hostname inside the image, which is unique
+# but changes with every container; the webapp passes the guardian's host:port.
 FL_CLIENT_ID=""
 
 # Where the host data file is mounted inside the FL client's container, which
@@ -43,10 +45,11 @@ Options:
                            into the FL client's container only.
   -f, --fl-server-url URL  FL server the bundled client polls for jobs (required)
   -D, --asset-did DID      DID of the asset this guardian holds (required). The
-                           bundled client announces it, and a round's capability
-                           for this site is addressed to it.
+                           bundled client announces it, and the FL server matches
+                           a round's capability for this DID to that client.
   -A, --asset-name NAME    Display name for that asset (optional)
-  -c, --fl-client-id ID    Name the bundled client is known by on the FL server
+  -c, --fl-client-id ID    ID the bundled client joins the FL server as; this
+                           site's jobs are addressed to it. Unique per FL server
                            (default: the container hostname)
   -h, --help               Show this help and exit
 EOF

@@ -121,16 +121,22 @@ registering an asset:  mint identity contract (asset gets a DID)
 ```
 
 The DID must come first, because the inference guardian's FL client — the
-process that holds the dataset — announces it:
+process that holds the dataset — announces it, alongside its own FL client ID
+(`host:port` of the guardian beside it):
 
 ```
 FL client  ──POST /clients {client_id, asset_did}──►  FL server
+                                                     keeps DID -> client_id,
+                                                     one each way
                                                           │
 Federated page ──GET /clients──────────────────────────────┘
-   │ joins the answer against the asset registry, on the DID
+   │ resolves each DID the server lists through the asset registry
    ▼
 requester picks sites, one script, one role per policy (the union of them)
    │
+   ▼
+the webapp re-reads the mapping: a site whose client has gone is dropped
+   │            before its policy is asked
    ▼
 for each site: that site's own policy issues its own capability, or refuses
    │            (a refusal drops that site and nothing else)
@@ -138,7 +144,8 @@ for each site: that site's own policy issues its own capability, or refuses
 POST /rounds { script, participants: [{asset_did, capability}, ...] }
    │
    ▼
-FL server hands each client the job addressed to the DID that client announced
+FL server matches each DID to the client holding it and addresses that job to
+that client_id; only that client can claim it (a DID nobody holds fails at once)
    │
    ▼
 each FL client re-hashes the script and sends that digest + the capability to
@@ -147,11 +154,14 @@ over the data it holds and reports metrics; the FL server aggregates them,
 weighted by samples
 ```
 
-**The DID is the routing key.** That is the answer to "how does the FL server know
-which capability is for whom": it does not infer it — each client says what it is
-holding, and each capability is tagged with what it was minted for. A capability
-is bound to one guardian and refused at every other, so any other scheme would be
-guessing.
+**The DID -> FL client mapping is the routing table.** That is the answer to "how
+does the FL server know which capability is for whom": it does not infer it —
+each client says what it is holding, each capability is tagged with what it was
+minted for, and the server matches the two when the round is submitted. A
+capability is bound to one guardian and refused at every other, so any other
+scheme would be guessing. The mapping is one-to-one for the same reason: a second
+client claiming a DID that a connected client holds gets a `409`, not a share of
+its jobs.
 
 Things that follow from this, and that you should not "fix":
 
@@ -243,7 +253,7 @@ causes. Read it before reporting a failure.
 ```
 /tmp/pdo_webui_artifacts/run.mp4     the browser, start to end, real time
 /tmp/pdo_webui_artifacts/run_4x.mp4  the same thing, watchable
-/tmp/pdo_fl_server.log               every client announcement and every round
+/tmp/pdo_fl_server.log               every client joining, and which client each round's jobs went to
 /tmp/pdo_webapp.log                  the webapp
 /tmp/pdo_scratch/guardian_run.log    what each guardian printed as it came up
 ```

@@ -62,10 +62,19 @@ package. For each job it:
    back to the server — on anything else it reports the job failed, without ever
    opening the data.
 
-It claims jobs for the asset DID it announces (`--asset-did`), under the name
-given by `--fl-client-id`. A capability is minted for one guardian and is refused
-at any other, so once a host runs two of these — two datasets, two policies — "the
-oldest pending job" stops being a safe answer to what a client should run.
+It joins the FL server as `--fl-client-id` and announces the asset DID it holds
+(`--asset-did`); the server keeps that DID -> client mapping. When a round is
+submitted the server matches each capability, by the DID it was minted for, to
+the client holding that DID, and addresses the job to that client ID — so this
+client only ever claims the jobs meant for it. A capability is minted for one
+guardian and is refused at any other, so once a host runs two of these — two
+datasets, two policies — "the oldest pending job" stops being a safe answer to
+what a client should run.
+
+A second client claiming a DID that a connected one already holds is refused
+(`409`); the client logs the server's reason (`the FL server refused this client
+(… is held by FL client …)`) and keeps retrying, and takes the DID over once the
+holder has gone quiet.
 
 It depends on nothing from PDO, which is the point: a real FL framework would not
 be a PDO component either. All it has to know is how to POST a capability package
@@ -98,7 +107,9 @@ trust assumption: the data holder's own FL framework asks its guardian, and obey
 ```
 
 The containers are named after the port, so a second guardian on another port
-runs alongside the first rather than replacing it.
+runs alongside the first rather than replacing it. `--fl-client-id` must be
+unique among one FL server's clients; the webapp passes the guardian's own
+`host:port`, which is.
 
 The core must reach the machine the policy author binds the token from, and the
 client must reach the core, so this guardian is expected to run on the data

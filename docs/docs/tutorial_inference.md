@@ -76,8 +76,8 @@ Everything runs against a single client identity at a time. You change roles by 
         - **Inference** — holds no data at all. The dataset is mounted into the **FL client** that runs beside it; the guardian only answers that client **yes or no**: may the script it was sent run? It says yes only against a capability naming the digest of exactly that code.
     - **Script asset** — a script registered as an asset. It has its own identity (a DID), and the credentials *about the code* live on it, exactly as a person's credentials live in their wallet. Its DID is also how the runner finds the public guardian to fetch the code from — one identity settles both.
     - **Digest** — `sha256:<hex>` over the script's bytes. The policy approves a digest; every FL client re-computes it from the code it actually holds.
-    - **FL server** — the job board every site connects to. It knows nothing about PDO. A requester submits a **round** to it; it hands each site the capability minted for that site.
-    - **FL client** — runs next to a guardian, inside one data holder's environment, and **holds that data holder's dataset**. It is the party that turns a *claim* about code into a *fact* about code: it hashes the script it received and asks its guardian before running it.
+    - **FL server** — the job board every site connects to. It knows nothing about PDO. It keeps which FL client holds which asset DID; a requester submits a **round** to it, and it hands each site's capability to the client holding that site's DID.
+    - **FL client** — runs next to a guardian, inside one data holder's environment, and **holds that data holder's dataset**. It joins the FL server under its own **FL client ID**, together with the DID of the asset it holds. It is the party that turns a *claim* about code into a *fact* about code: it hashes the script it received and asks its guardian before running it.
     - **Site** — one dataset, held by one FL client, with one inference guardian deciding what may run over it.
     - **Round** — one script, several sites, one submission.
 
@@ -87,25 +87,37 @@ This is the one piece of plumbing worth understanding before you start, because 
 
 A capability is minted by **one** asset's policies, for **one** guardian, and is refused at every other guardian. So when the webapp hands an FL server several capabilities at once, the server cannot simply give them out to whoever asks first — nearly every such handout would be a site receiving a capability its guardian will refuse.
 
-The answer is that each site says who it is:
+The answer is two IDs per site, and a mapping between them. Each FL client joins the FL server under its own **FL client ID** — the webapp names it after the guardian's address, `host:port` — and says which asset it holds by that asset's **DID**. The server keeps the pair in memory: one client per DID, one DID per client.
 
 ```text
-inference guardian starts  ──►  its FL client announces { client_id, asset_did }
-                                                               │
-                                     the DID of the asset it sits in front of
-                                                               ▼
-Federated tab  ◄── GET /clients ──  FL server  ── one entry per connected site
-   │ joins that list against the asset registry, on the DID
+FL client beside A's guardian ──► joins as { client_id: host:7900, asset_did: A }
+FL client beside B's guardian ──► joins as { client_id: host:7902, asset_did: B }
+   │
+   ▼
+FL server keeps the mapping:  A ──► host:7900
+                              B ──► host:7902
+   │
+   ▼ GET /clients
+Federated tab resolves each DID through the asset registry (A is hospital_a_cohort, …)
+   │
+   ▼
+you pick sites; each one's own policy mints its capability
+   │
    ▼
 round submitted: [ { asset_did: A, capability: cap_A },
                    { asset_did: B, capability: cap_B } ]
-                                                               │
-                                       each job addressed to a DID
-                                                               ▼
-                        the client that announced DID A gets cap_A, and only that
+   │
+   ▼
+FL server matches each DID to its client:  cap_A ──► a job for host:7900
+                                           cap_B ──► a job for host:7902
+   │
+   ▼
+host:7900 claims its job and only that one; so does host:7902
 ```
 
-The asset's DID is passed to the guardian (and its FL client) when it is deployed, which is why registering an asset creates its identity contract *before* starting its guardian. Nothing here is a trust decision: announcing a DID gets you the job for it, and a capability that only that asset's guardian will say yes to.
+The webapp names every capability by its asset's DID and never by FL client: which client holds which DID is the FL server's to know, from what the clients told it. That is why the asset's DID is passed to the guardian (and its FL client) when it is deployed, and why registering an asset creates its identity contract *before* starting its guardian. A DID that no connected client holds is reported straight away instead of queued for nobody, and a second client claiming a DID that a connected client already holds is turned away.
+
+Nothing here is a trust decision: holding a DID on the FL server gets you that DID's jobs, and capabilities that only that asset's guardian will say yes to.
 
 ---
 
@@ -301,7 +313,7 @@ This is where credentials *about the requester* will live. Hospital A will never
       - **Port:** `7900`
 3. Click **Register Asset**. This takes longer than a public guardian — the app is starting two containers, the guardian core (with its storage service) and the FL client that sits beside it, and waits for the guardian to answer.
 
-*What's happening:* registering the asset first mints its identity contract, so the asset has a DID, and then starts an **inference guardian** for `/tmp/hospital_a_cohort.csv` **carrying that DID**. The file goes to the **FL client**, not to the guardian: it is mounted into the client's container, and the guardian core's container has no data at all. The core's one capability handler, `do_inference`, takes a capability and the digest the client computed over its script and answers yes (`{"allowed": true}`) or no (`422 operation failed`) — yes only when the two digests match. The FL client, meanwhile, announces the DID to the FL server, which is how this hospital becomes a site anyone can address a round to.
+*What's happening:* registering the asset first mints its identity contract, so the asset has a DID, and then starts an **inference guardian** for `/tmp/hospital_a_cohort.csv` **carrying that DID**. The file goes to the **FL client**, not to the guardian: it is mounted into the client's container, and the guardian core's container has no data at all. The core's one capability handler, `do_inference`, takes a capability and the digest the client computed over its script and answers yes (`{"allowed": true}`) or no (`422 operation failed`) — yes only when the two digests match. The FL client, meanwhile, joins the FL server as `<host>:7900` — the guardian's own address — and announces the DID with it. The server now maps that DID to that client, which is how this hospital becomes a site anyone can address a round to.
 
 ### 3.2 Expose the dataset behind FL-DS
 
@@ -376,6 +388,8 @@ The two hospitals have agreed about nothing except, coincidentally, the same dis
 
 1. Go to **Federated** (navbar). The page connects to the FL server it was configured with and lists the sites whose FL clients are connected. You should see **two**: `hospital_a_cohort` and `hospital_b_cohort`, both `ready`.
 
+    Each row is one entry of the FL server's DID → FL client mapping, with the DID resolved through the asset registry to the asset's name. The **FL client** column is the client holding that asset: `…:7900` for Hospital A, `…:7902` for Hospital B.
+
     If a site is missing, its FL client has not announced itself — check that the FL server was running when the guardian started.
 
 2. Both are selected by default. Leave them both checked and click **Run on selected sites**.
@@ -386,7 +400,7 @@ The two hospitals have agreed about nothing except, coincidentally, the same dis
     Hospital A's FL-DS only reads the `Script` role and ignores the other; Hospital B's pair reads both.
 
 4. Click **Request Federated Inference**.
-5. Watch the steps go by — one per site for the capability, one per site for the run — and then the result:
+5. Watch the steps go by — first the match of each selected site to its FL client, then one step per site for the capability, one per site for the run — and then the result:
 
     ```json
     {
@@ -398,17 +412,18 @@ The two hospitals have agreed about nothing except, coincidentally, the same dis
     }
     ```
 
-    and below it, what each hospital reported on its own. (The FL client in this demo reports fixed accuracy and loss rather than really executing the script; `samples` is the size in bytes of the cohort it holds — 295 at Hospital A and 427 at Hospital B, which is why the total is 722. What is real is everything up to that point: the approvals, the digest checks, the guardians' yes, and the fact that the two numbers were combined without either file moving.)
+    and below it, what each hospital reported on its own, under the FL client that ran it. (The FL client in this demo reports fixed accuracy and loss rather than really executing the script; `samples` is the size in bytes of the cohort it holds — 295 at Hospital A and 427 at Hospital B, which is why the total is 722. What is real is everything up to that point: the approvals, the digest checks, the guardians' yes, and the fact that the two numbers were combined without either file moving.)
 
 *What's happening in the background* (the whole handshake, end to end):
 
-1. The app resolves `SCRIPT_DID` through the asset registry to the script's public guardian and **fetches the code**, once, for the whole round.
-2. **Each hospital's policy agent is asked separately.** Hospital A's evaluates FL-DS: the two credentials presented from the script's identity were signed by an issuer *it* trusts, the declared disease overlaps *its* `allowedDiseases`, and both name the same script. Hospital B's evaluates FL-DS **and** FL-IS over the same presentation — and because FL-IS wants a `publicKeyCredential` the wallet does not have yet, the app first asks B's trusted external key authority for one, which gets a `WalletVerifyingKeyCredential` from the wallet key authority and then binds a fresh session key. Both land in the wallet. FL-IS then checks the affiliation, the session key, the wallet key and the self-signed ownership claim all name **one** wallet, and that the ownership claim and the digest name **one** script.
-3. Each hospital issues its own **capability** for `do_inference`, carrying the **approved digest** and bound to its own guardian.
-4. The app submits **one round** to the FL server: the script, and the two capabilities, each tagged with the DID of the asset it was minted for. It never contacts either guardian itself.
-5. **Each FL client** claims the job addressed to the DID it announced, **hashes the script it received**, and sends that digest and the capability to its own guardian core, asking: *may I run this?*
-6. **Each guardian core** — which holds no data — compares the digest its capability authorized against the digest its client computed. They match, so each answers **yes**. Had anyone changed the script after the issuer signed its digest, the answer would be **no**, the client would report the job failed, and it would never open its data.
-7. On the yes, each client runs the script over the data **it** holds and reports **metrics** to the FL server, which combines them weighted by how much data each site ran over. That combination is the only place the two hospitals' numbers ever meet.
+1. The app reads the FL server's **DID → FL client mapping** again and checks that each selected site still has a client connected. You picked the sites off that mapping when the page loaded; a site whose client has gone since would be dropped here, before its policy is asked for a capability no one could run.
+2. The app resolves `SCRIPT_DID` through the asset registry to the script's public guardian and **fetches the code**, once, for the whole round.
+3. **Each hospital's policy agent is asked separately.** Hospital A's evaluates FL-DS: the two credentials presented from the script's identity were signed by an issuer *it* trusts, the declared disease overlaps *its* `allowedDiseases`, and both name the same script. Hospital B's evaluates FL-DS **and** FL-IS over the same presentation — and because FL-IS wants a `publicKeyCredential` the wallet does not have yet, the app first asks B's trusted external key authority for one, which gets a `WalletVerifyingKeyCredential` from the wallet key authority and then binds a fresh session key. Both land in the wallet. FL-IS then checks the affiliation, the session key, the wallet key and the self-signed ownership claim all name **one** wallet, and that the ownership claim and the digest name **one** script.
+4. Each hospital issues its own **capability** for `do_inference`, carrying the **approved digest** and bound to its own guardian.
+5. The app submits **one round** to the FL server: the script, and the two capabilities, each tagged with the DID of the asset it was minted for. It never contacts either guardian itself. The FL server **matches each capability to the FL client its mapping says holds that DID** and addresses the job to that client alone.
+6. **Each FL client** claims the job addressed to it, and only that one, **hashes the script it received**, and sends that digest and the capability to its own guardian core, asking: *may I run this?*
+7. **Each guardian core** — which holds no data — compares the digest its capability authorized against the digest its client computed. They match, so each answers **yes**. Had anyone changed the script after the issuer signed its digest, the answer would be **no**, the client would report the job failed, and it would never open its data.
+8. On the yes, each client runs the script over the data **it** holds and reports **metrics** to the FL server, which combines them weighted by how much data each site ran over. That combination is the only place the two hospitals' numbers ever meet.
 
 Neither dataset left its FL client. Neither guardian ever held either one — they only said yes.
 
@@ -443,11 +458,11 @@ session key issuer   ──► publicKeyCredential        (fresh key)       ─�
             └───────────────────────┬───────────────────────┘
                                     │ submitted together, each tagged with its asset DID
                                     ▼
-                                FL server ── gives each client the capability for the
-                                    │         DID that client announced
+                                FL server ── matches each DID to the FL client holding
+                                    │         it, and addresses the job to that client
             ┌───────────────────────┴───────────────────────┐
             ▼                                               ▼
-     FL client at A (holds cohort A)                 FL client at B (holds cohort B)
+     FL client host:7900 (holds cohort A)            FL client host:7902 (holds cohort B)
      re-hashes the code, asks guardian A             re-hashes the code, asks guardian B
             ▼                                               ▼
      guardian A (no data) says YES ONLY if           guardian B (no data) says YES ONLY if

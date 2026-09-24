@@ -102,17 +102,23 @@ browser through the tutorial, once, in order:
    **FL-DS and FL-IS together** — two subpolicies of one policy agent, both of
    which must allow, with three trusted issuers between them;
 5. the **script owner** opens **Federated**, sees both sites connected to the FL
-   server, selects both, and runs **one round** across them.
+   server, each by the FL client beside its guardian, selects both, and runs
+   **one round** across them.
 
-Two checks carry the weight, and both are about the thing being real rather than
-the clicks working:
+Three checks carry the weight, and all are about the thing being real rather
+than the clicks working:
 
 * the Use modal must ask for exactly `Script` **and** `User` — the union of what
   the two sites declared, not what either wants alone. Hospital A's FL-DS never
   asks about the requester; Hospital B's pair does;
 * the round's aggregate `total_samples` must equal the two cohorts' real byte
   sizes added together (295 + 427 = 722). It only adds up if each guardian said
-  yes and each FL client then ran over the file it actually holds.
+  yes and each FL client then ran over the file it actually holds;
+* each hospital's job must have been run by the FL client beside **its own**
+  guardian (`…:7900` for A, `…:7902` for B) — the client the FL server's
+  DID -> client mapping names for that hospital's DID. The test reads that
+  mapping off the Federated page, checks it against the FL server's own
+  `GET /clients`, and then checks the round's result against it.
 
 After the round the test also checks where the data is: each guardian core's
 container must have **no** data mount, and each FL client's container must have
@@ -129,7 +135,7 @@ that quietly ran at one hospital would look like a pass.
 /tmp/pdo_webui_artifacts/run.mp4     the browser, start to end, real time
 /tmp/pdo_webui_artifacts/run_4x.mp4  the same thing, watchable
 /tmp/pdo_webapp.log                  the webapp's own log
-/tmp/pdo_fl_server.log               every client announcement and every round
+/tmp/pdo_fl_server.log               every client joining, and which client each round's jobs went to
 /tmp/pdo_engine.log                  ledger + enclave services
 /tmp/pdo_scratch/guardian_run.log    what each guardian printed as it came up
 ```
@@ -164,6 +170,8 @@ Things that have actually gone wrong here:
 | every step fails at the identity dropdown | the webapp is up but its PDO client cannot reach the ledger — check `/tmp/pdo_webapp.log` |
 | registering a cohort fails at "Waiting for the guardian to be healthy" | the inference guardian's core container did not come up; see `/tmp/pdo_scratch/guardian_run.log` |
 | `sites [...] were not all ready within 120s` | a guardian is up but its FL client never announced — check that the FL server was running before the guardian started, and look for `client ... joined` in `/tmp/pdo_fl_server.log` |
+| a site is listed with an FL client that is not `…:<its guardian's port>`, or `the FL server maps that DID to ...` | the FL server's DID -> client mapping disagrees with the site — look for `now holds` or `moves from client` in `/tmp/pdo_fl_server.log`, and for `the FL server refused this client` in `docker logs pdo-inference-guardian-<port>-fl-client` (a second client claiming a DID a connected one holds is refused with a `409`) |
+| a site reports `no FL client holding this asset is connected to ...` | its FL client stopped polling between the page loading and the round being run; the flow drops that site before asking its policy |
 | `step 'contract' failed: ... Replication task failed for request number N` | not this codebase. Look just above it in `/tmp/pdo_webapp.log` for `store_blocks ... Read timed out` — a PDO storage service (ports 72xx) did not answer within its 10s timeout while the new contract's state was being replicated, and the creation was abandoned. It happens under load; re-run on a quiet machine rather than retrying the step |
 | a round hangs at "Waiting for ... to report" | that site's FL client crashed, or is polling a different FL server — `docker logs pdo-inference-guardian-<port>-fl-client` |
 | a site reports `not allowed to run: the guardian said no (HTTP 422: operation failed)` | the digest the FL client computed does not match the one the capability authorizes — the script changed after its `ScriptHashCredential` was signed. The core logs both digests (`denied: ...`) in `/pdo_install/opt/pdo/logs/` inside `pdo-inference-guardian-<port>` |

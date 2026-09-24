@@ -42,13 +42,14 @@ def resolve_serve_on(serve_on):
 
 
 def fl_client_id(host, port):
-    """The name an FL client beside a guardian on ``host:port`` is known by.
+    """The ID an FL client beside a guardian on ``host:port`` joins the FL server as.
 
-    An inference guardian ships with an FL client, and that client shows up on the
-    FL server's list of connected sites. Naming it after the guardian's own
-    address makes the list legible when several are up, without either side
-    storing anything extra. Nothing is routed by this name -- work is addressed to
-    the asset's DID -- so it is a label, not an identifier anything depends on.
+    An inference guardian ships with an FL client, which joins the FL server under
+    this ID together with the asset DID it was started for; the server keeps the
+    pair, and addresses each round's job for that DID to this ID. So it has to be
+    unique among the clients of one server, and naming it after the guardian's own
+    address makes it so -- a host binds a port once -- while keeping the list of
+    connected sites legible, without either side storing anything extra.
     """
     return f"{host}:{port}"
 
@@ -121,9 +122,10 @@ def deploy_guardian(
     core: the core only answers whether a job may run.
 
     ``asset_did`` names the asset this guardian is being started for. An inference
-    guardian passes it to its FL client, which announces it to the FL server — so
-    the guardian has to be started *after* the asset's identity contract exists,
-    and a site that is up but nameless is a site no round can be addressed to.
+    guardian passes it to its FL client, which announces it to the FL server
+    alongside its own ID — so the guardian has to be started *after* the asset's
+    identity contract exists, and a site that is up but nameless is a site no
+    round can be addressed to.
 
     Does not wait for the guardian to be ready — call ``wait_until_healthy``.
     """

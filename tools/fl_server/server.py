@@ -7,29 +7,35 @@ has a realistic shape -- a requester hands one piece of work to an FL server and
 every data holder's FL client pulls its own share of it down -- without a real FL
 framework in the way.
 
-**Clients announce which asset they hold.** An FL client sits beside one
-guardian, in front of one dataset, and that dataset is an asset with a DID. The
-client reports that DID when it joins and on every poll, so this server can
-answer two questions it could not otherwise answer:
+**It keeps a DID -> FL client mapping.** An FL client sits beside one guardian,
+in front of one dataset, and that dataset is an asset with a DID. The client
+joins under its own ID and reports that DID, when it joins and on every poll, and
+this server keeps the pair in memory: which client holds which asset, one each
+way. The mapping answers the two questions the server exists to answer:
 
-* *who is connected?* -- the list a requester picks participants from, by DID.
+* *who is connected?* -- the list a requester picks participants from. A
+  requester knows assets by DID, not FL clients by name; the mapping is what
+  turns one into the other.
 * *whose capability is whose?* -- a capability is minted for one guardian and is
-  worth nothing at any other, so a job is addressed to an asset DID and only the
-  client holding that asset may claim it. This is the whole reason the DID
-  travels: without it the server would be guessing.
+  worth nothing at any other. A round names each participant by the DID its
+  capability was minted for, and the server matches each one to the client
+  holding that DID *when the round is submitted*: the job is addressed to that
+  client, and no other client can claim it. A DID no connected client holds is
+  reported failed at once, rather than queued for nobody.
 
 A **round** is the unit a requester submits: one script, and a list of
 ``{asset_did, capability}`` participants. The server fans it out into one job per
-participant and aggregates the metrics that come back.
+participant, addressed to the client holding its DID, and aggregates the metrics
+that come back.
 
 | Method | Path                    | Body / query                          | Returns                       |
 |--------|-------------------------|---------------------------------------|-------------------------------|
 | GET    | `/info`                 |                                       | `{service, clients, ...}`     |
-| POST   | `/clients`              | `{client_id, asset_did, ...}`         | `{ok, client}`                |
-| GET    | `/clients`              |                                       | `{clients: [...]}`            |
-| POST   | `/rounds`               | `{script, participants:[{asset_did,capability}]}` | `{round_id, jobs}` |
+| POST   | `/clients`              | `{client_id, asset_did, ...}`         | `{ok, client}`; 409 if another connected client holds that DID |
+| GET    | `/clients`              |                                       | `{clients: [...]}`, one per DID |
+| POST   | `/rounds`               | `{script, participants:[{asset_did,capability}]}` | the round, each site matched to a `client_id` |
 | GET    | `/rounds/<id>`          |                                       | the round, with aggregate     |
-| GET    | `/jobs/next`            | `?client_id=&asset_did=`              | `{job}` or `{job: null}`      |
+| GET    | `/jobs/next`            | `?client_id=&asset_did=`              | `{job}` or `{job: null}`; 409 as for `POST /clients` |
 | POST   | `/jobs/<id>/metrics`    | `{metrics}` or `{error}`              | `{job_id, status}`            |
 | GET    | `/jobs/<id>`            |                                       | the job record, without script|
 """
@@ -62,26 +68,71 @@ TERMINAL_STATUSES = (STATUS_COMPLETE, STATUS_FAILED)
 CLIENT_TTL_SECONDS = 30
 
 
-class ClientRegistry:
-    """Who is connected, and which asset each of them holds.
+class DidHeldElsewhere(Exception):
+    """A client claimed an asset that another connected client holds."""
 
-    A client is known by the name it claims (``client_id``) and the asset it sits
-    in front of (``asset_did``). Registration is not authenticated and is not
-    meant to be: this server is a job board, and the thing that actually decides
-    whether a job may run over an asset's data is the capability, which that
-    asset's guardian checks. Claiming someone else's DID here gets you their job
-    and a capability your guardian will refuse.
+
+class ClientRegistry:
+    """The DID -> FL client mapping: which connected client holds which asset.
+
+    A client is known by the ID it claims (``client_id``) and holds exactly one
+    asset (``asset_did``); an asset is held by exactly one client. The second
+    half is what makes the mapping usable for routing -- a DID resolves to one
+    client or to none -- so a client claiming a DID that another *connected*
+    client holds is refused. Once the holder has gone quiet the DID is free
+    again, and whoever claims it next takes it over.
+
+    Registration is not authenticated and is not meant to be: this server is a
+    job board, and the thing that actually decides whether a job may run over an
+    asset's data is the capability, which that asset's guardian checks. Claiming
+    a DID nobody else holds gets you its jobs, and capabilities your guardian
+    will refuse.
     """
 
     def __init__(self, ttl=CLIENT_TTL_SECONDS):
-        self._clients = OrderedDict()
+        self._clients = OrderedDict()  # client_id -> record
+        self._holders = {}  # asset_did -> client_id: the mapping itself
         self._ttl = ttl
         self._lock = threading.Lock()
 
+    def _online(self, record, now):
+        return now - record["last_seen"] <= self._ttl
+
     def announce(self, *, client_id, asset_did, guardian_url=None, asset_name=None):
-        """Record or refresh a client. Returns the stored record."""
+        """Record or refresh a client and the DID it holds.
+
+        Returns ``(record, released)``: the stored record, and the
+        ``(asset_did, client_id)`` pairs this announcement ended -- this client's
+        previous DID if it now holds another, or a quiet holder this client
+        replaces. A job addressed to one of those pairs can never be claimed now.
+
+        Raises ``DidHeldElsewhere`` if another connected client holds
+        ``asset_did``; nothing is recorded then.
+        """
         now = time.time()
+        released = []
         with self._lock:
+            holder_id = self._holders.get(asset_did)
+            if holder_id is not None and holder_id != client_id:
+                holder = self._clients[holder_id]
+                if self._online(holder, now):
+                    raise DidHeldElsewhere(
+                        f"{asset_did} is held by FL client {holder_id}, "
+                        "which is still connected"
+                    )
+                # The holder went quiet and this client takes its place. The old
+                # record goes with it: a client holds one asset, and this one is
+                # no longer that client's.
+                logger.warning(
+                    "%s moves from client %s (silent for %.0fs) to %s",
+                    asset_did,
+                    holder_id,
+                    now - holder["last_seen"],
+                    client_id,
+                )
+                del self._clients[holder_id]
+                released.append((asset_did, holder_id))
+
             record = self._clients.get(client_id)
             if record is None:
                 record = {
@@ -95,21 +146,35 @@ class ClientRegistry:
                 self._clients[client_id] = record
                 logger.info("client %s joined, holding %s", client_id, asset_did)
             elif record["asset_did"] != asset_did:
-                # A client that changes the asset it serves is a different data
-                # holder under a reused name; say so rather than silently
-                # re-pointing every future job for the old DID at it.
+                # The same client now fronts a different asset -- a guardian
+                # redeployed onto the same port. Its old DID is released rather
+                # than left resolving to a client that will never claim its jobs.
                 logger.warning(
-                    "client %s now reports %s (was %s)",
+                    "client %s now holds %s (was %s)",
                     client_id,
                     asset_did,
                     record["asset_did"],
                 )
+                if self._holders.get(record["asset_did"]) == client_id:
+                    del self._holders[record["asset_did"]]
+                released.append((record["asset_did"], client_id))
                 record["asset_did"] = asset_did
+            self._holders[asset_did] = client_id
+
             if guardian_url:
                 record["guardian_url"] = guardian_url
             if asset_name:
                 record["asset_name"] = asset_name
             record["last_seen"] = now
+            return dict(record), released
+
+    def holder(self, asset_did):
+        """The connected client holding ``asset_did``, or ``None``."""
+        now = time.time()
+        with self._lock:
+            record = self._clients.get(self._holders.get(asset_did))
+            if record is None or not self._online(record, now):
+                return None
             return dict(record)
 
     def claimed_a_job(self, client_id):
@@ -119,7 +184,11 @@ class ClientRegistry:
                 record["jobs_claimed"] += 1
 
     def list(self):
-        """Every client ever seen, newest activity first, each flagged online."""
+        """Every client holding a DID, newest activity first, each flagged online.
+
+        One entry per DID, so the list is the mapping itself. A client that went
+        quiet stays listed, offline, until another client takes its DID over.
+        """
         now = time.time()
         with self._lock:
             records = [dict(r) for r in self._clients.values()]
@@ -133,44 +202,67 @@ class ClientRegistry:
 
 
 class JobStore:
-    """In-memory job queue, addressed by the asset each job is meant for.
+    """In-memory job queue. Each job is addressed to one client, for one asset.
 
-    A job moves pending -> running when the client holding its asset claims it,
-    then to complete or failed when that client reports back. Nothing is retried
-    and nothing expires: a client that claims a job and dies leaves it running
-    forever, which is acceptable for a demo and would not be for anything else.
+    The client is the one the DID -> client mapping named when the round was
+    submitted. A job moves pending -> running when that client claims it, then to
+    complete or failed when it reports back. Nothing is retried and nothing
+    expires: a client that claims a job and dies leaves it running forever, which
+    is acceptable for a demo and would not be for anything else.
     """
 
     def __init__(self):
         self._jobs = OrderedDict()
         self._lock = threading.Lock()
 
-    def submit(self, *, round_id, asset_did, script, capability, script_name=None):
+    def submit(self, *, round_id, asset_did, client_id, script, capability, script_name=None):
+        """Queue one site's job for ``client_id``, the client holding ``asset_did``.
+
+        ``client_id`` is ``None`` when no connected client holds the DID. The job
+        is then failed on the spot: it has nobody to go to, and a round waiting
+        for it would wait forever.
+        """
         job_id = uuid.uuid4().hex
+        job = {
+            "job_id": job_id,
+            "round_id": round_id,
+            "asset_did": asset_did,
+            "status": STATUS_PENDING,
+            "script": script,
+            "capability": capability,
+            "script_name": script_name,
+            "client_id": client_id,
+            "metrics": None,
+            "error": None,
+        }
+        if client_id is None:
+            job["status"] = STATUS_FAILED
+            job["error"] = f"no FL client holding {asset_did} is connected to this server"
         with self._lock:
-            self._jobs[job_id] = {
-                "job_id": job_id,
-                "round_id": round_id,
-                "asset_did": asset_did,
-                "status": STATUS_PENDING,
-                "script": script,
-                "capability": capability,
-                "script_name": script_name,
-                "client_id": None,
-                "metrics": None,
-                "error": None,
-            }
-        logger.info("job %s queued for %s (round %s)", job_id, asset_did, round_id)
+            self._jobs[job_id] = job
+        if client_id is None:
+            logger.warning("job %s for %s failed: no client holds it", job_id, asset_did)
+        else:
+            logger.info(
+                "job %s queued for %s, held by %s (round %s)",
+                job_id,
+                asset_did,
+                client_id,
+                round_id,
+            )
         return job_id
 
     def claim_next(self, client_id, asset_did):
-        """Hand a client the oldest pending job for the asset it holds."""
+        """Hand a client the oldest pending job addressed to it, for the DID it holds."""
         with self._lock:
             for job in self._jobs.values():
-                if job["status"] != STATUS_PENDING or job["asset_did"] != asset_did:
+                if (
+                    job["status"] != STATUS_PENDING
+                    or job["client_id"] != client_id
+                    or job["asset_did"] != asset_did
+                ):
                     continue
                 job["status"] = STATUS_RUNNING
-                job["client_id"] = client_id
                 logger.info("job %s claimed by %s", job["job_id"], client_id)
                 return {
                     "job_id": job["job_id"],
@@ -181,6 +273,29 @@ class JobStore:
                     "script_name": job["script_name"],
                 }
         return None
+
+    def fail_unclaimable(self, asset_did, client_id):
+        """Fail the pending jobs addressed to a client that no longer holds the DID.
+
+        Nobody else may claim them -- each capability is for the guardian that
+        client was in front of -- so waiting would only hang their rounds.
+        """
+        failed = []
+        with self._lock:
+            for job in self._jobs.values():
+                if (
+                    job["status"] == STATUS_PENDING
+                    and job["client_id"] == client_id
+                    and job["asset_did"] == asset_did
+                ):
+                    job["status"] = STATUS_FAILED
+                    job["error"] = (
+                        f"FL client {client_id} stopped holding {asset_did} "
+                        "before claiming this job"
+                    )
+                    failed.append(job["job_id"])
+        for job_id in failed:
+            logger.warning("job %s failed: %s no longer holds %s", job_id, client_id, asset_did)
 
     def report(self, job_id, *, metrics=None, error=None):
         with self._lock:
@@ -225,13 +340,19 @@ class RoundStore:
         self._lock = threading.Lock()
 
     def create(self, *, script, participants, script_name=None, round_name=None):
-        """Fan one script out over the participants. Returns the round record."""
+        """Fan one script out over the participants. Returns the round record.
+
+        Each participant arrives matched to the client holding its DID
+        (``client_id``, ``None`` if no connected client does), and its job is
+        addressed to that client.
+        """
         round_id = uuid.uuid4().hex
         job_ids = OrderedDict()
         for participant in participants:
             job_ids[participant["asset_did"]] = self._jobs.submit(
                 round_id=round_id,
                 asset_did=participant["asset_did"],
+                client_id=participant["client_id"],
                 script=script,
                 capability=participant["capability"],
                 script_name=script_name,
@@ -393,6 +514,24 @@ class FLServerHandler(BaseHTTPRequestHandler):
             self._respond({"error": f"unknown path: {path}"}, HTTPStatus.NOT_FOUND)
 
     # -----------------------------------------------------------------
+    # The DID -> client mapping is read and changed under ``server.routing``:
+    # a client announcing, a client claiming, and a round being matched to
+    # clients. Held across each of those whole, a round cannot be matched to a
+    # client in the instant that client stops holding the DID, which would leave
+    # a job addressed to nobody.
+    # -----------------------------------------------------------------
+    def _register(self, client_id, asset_did, **details):
+        """Announce a client, failing any jobs its announcement orphans.
+
+        Must be called under ``server.routing``. Raises ``DidHeldElsewhere``.
+        """
+        record, released = self.server.clients.announce(
+            client_id=client_id, asset_did=asset_did, **details
+        )
+        for did, former in released:
+            self.server.jobs.fail_unclaimable(did, former)
+        return record
+
     def _announce_client(self, body):
         client_id = (body.get("client_id") or "").strip()
         asset_did = (body.get("asset_did") or "").strip()
@@ -402,12 +541,17 @@ class FLServerHandler(BaseHTTPRequestHandler):
                 HTTPStatus.BAD_REQUEST,
             )
             return
-        record = self.server.clients.announce(
-            client_id=client_id,
-            asset_did=asset_did,
-            guardian_url=body.get("guardian_url"),
-            asset_name=body.get("asset_name"),
-        )
+        try:
+            with self.server.routing:
+                record = self._register(
+                    client_id,
+                    asset_did,
+                    guardian_url=body.get("guardian_url"),
+                    asset_name=body.get("asset_name"),
+                )
+        except DidHeldElsewhere as e:
+            self._respond({"error": str(e)}, HTTPStatus.CONFLICT)
+            return
         self._respond({"ok": True, "client": record})
 
     def _claim_job(self, query):
@@ -422,9 +566,15 @@ class FLServerHandler(BaseHTTPRequestHandler):
 
         # A poll is also a heartbeat: a client that is asking for work is a client
         # that is connected, so nothing has to keep a separate registration alive.
-        self.server.clients.announce(client_id=client_id, asset_did=asset_did)
-
-        job = self.server.jobs.claim_next(client_id, asset_did)
+        # It is refused exactly as an announcement would be, and a refused client
+        # gets no work.
+        try:
+            with self.server.routing:
+                self._register(client_id, asset_did)
+                job = self.server.jobs.claim_next(client_id, asset_did)
+        except DidHeldElsewhere as e:
+            self._respond({"error": str(e)}, HTTPStatus.CONFLICT)
+            return
         if job is not None:
             self.server.clients.claimed_a_job(client_id)
         self._respond({"job": job})
@@ -443,6 +593,7 @@ class FLServerHandler(BaseHTTPRequestHandler):
             return
 
         seen = set()
+        cleaned = []
         for participant in participants:
             if not isinstance(participant, dict):
                 self._respond({"error": "each participant must be an object"}, HTTPStatus.BAD_REQUEST)
@@ -471,14 +622,21 @@ class FLServerHandler(BaseHTTPRequestHandler):
                 )
                 return
             seen.add(asset_did)
-            participant["asset_did"] = asset_did
+            cleaned.append({"asset_did": asset_did, "capability": capability})
 
-        record = self.server.rounds.create(
-            script=script,
-            participants=participants,
-            script_name=body.get("script_name"),
-            round_name=body.get("round_name"),
-        )
+        # Match each capability to the client holding the DID it was minted for.
+        # The submitter names assets, never clients: which client holds what is
+        # this server's to know, from what the clients themselves announced.
+        with self.server.routing:
+            for participant in cleaned:
+                holder = self.server.clients.holder(participant["asset_did"])
+                participant["client_id"] = holder["client_id"] if holder else None
+            record = self.server.rounds.create(
+                script=script,
+                participants=cleaned,
+                script_name=body.get("script_name"),
+                round_name=body.get("round_name"),
+            )
         self._respond(record, HTTPStatus.CREATED)
 
     def _report_job(self, job_id, body):
@@ -530,6 +688,7 @@ def serve(interface, port):
     httpd.jobs = JobStore()
     httpd.rounds = RoundStore(httpd.jobs)
     httpd.clients = ClientRegistry()
+    httpd.routing = threading.Lock()
     logger.info("%s listening on %s:%d", SERVICE_NAME, interface, port)
     httpd.serve_forever()
 

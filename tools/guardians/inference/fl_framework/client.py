@@ -7,11 +7,13 @@ and then polls it, and each job it gets back carries the script to run together
 with the capability package authorizing that run.
 
 **It announces which asset it holds.** A client sits in front of exactly one
-dataset, and that dataset is an asset with a DID. Reporting that DID when it
-joins is what lets the server show a requester which sites are connected, and --
-once the requester has picked some -- hand each client the capability minted for
-*its* guardian. A capability is worth nothing at any other guardian, so an
-unlabelled client could only ever be handed work it would fail.
+dataset, and that dataset is an asset with a DID. It joins under its own ID and
+reports that DID with it, and the server keeps the pair: which client holds which
+DID. That mapping is what lets the server show a requester which sites are
+connected, and -- once the requester has picked some -- match each capability,
+by the DID it was minted for, to the one client holding it. A capability is
+worth nothing at any other guardian, so an unlabelled client could only ever be
+handed work it would fail.
 
 **It asks before it runs.** The client hashes the script it actually holds and
 sends that digest, with the capability, to the guardian core over localhost. The
@@ -50,6 +52,10 @@ class NotAllowed(Exception):
     """The guardian core did not say yes to this job."""
 
 
+class Refused(Exception):
+    """The FL server would not register this client, and said why."""
+
+
 class FLClient:
     """Poll an FL server for jobs and run each one the local guardian allows."""
 
@@ -84,7 +90,7 @@ class FLClient:
 
         Polling refreshes the same registration, so this matters for two things:
         being *listed* promptly when the client starts, and being listed *fully*
-        after the server has restarted. A poll carries only the client's name and
+        after the server has restarted. A poll carries only the client's ID and
         its DID, which is all the routing needs; this carries the rest.
         """
         resp = requests.post(
@@ -97,16 +103,18 @@ class FLClient:
             },
             timeout=self.timeout,
         )
+        _raise_if_refused(resp)
         resp.raise_for_status()
         return resp.json()
 
     def poll_job(self):
-        """Ask the server for the next pending job, or ``None`` if there is none."""
+        """Ask the server for the next job addressed to this client, or ``None``."""
         resp = requests.get(
             f"{self.server_url}/jobs/next",
             params={"client_id": self.client_id, "asset_did": self.asset_did},
             timeout=self.timeout,
         )
+        _raise_if_refused(resp)
         resp.raise_for_status()
         return resp.json().get("job")
 
@@ -213,6 +221,8 @@ class FLClient:
         try:
             self.announce()
             logger.info("announced %s to the FL server", self.asset_did)
+        except Refused as e:
+            logger.warning("the FL server refused this client (%s); polling anyway", e)
         except Exception as e:
             logger.warning("could not announce to the FL server (%s); polling anyway", e)
 
@@ -245,6 +255,9 @@ class FLClient:
 
             try:
                 job = self.poll_job()
+            except Refused as e:
+                logger.warning("the FL server refused this client (%s); retrying", e)
+                job = None
             except Exception as e:
                 logger.warning("could not reach the FL server (%s); retrying", e)
                 job = None
@@ -263,3 +276,18 @@ def _error_text(resp):
     """The error a guardian returned, as briefly as it can be said."""
     text = (resp.text or "").strip()
     return f"HTTP {resp.status_code}: {text[:200]}" if text else f"HTTP {resp.status_code}"
+
+
+def _raise_if_refused(resp):
+    """Raise ``Refused`` if the FL server turned this client away.
+
+    It does that (409) when another connected client already holds this DID. The
+    server is up and answering then, and a log saying it could not be reached
+    would send whoever reads it looking in the wrong place.
+    """
+    if resp.status_code == 409:
+        try:
+            reason = resp.json().get("error")
+        except ValueError:
+            reason = None
+        raise Refused(reason or _error_text(resp))

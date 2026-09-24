@@ -18,9 +18,11 @@ browser instead, in the same order and with nothing added:
 What the run proves, beyond "it works": the aggregate's ``total_samples`` is the
 sum of the two cohorts' real sizes, so it only adds up if each guardian said yes
 and each FL client then ran over the file it actually holds; the data is mounted
-into the FL clients' containers and into neither guardian core's; and the Use form asks for exactly ``Script`` and
+into the FL clients' containers and into neither guardian core's; the Use form asks for exactly ``Script`` and
 ``User``, which is the union of what A and B declared and not what either asked
-for alone.
+for alone; and each hospital's job was run by the FL client beside its own
+guardian -- the client the FL server's DID -> client mapping names for that
+hospital's DID, which the page shows and the server itself confirms.
 
 Deliberately not pytest. This is a script: it runs top to bottom, prints each
 step as it happens, and exits non-zero on the first failure with the browser's
@@ -40,6 +42,7 @@ import subprocess
 import sys
 import time
 import traceback
+import urllib.request
 
 from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
@@ -89,6 +92,10 @@ FLOW_TIMEOUT = int(os.environ.get("WEBUI_FLOW_TIMEOUT", "600"))
 # A guardian answers /info before the FL client bundled with it has announced
 # itself, so a site can be up for a few seconds before it is listed.
 SITE_WAIT = int(os.environ.get("WEBUI_SITE_WAIT", "120"))
+
+# The FL server the webapp is pointed at, asked directly for its DID -> client
+# mapping so the page's account of it can be checked against the server's own.
+FL_SERVER_URL = os.environ.get("FL_SERVER_URL", "http://localhost:7920")
 
 # Replaces window.alert with an on-page toast. The webapp reports everything
 # through alert(), which in a driven browser is a modal that blocks the page and
@@ -559,6 +566,7 @@ document.querySelectorAll('#fl-sites-body tr').forEach(function (tr) {
     rows.push({
         name: (tr.querySelector('[data-site-name]') || {}).textContent || '',
         did: (tr.querySelector('[data-site-did]') || {}).textContent || '',
+        client: (tr.querySelector('[data-site-client]') || {}).textContent || '',
         state: (tr.querySelector('[data-site-state]') || {}).textContent || '',
         selectable: !!(check && !check.disabled),
     });
@@ -593,6 +601,7 @@ var sites = [];
 document.querySelectorAll('#fl-result-body [data-site-row]').forEach(function (tr) {
     sites.push({
         name: tr.dataset.siteName,
+        client: tr.dataset.siteClient || '',
         status: tr.dataset.siteStatus,
         text: (tr.querySelector('td:last-child') || {}).textContent || '',
     });
@@ -640,6 +649,42 @@ def await_sites(runner, names, timeout=SITE_WAIT):
         f"sites {sorted(names)} were not all ready within {timeout}s; the page "
         f"lists {listed} ({state['status'].strip()})"
     )
+
+
+def fl_server_mapping():
+    """The FL server's own DID -> client mapping, for its connected clients."""
+    with urllib.request.urlopen(f"{FL_SERVER_URL}/clients", timeout=10) as resp:
+        clients = json.load(resp).get("clients") or []
+    return {c["asset_did"]: c["client_id"] for c in clients if c.get("online")}
+
+
+def expect_sites_matched(state, ports):
+    """Each site is listed with the FL client beside its own guardian.
+
+    ``ports`` maps a site's name to its guardian's port; the webapp names each
+    FL client after its guardian's ``host:port``. The page's account is then
+    checked against the FL server's own mapping, since that mapping -- not the
+    page -- is what the server will address each site's job by. Returns
+    ``{name: client_id}``.
+    """
+    mapping = fl_server_mapping()
+    rows = {row["name"].strip(): row for row in state["rows"]}
+    clients = {}
+    for name, port in ports.items():
+        did, client = rows[name]["did"].strip(), rows[name]["client"].strip()
+        if not client.endswith(f":{port}"):
+            raise StepFailed(
+                f"{name} is listed with FL client {client!r}, not the one beside "
+                f"its guardian on port {port}"
+            )
+        if mapping.get(did) != client:
+            raise StepFailed(
+                f"the page lists {name} ({did}) at FL client {client!r}, but the "
+                f"FL server maps that DID to {mapping.get(did)!r}"
+            )
+        print(f"      {name}: {did} -> FL client {client}", flush=True)
+        clients[name] = client
+    return clients
 
 
 def request_round(runner, *, sites, roles):
@@ -758,6 +803,23 @@ def expect_ran(round_result, names):
     ran = {s["name"] for s in round_result["sites"] if s["status"] == "complete"}
     if ran != set(names):
         raise StepFailed(f"expected {sorted(names)} to have run it, {sorted(ran)} did")
+
+
+def expect_ran_at(round_result, clients):
+    """Assert each site's job went to the FL client its DID is mapped to.
+
+    ``clients`` is ``{name: client_id}`` as the Federated page listed them before
+    the round. A capability is minted for one guardian, so a job that reached any
+    other client could only have been refused there.
+    """
+    for site in round_result["sites"]:
+        wanted = clients.get(site["name"])
+        if site["client"] != wanted:
+            raise StepFailed(
+                f"{site['name']}'s job went to FL client {site['client']!r}, "
+                f"but its DID is mapped to {wanted!r}"
+            )
+        print(f"      {site['name']}: run by FL client {site['client']}", flush=True)
 
 
 # ---------------------------------------------------------------- the workflow
@@ -961,9 +1023,16 @@ def run_workflow(runner):
         f"Become {SCRIPT_OWNER} again to request the round",
         lambda: as_identity(runner, SCRIPT_OWNER),
     )
+
+    def sites_connected():
+        listed = await_sites(runner, [ASSET_A, ASSET_B])
+        state["clients"] = expect_sites_matched(
+            listed, {ASSET_A: GUARDIAN_PORT_A, ASSET_B: GUARDIAN_PORT_B}
+        )
+
     runner.step(
-        "Both hospitals show up on the Federated page as connected sites",
-        lambda: await_sites(runner, [ASSET_A, ASSET_B]),
+        "Both hospitals show up on the Federated page, each by its FL client",
+        sites_connected,
     )
 
     def run_the_round():
@@ -977,6 +1046,9 @@ def run_workflow(runner):
             roles={"Script": SCRIPT_ASSET, "User": WALLET_NAME},
         )
         expect_ran(result, [ASSET_A, ASSET_B])
+        # The FL server matched each capability, by the DID it was minted for, to
+        # the client holding that DID -- the one beside that hospital's guardian.
+        expect_ran_at(result, state["clients"])
         aggregate = aggregate_of(result)
         if aggregate.get("sites") != 2:
             raise StepFailed(f"expected 2 sites in the aggregate: {aggregate}")

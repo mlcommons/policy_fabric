@@ -10,10 +10,11 @@ One folder per guardian type. An asset picks one when it is registered.
 
 An inference guardian is one site in a federated round. It holds no data: the
 dataset is mounted into its FL client, which asks the guardian core, per job,
-whether the script it was sent may run. The FL client also announces the asset
-DID it was started with to the FL server, and that announcement is both how a
-requester discovers the site and how the server knows which of a round's
-capabilities belongs to it.
+whether the script it was sent may run. The FL client also joins the FL server
+under its own ID and announces the asset DID it was started with, and the server
+keeps that DID -> client mapping: it is both how a requester discovers the site
+and how the server knows which of a round's capabilities to address to this
+client.
 
 ## The contract with the webapp
 
@@ -58,7 +59,7 @@ actually takes:
 | `storage_port`     | the paired PDO storage service port (`port` + 1)       |
 | `image`            | the image resolved from the `image` block              |
 | `fl_server_url`    | FL server, as addressable from inside the FL client's container |
-| `fl_client_id`     | name this guardian's FL client is known by             |
+| `fl_client_id`     | ID this guardian's FL client joins the FL server as (`advertised_host:port`, unique per server); the asset's jobs are addressed to it |
 | `asset_did`        | DID of the asset this guardian is being started for    |
 | `asset_name`       | that asset's display name                              |
 

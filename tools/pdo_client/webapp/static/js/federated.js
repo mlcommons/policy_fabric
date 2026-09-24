@@ -5,8 +5,9 @@
 //
 // The sites come from the FL server rather than from the asset registry: the
 // registry knows which assets exist, but only the server knows which of them have
-// a client connected right now. The join is on the asset DID each FL client
-// announces, and the server does it before this page ever sees the list.
+// a client connected right now. The server keeps a DID -> FL client mapping from
+// what each client announces, and this app resolves each of those DIDs through
+// the registry before this page ever sees the list.
 //
 // The roles are asked for after the selection, not before, because each site's
 // policy declares its own — a round over two sites may need one role for one of
@@ -176,10 +177,10 @@
         return div.innerHTML;
     }
 
-    // The round, as the page shows it. Each row carries the site's name and
-    // outcome as data attributes: this table is the only place the result of a
-    // round is stated, and it should be readable as data by anything looking at
-    // the page, not only by a person.
+    // The round, as the page shows it. Each row carries the site's name, the FL
+    // client the server matched it to, and its outcome as data attributes: this
+    // table is the only place the result of a round is stated, and it should be
+    // readable as data by anything looking at the page, not only by a person.
     function renderResult(term) {
         var round = (term && term.result) || {};
         var parts = [];
@@ -193,10 +194,15 @@
             + '</pre>'
         );
 
-        function row(name, status, outcome) {
+        function row(name, client, status, outcome) {
             return '<tr data-site-row data-site-name="' + escapeHtml(name) + '"'
+                + ' data-site-client="' + escapeHtml(client || '') + '"'
                 + ' data-site-status="' + escapeHtml(status) + '">'
-                + '<td><strong>' + escapeHtml(name) + '</strong></td>'
+                + '<td><strong>' + escapeHtml(name) + '</strong>'
+                + (client
+                    ? '<br><small style="color:#888">FL client ' + escapeHtml(client) + '</small>'
+                    : '')
+                + '</td>'
                 + '<td>' + escapeHtml(status) + '</td>'
                 + '<td>' + outcome + '</td></tr>';
         }
@@ -206,10 +212,13 @@
                 ? '<pre class="code-block" style="margin:0">'
                     + escapeHtml(JSON.stringify(site.metrics || {}, null, 2)) + '</pre>'
                 : escapeHtml(site.error || site.status || 'no result');
-            return row(site.name, site.status, outcome);
+            return row(site.name, site.client_id, site.status, outcome);
         });
         (round.refused || []).forEach(function (site) {
-            rows.push(row(site.name, 'refused', escapeHtml(site.error)));
+            rows.push(row(site.name, site.client_id, 'refused', escapeHtml(site.error)));
+        });
+        (round.not_connected || []).forEach(function (site) {
+            rows.push(row(site.name, '', 'not connected', escapeHtml(site.error)));
         });
 
         parts.push(
