@@ -2,7 +2,8 @@
 {% block title %}Federated — PDO Client{% endblock %}
 
 {% block content %}
-<div class="container" data-default-server-url="{{ default_server_url }}">
+<div class="container" data-default-server-url="{{ default_server_url }}"
+     data-script-role="{{ script_role }}">
     <div class="page-header">
         <div>
             <h1 class="page-title">Federated</h1>
@@ -110,7 +111,7 @@
                 <option value="" disabled>No wallets — create one first</option>
                 {% endfor %}
             </optgroup>
-            <optgroup label="Scripts">
+            <optgroup label="Scripts" data-scripts>
                 {% for s in script_assets %}
                 <option value="{{ s.contract_id }}">{{ s.name }}</option>
                 {% empty %}

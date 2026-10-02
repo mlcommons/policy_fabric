@@ -1,5 +1,6 @@
 import json
 import logging
+import socket
 
 from django.conf import settings
 from django.http import Http404, JsonResponse
@@ -119,6 +120,65 @@ def _clean_guardian_choice(data):
     return guardian_type, serve_on, port
 
 
+def _published_ports(guardian_type, port):
+    """The host ports a guardian of ``guardian_type`` on ``port`` publishes: its
+    own, and the storage service's beside it for the guardians that run one."""
+    ports = [str(port)]
+    if "storage_port" in guardian_registry.get(guardian_type).options.values():
+        ports.append(str(guardian_launcher.storage_port(port)))
+    return ports
+
+
+def _registered_on_port(host, port):
+    """The name of the registered asset whose guardian publishes ``port`` on
+    ``host``, or ``None``."""
+    try:
+        assets = registry_client.list_assets() or []
+    except Exception:
+        return None
+    for asset in assets:
+        metadata = asset.get("metadata") or {}
+        if metadata.get("guardian_url") != host:
+            continue
+        try:
+            published = _published_ports(
+                action_runners.guardian_type_of(metadata), metadata.get("guardian_port")
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+        if str(port) in published:
+            return asset.get("name")
+    return None
+
+
+def _check_ports_free(guardian_type, serve_on, port):
+    """Raise ``ValueError`` if a port the new guardian would publish is taken.
+
+    Nothing downstream notices on its own. An inference guardian's run.sh replaces
+    whatever containers are already on its port -- another asset's guardian and
+    FL client with them -- and a public guardian that cannot bind dies while the
+    one already there keeps answering. Either way the health check is satisfied by
+    whatever was listening, and the new asset is registered in front of somebody
+    else's guardian. So the ports are probed first, at the address the guardian
+    will be advertised on.
+    """
+    _, host = guardian_launcher.resolve_serve_on(serve_on)
+    ports = _published_ports(guardian_type, port)
+
+    for candidate in ports:
+        try:
+            with socket.create_connection((host, int(candidate)), timeout=1):
+                pass
+        except OSError:
+            continue
+        holder = _registered_on_port(host, candidate)
+        by = f" by the guardian of '{holder}'" if holder else ""
+        raise ValueError(
+            f"Port {candidate} on {host} is already in use{by}. Choose another "
+            f"port: this guardian needs {' and '.join(ports)} free."
+        )
+
+
 def _clean_wallets(data, user_name):
     """Pull the per-role wallet choices out of a use request.
 
@@ -179,6 +239,11 @@ def _flatten_policy_issuers(raw_issuers):
 
 def _short_id(contract_id, n=12):
     return contract_id[:n]
+
+
+def _with_article(word):
+    """``word`` with its indefinite article: "a public", "an inference"."""
+    return f"{'an' if word and word[0].lower() in 'aeiou' else 'a'} {word}"
 
 
 def _user_wallet_cards(user_name):
@@ -298,6 +363,7 @@ class AssetSetupView(BaseView):
 
         try:
             guardian_type, serve_on, port = _clean_guardian_choice(request.POST)
+            _check_ports_free(guardian_type, serve_on, port)
         except ValueError as e:
             return self._error(request, str(e))
 
@@ -355,7 +421,7 @@ class AssetSetupView(BaseView):
 
         return redirect_with_msg(
             "/",
-            f'Asset "{name}" registered behind a {guardian_type} guardian.',
+            f'Asset "{name}" registered behind {_with_article(guardian_type)} guardian.',
             "success",
         )
 
@@ -574,9 +640,8 @@ class AssetExposeView(BaseView):
 
         # Guardian info is on the registry record (set at asset registration).
         try:
-            meta = (registry_client.get_asset_by_did(did) or {}).get(
-                "metadata", {}
-            ) or {}
+            asset = registry_client.get_asset_by_did(did) or {}
+            meta = asset.get("metadata", {}) or {}
         except Exception as e:
             return redirect_with_msg(
                 dashboard_url, f"Failed to read asset metadata: {e}", "error"
@@ -589,7 +654,7 @@ class AssetExposeView(BaseView):
             )
 
         guardian = _guardian_url_port(guardian_host, guardian_port)
-        asset_name = meta.get("name") or _short_id(contract_id)
+        asset_name = asset.get("name") or _short_id(contract_id)
 
         try:
             result = pdo_runner.create_asset_policy(
@@ -855,6 +920,7 @@ class AssetSetupStreamView(BaseView):
             )
         try:
             guardian_type, serve_on, port = _clean_guardian_choice(data)
+            _check_ports_free(guardian_type, serve_on, port)
         except ValueError as e:
             return JsonResponse({"error": str(e)}, status=400)
 
@@ -915,7 +981,10 @@ class AssetSetupStreamView(BaseView):
             steps,
             complete=lambda ctx: {
                 "redirect": "/",
-                "message": f'Asset "{name}" registered behind a {guardian_type} guardian.',
+                "message": (
+                    f'Asset "{name}" registered behind '
+                    f"{_with_article(guardian_type)} guardian."
+                ),
             },
         )
 
@@ -959,15 +1028,14 @@ class AssetExposeStreamView(BaseView):
                         f"Policy '{tpl.get('name', tid)}' has no rego source."
                     )
                 rego_modules.append([tpl["name"], source])
-            meta = (registry_client.get_asset_by_did(did) or {}).get(
-                "metadata", {}
-            ) or {}
+            asset = registry_client.get_asset_by_did(did) or {}
+            meta = asset.get("metadata", {}) or {}
             host, port = meta.get("guardian_url", ""), meta.get("guardian_port", "")
             if not host or not port:
                 raise ValueError("Guardian URL/port missing on this asset.")
             ctx["rego_modules"] = rego_modules
             ctx["guardian"] = _guardian_url_port(host, port)
-            ctx["asset_name"] = meta.get("name") or _short_id(contract_id)
+            ctx["asset_name"] = asset.get("name") or _short_id(contract_id)
             return {"detail": f"{len(rego_modules)} policy(ies)"}
 
         def create_policy(ctx):
@@ -1017,7 +1085,16 @@ class AssetExposeStreamView(BaseView):
                     logger.exception("Failed to register trusted issuer %s", entry_did)
                     errors.append(f"{entry_did}: {e}")
             if errors:
-                return {"detail": "some issuers failed: " + "; ".join(errors)}
+                # Failed, not done: a finished flow redirects straight to the
+                # dashboard, so a failure reported as a detail is gone before
+                # anyone reads it, and the policy then denies every request that
+                # relied on the missing issuer with no hint as to why. The policy
+                # itself exists by now, so say so and where to finish the job.
+                raise ValueError(
+                    "Asset exposed, but some trusted issuers failed: "
+                    + "; ".join(errors)
+                    + ". Reload the page and add them under Trusted Issuers."
+                )
             return {"detail": f"{len(entries)} issuer(s)"}
 
         steps = [

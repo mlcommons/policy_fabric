@@ -26,6 +26,11 @@ class PublicGuardianHandler(BaseHTTPRequestHandler):
 
     ``data`` is read once at startup and held on the server object, mirroring the
     PDO guardian operations, which also load the file when the service comes up.
+    It is held and served as the file's exact bytes. A script served from here is
+    identified by a digest over its bytes, and every FL client re-hashes what it
+    received: reading it as text would turn CRLF line endings into LF, and a
+    script whose digest was taken with ``sha256sum`` would then be refused at
+    every site without anyone having changed it.
     """
 
     server_version = f"{SERVICE_NAME}/0.1"
@@ -42,12 +47,11 @@ class PublicGuardianHandler(BaseHTTPRequestHandler):
                 }
             )
         elif path in ("/", "/data"):
-            self._respond_text(self.server.data)
+            self._respond(self.server.data, "text/plain; charset=utf-8", HTTPStatus.OK)
         else:
             self._respond_json({"error": f"unknown path: {path}"}, HTTPStatus.NOT_FOUND)
 
-    def _respond(self, body, content_type, status):
-        payload = body.encode("utf-8")
+    def _respond(self, payload, content_type, status):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
@@ -55,17 +59,14 @@ class PublicGuardianHandler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def _respond_json(self, body, status=HTTPStatus.OK):
-        self._respond(json.dumps(body), "application/json", status)
-
-    def _respond_text(self, body, status=HTTPStatus.OK):
-        self._respond(body, "text/plain; charset=utf-8", status)
+        self._respond(json.dumps(body).encode("utf-8"), "application/json", status)
 
     def log_message(self, format, *args):
         logger.info("%s - %s", self.address_string(), format % args)
 
 
 def serve(interface, port, data_path):
-    with open(data_path) as f:
+    with open(data_path, "rb") as f:
         data = f.read()
 
     httpd = ThreadingHTTPServer((interface, port), PublicGuardianHandler)

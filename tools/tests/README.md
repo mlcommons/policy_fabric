@@ -79,6 +79,7 @@ up. It tears the stack down afterwards; pass `-k` to leave it running.
 
 | flag | effect |
 | --- | --- |
+| `-p PORT` | serve the webapp on `PORT` instead of 8000 |
 | `-k` | keep the stack up after the test |
 | `-n` | skip setup entirely and drive whatever is already running |
 | `-H` | run headed on your own screen; records nothing |
