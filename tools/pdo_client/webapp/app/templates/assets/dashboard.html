@@ -32,7 +32,7 @@
     <div class="card">
         <h2 style="margin:0 0 0.5rem">Guardian</h2>
         {% if guardian_deployed %}
-        <p style="margin:0">Your asset is behind a <strong>{{ guardian_type }}</strong>
+        <p style="margin:0">Your asset is behind {% if guardian_type and guardian_type|first in "aeiou" %}an{% else %}a{% endif %} <strong>{{ guardian_type }}</strong>
             guardian running on <strong>{{ guardian_endpoint }}</strong>{% if serve_on %},
             serving on <strong>{{ serve_on }}</strong>{% endif %}.</p>
         {% else %}

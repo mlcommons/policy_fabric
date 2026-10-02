@@ -54,7 +54,7 @@ def fl_client_id(host, port):
     return f"{host}:{port}"
 
 
-def _storage_port(port):
+def storage_port(port):
     """The PDO storage service port that pairs with a guardian on ``port``.
 
     Derived rather than configured so two guardians on different ports do not
@@ -77,7 +77,7 @@ def launch_values(manifest, data_path, *, serve_on, port, asset_did="", asset_na
         "bind_interface": bind_interface,
         "advertised_host": advertised_host,
         "port": str(port),
-        "storage_port": str(_storage_port(port)),
+        "storage_port": str(storage_port(port)),
         "image": manifest.image,
         "fl_server_url": settings.FL_SERVER_URL_FROM_GUARDIAN,
         "fl_client_id": fl_client_id(advertised_host, port),

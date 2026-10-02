@@ -194,6 +194,8 @@ Everything the issuer signs in Part 2 is *about* the script or *about* this requ
 
 This is where credentials *about the requester* will live. Hospital A will never look at it; Hospital B will.
 
+(The list also shows `data_user_wallet`, created automatically the first time you switched to this identity. This tutorial does not use it — make sure you work with `researcher_wallet`.)
+
 ### 1.4 The wallet claims the script
 
 1. Click **Open** on `researcher_wallet`, then **Sign Credential**.
@@ -317,7 +319,7 @@ This is where credentials *about the requester* will live. Hospital A will never
 
 ### 3.2 Expose the dataset behind FL-DS
 
-1. Still on `hospital_a_cohort`, click **Expose** → the **Expose Asset** modal opens.
+1. Registering brings you back to **Assets**. Click **Open** on `hospital_a_cohort`, then **Expose** → the **Expose Asset** modal opens.
 2. Under **Policies**, check **FL-INFERENCE-DISEASE-SPECIFIC-RESEARCH**. (Use **View** to read the policy card and its Rego source.)
 3. The **Policy Data** box auto-fills with that policy's schema. Replace it with real values:
 

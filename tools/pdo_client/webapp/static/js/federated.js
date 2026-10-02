@@ -17,6 +17,7 @@
     var sites = [];        // what the server last told us
     var serverUrl = '';    // the server those sites came from
     var roles = [];        // the union the selected sites asked for
+    var scriptRole = '';   // the role whose identity is the script itself
 
     function el(id) { return document.getElementById(id); }
 
@@ -123,6 +124,13 @@
             select.id = id;
             select.dataset.role = entry.role;
             select.required = true;
+            // The script role is presented from a script asset, never from a
+            // wallet, so it starts on the first script rather than on whatever
+            // wallet happens to head the list.
+            if (entry.role === scriptRole) {
+                var script = select.querySelector('[data-scripts] option:not([disabled])');
+                if (script) { select.value = script.value; }
+            }
             label.setAttribute('for', id);
             label.textContent = entry.role;
             hint.textContent = 'Presents: ' + (entry.credential_types || []).join(', ');
@@ -241,6 +249,7 @@
     function init() {
         var container = document.querySelector('[data-default-server-url]');
         if (!container) { return; }
+        scriptRole = container.dataset.scriptRole || '';
 
         el('fl-server-form').addEventListener('submit', function (e) {
             e.preventDefault();

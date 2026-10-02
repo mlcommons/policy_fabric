@@ -183,6 +183,7 @@ class FederatedPageView(BaseView):
                 "default_server_url": fl_client.default_server_url(),
                 "wallets": wallets,
                 "script_assets": scripts,
+                "script_role": action_runners.InferenceGuardianActionRunner.SCRIPT_ROLE,
             },
         )
 
@@ -350,6 +351,36 @@ class FederatedRunStreamView(BaseView):
                 status=400,
             )
         script_did = make_did(script_contract)
+
+        # Checked before any site is asked. The role's list offers wallets too, and
+        # a wallet chosen here would otherwise surface halfway through the round as
+        # the registry's bare 404 for the wallet's DID.
+        try:
+            script_asset = registry_client.get_asset_by_did(script_did)
+        except requests.HTTPError as e:
+            if e.response is None or e.response.status_code != 404:
+                return JsonResponse(
+                    {"error": f"could not look up the script {script_did}: {e}"},
+                    status=502,
+                )
+            script_asset = None
+        except requests.RequestException as e:
+            return JsonResponse(
+                {"error": f"could not look up the script {script_did}: {e}"},
+                status=502,
+            )
+        script_metadata = (script_asset or {}).get("metadata") or {}
+        if action_runners.guardian_type_of(script_metadata) != "public":
+            return JsonResponse(
+                {
+                    "error": (
+                        f"the '{script_role}' role needs a script -- an asset "
+                        "registered behind a public guardian, listed under Scripts "
+                        f"-- and {script_did} is not one"
+                    )
+                },
+                status=400,
+            )
 
         state = {}
         return stream_events(
