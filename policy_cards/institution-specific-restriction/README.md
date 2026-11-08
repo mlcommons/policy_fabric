@@ -1,21 +1,26 @@
-# DUO_0000028 — IS (Institution Specific Restriction)
+# DUO_0000028 — IS (Institution-Specific Restriction)
 
 **Rule type:** Permission (constraint) · **Outcomes:** allow / deny
 
-Access is limited to requesters affiliated with an allowed institution. The
-requester must present an **AffiliationCredential** (claim `isMemberOf` naming
-the institution) issued by an authority the policy agent trusts for that
-credential type, and a **publicKeyCredential** (claim `key`) carrying their
-channel public key. The data owner configures the set of `allowedInstitutions`
-in `policy_data`. Access is **allowed** when a trusted affiliation names an
-institution in that set and a channel key is present; otherwise it is **denied**.
-The matching affiliation and the public key credential are emitted as
-`verification_tasks` so the contract verifies their signatures before the result
-is trusted.
+**Rule:** The requester is a member of an institution you allow.
 
-**Requirements** (`data.subpolicy.requirements`): `{ "User": ["AffiliationCredential", "publicKeyCredential"] }`
-**Policy data:** `allowedInstitutions: [..]`
-**Context returned:** `{ "channel_key": "<requester public key>" }`
+The requester holds an `AffiliationCredential` about themselves, from an
+authority this asset accepts for that fact, and its `isMemberOf` must be one of
+the `allowedInstitutions` the owner sets. A requester with several affiliations
+qualifies through any one of them.
 
-> Source of truth for the executable logic is [`policy.rego`](policy.rego); this
-> file is the human-readable companion. The two are maintained in parallel.
+| Role | Fact | About | Read from it |
+|------|------|-------|--------------|
+| User | `AffiliationCredential` | the requester | `isMemberOf` |
+
+**Parameters**
+
+- `allowedInstitutions` — DIDs of the institutions the requester may be a member
+  of.
+
+Each fact must be about the holder of its role, and from an authority this asset
+accepts for that type. The card names no operation: the delivery module of the
+asset's guardian does.
+
+> The executable rule is [`policy.rego`](policy.rego); this file is its
+> human-readable companion, and [`card.json`](card.json) is its manifest.

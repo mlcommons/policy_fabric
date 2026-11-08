@@ -1,24 +1,29 @@
 # DUO_0000044 — NPOA (Population Origins or Ancestry Research Prohibited)
 
-**Rule type:** Permission (constraint) · **Outcomes:** allow / deny
+**Rule type:** Prohibition · **Outcomes:** allow / deny
 
-Access is limited to projects whose approved intended use is not a
-population-origins or ancestry research purpose. The requester presents the
-project's **IntendedDataUseCredential** (claim `useOnlyFor.purposes`) together
-with the chain that binds them to that project — a **ProjectOwnershipCredential**
-(claim `Owns`) showing a PI owns the project and a **TeamCredential** (claim
-`MemberOfTeamOf`) placing the requester on that PI's team — plus an
-**AgreementCredential** (accepted terms) and a **publicKeyCredential** (claim
-`key`) carrying their channel public key. The data owner configures the set of
-`prohibitedPurposes` in `policy_data`. Access is **allowed** when none of the
-project's declared purposes is in that set and the chain resolves to a single
-requester; otherwise it is **denied**. The credentials the decision relies on are
-emitted as `verification_tasks` so the contract verifies their signatures before
-the result is trusted.
+**Rule:** The requester's research does not study population origins or ancestry.
 
-**Requirements** (`data.subpolicy.requirements`): `{ "User": ["IntendedDataUseCredential", "ProjectOwnershipCredential", "TeamCredential", "AgreementCredential", "publicKeyCredential"] }`
-**Policy data:** `prohibitedPurposes: [..]`
-**Context returned:** `{ "channel_key": "<requester public key>" }`
+The requester holds a `ResearchPurposeCredential` about themselves none of whose
+`purposes` is among the owner's `prohibitedPurposes`, which this card presets to
+the population-origins/ancestry term. The fact must be about the project the
+request names, which keeps this card consistent with every other project-bound
+card on the same asset.
 
-> Source of truth for the executable logic is [`policy.rego`](policy.rego); this
-> file is the human-readable companion. The two are maintained in parallel.
+| Role | Fact | About | Read from it |
+|------|------|-------|--------------|
+| User | `ResearchPurposeCredential` | the requester | `purposes`, `project` |
+
+**Parameters**
+
+- `prohibitedPurposes` — Research purposes that disqualify; the research must
+  have none. Preset: `["POA"]`.
+
+Each fact must be about the holder of its role, and from an authority this asset
+accepts for that type. The card names no operation: the delivery module of the
+asset's guardian does.
+
+> The executable rule is the
+> [`purpose-prohibited`](../templates/purpose-prohibited/policy.rego) rule
+> template; this file is its human-readable companion, and
+> [`card.json`](card.json) is its manifest.

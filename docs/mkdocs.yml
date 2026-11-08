@@ -9,6 +9,7 @@ nav:
   - Policy Fabric 101: index.md
   - Hands-On Tutorial — Download: tutorial.md
   - Hands-On Tutorial — Inference: tutorial_inference.md
+  - Hands-On Tutorial — Ethics Approval: tutorial_irb.md
 
 theme:
   name: material

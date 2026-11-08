@@ -27,7 +27,7 @@ in it. A guardian is any subfolder holding both a `run.sh` and a `guardian.json`
   "title": "Download",
   "description": "Releases the data encrypted to the requester's session key.",
   "order": 20,
-  "image": { "env": "GUARDIAN_IMAGE", "default": "mlcommons/toy_guardian:v2" },
+  "image": { "env": "GUARDIAN_IMAGE", "default": "mlcommons/toy_guardian:v3" },
   "options": {
     "--image": "image",
     "--interface": "bind_interface",

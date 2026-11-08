@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Bring the whole stack up, then drive the federated inference tutorial through a
-# browser and record it.
+# Bring the whole stack up, then drive a tutorial through a browser and record
+# it: the federated inference tutorial by default, or another with -t.
 #
 # The same sequence as .devcontainer/start.sh -- ledger, enclave services,
 # registries, FL server, webapp -- with two differences. A codespace stops where a
@@ -17,6 +17,7 @@
 #   -n          do not rebuild the environment; drive whatever is already up
 #   -H          run headed (needs a DISPLAY); records nothing
 #   -a DIR      artifacts directory (default /tmp/pdo_webui_artifacts)
+#   -t TUTORIAL inference (default) or irb: runs webui_<TUTORIAL>_test.py
 
 set -eEuo pipefail
 
@@ -26,20 +27,23 @@ NO_SETUP=""
 HEADED=""
 ARTIFACTS=/tmp/pdo_webui_artifacts
 FL_PORT=7920
+TUTORIAL=inference
 
-while getopts "p:knHa:h" opt; do
+while getopts "p:knHa:t:h" opt; do
     case "$opt" in
         p) PORT="$OPTARG" ;;
         k) KEEP=1 ;;
         n) NO_SETUP=1 ;;
         H) HEADED="--headed" ;;
         a) ARTIFACTS="$OPTARG" ;;
-        h) sed -n '2,22p' "$0"; exit 0 ;;
+        t) TUTORIAL="$OPTARG" ;;
+        h) sed -n '2,23p' "$0"; exit 0 ;;
         *) exit 1 ;;
     esac
 done
 
 TESTS="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+[ -f "$TESTS/webui_${TUTORIAL}_test.py" ] || { echo "No tutorial test webui_${TUTORIAL}_test.py" >&2; exit 1; }
 # The docker_*.sh orchestration scripts invoke their per-service helpers by
 # relative path, so they have to run from the tools/ directory that holds them.
 TOOLS="$( cd "$TESTS/.." && pwd )"
@@ -109,7 +113,7 @@ if [ -z "$NO_SETUP" ]; then
     sleep 3
     # A failure screenshot from a previous run left sitting here would be read as
     # this run's -- the recipe says screenshots mean the run failed.
-    rm -f "$ARTIFACTS"/*.png "$ARTIFACTS"/*.html \
+    rm -rf "$ARTIFACTS"/*.png "$ARTIFACTS"/*.html "$ARTIFACTS/enclave_logs" \
           "$ARTIFACTS/run.mp4" "$ARTIFACTS/run_4x.mp4" 2>/dev/null || true
     # The waits below are for files. Left in place by a previous run they are
     # satisfied instantly, and everything downstream then starts against a
@@ -167,11 +171,17 @@ echo "==> Driving the tutorial"
 set +e
 (
     cd "$TESTS"
-    FL_SERVER_URL="http://localhost:${FL_PORT}" "$PYTHON" webui_inference_test.py \
+    FL_SERVER_URL="http://localhost:${FL_PORT}" "$PYTHON" "webui_${TUTORIAL}_test.py" \
         --port "$PORT" --artifacts "$ARTIFACTS" $HEADED
 )
 STATUS=$?
 set -e
+
+# A contract that refuses says why only in the enclave services' logs, and the
+# teardown below removes the container that holds them.
+if [ "$STATUS" -ne 0 ]; then
+    docker cp services_container:/project/pdo/run/opt/pdo/logs "$ARTIFACTS/enclave_logs" >/dev/null 2>&1 || true
+fi
 
 # The recording is real time, which is more than most people want to sit
 # through. Leave a 4x copy beside it; the original stays authoritative.

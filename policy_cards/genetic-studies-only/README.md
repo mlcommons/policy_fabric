@@ -2,23 +2,28 @@
 
 **Rule type:** Permission (constraint) · **Outcomes:** allow / deny
 
-Access is limited to projects whose approved intended use is a permitted genetic
-or genotype study purpose. The requester presents the project's
-**IntendedDataUseCredential** (claim `useOnlyFor.purposes`) together with the
-chain that binds them to that project — a **ProjectOwnershipCredential** (claim
-`Owns`) showing a PI owns the project and a **TeamCredential** (claim
-`MemberOfTeamOf`) placing the requester on that PI's team — plus an
-**AgreementCredential** (accepted terms) and a **publicKeyCredential** (claim
-`key`) carrying their channel public key. The data owner configures the set of
-`allowedPurposes` in `policy_data`. Access is **allowed** when at least one of the
-project's declared purposes is in that set and the chain resolves to a single
-requester; otherwise it is **denied**. The credentials the decision relies on are
-emitted as `verification_tasks` so the contract verifies their signatures before
-the result is trusted.
+**Rule:** The requester's research is a genetic study.
 
-**Requirements** (`data.subpolicy.requirements`): `{ "User": ["IntendedDataUseCredential", "ProjectOwnershipCredential", "TeamCredential", "AgreementCredential", "publicKeyCredential"] }`
-**Policy data:** `allowedPurposes: [..]`
-**Context returned:** `{ "channel_key": "<requester public key>" }`
+The requester holds a `ResearchPurposeCredential` about themselves whose
+`purposes` include one of the owner's `allowedPurposes`, which this card presets
+to the genetic-studies term. The fact must be about the project the request
+names, which keeps this card consistent with every other project-bound card on
+the same asset.
 
-> Source of truth for the executable logic is [`policy.rego`](policy.rego); this
-> file is the human-readable companion. The two are maintained in parallel.
+| Role | Fact | About | Read from it |
+|------|------|-------|--------------|
+| User | `ResearchPurposeCredential` | the requester | `purposes`, `project` |
+
+**Parameters**
+
+- `allowedPurposes` — Research purposes that qualify; the research must have at
+  least one. Preset: `["GSO"]`.
+
+Each fact must be about the holder of its role, and from an authority this asset
+accepts for that type. The card names no operation: the delivery module of the
+asset's guardian does.
+
+> The executable rule is the
+> [`purpose-allowed`](../templates/purpose-allowed/policy.rego) rule template;
+> this file is its human-readable companion, and [`card.json`](card.json) is its
+> manifest.

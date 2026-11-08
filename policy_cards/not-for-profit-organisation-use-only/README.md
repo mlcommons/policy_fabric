@@ -2,19 +2,24 @@
 
 **Rule type:** Permission (constraint) · **Outcomes:** allow / deny
 
-Access is limited to not-for-profit organizations. The requester presents a
-**LegalDesignationCredential** (claim `hasLegalForm`, an ISO 20275 ELF code) and a
-**publicKeyCredential** (claim `key`) carrying their channel public key, both
-issued to the same subject. The data owner configures the set of
-`nonprofitLegalForms` in `policy_data`. Access is **allowed** when the credential's
-legal form is in that set and a channel key is present; otherwise it is **denied**.
-The matching legal designation and the public key credential are emitted as
-`verification_tasks` so the contract verifies their signatures before the result is
-trusted.
+**Rule:** The requester acts for a not-for-profit organisation.
 
-**Requirements** (`data.subpolicy.requirements`): `{ "User": ["LegalDesignationCredential", "publicKeyCredential"] }`
-**Policy data:** `nonprofitLegalForms: [..]`
-**Context returned:** `{ "channel_key": "<requester public key>" }`
+The requester holds a `LegalDesignationCredential` about themselves, from an
+authority this asset accepts for that fact, whose `hasLegalForm` is one of the
+not-for-profit ISO 20275 legal forms the owner lists.
 
-> Source of truth for the executable logic is [`policy.rego`](policy.rego); this
-> file is the human-readable companion. The two are maintained in parallel.
+| Role | Fact | About | Read from it |
+|------|------|-------|--------------|
+| User | `LegalDesignationCredential` | the requester | `hasLegalForm` |
+
+**Parameters**
+
+- `nonprofitLegalForms` — ISO 20275 ELF codes of the legal forms that count as
+  not-for-profit. Preset: `["V2VJ", "8ES1"]`.
+
+Each fact must be about the holder of its role, and from an authority this asset
+accepts for that type. The card names no operation: the delivery module of the
+asset's guardian does.
+
+> The executable rule is [`policy.rego`](policy.rego); this file is its
+> human-readable companion, and [`card.json`](card.json) is its manifest.

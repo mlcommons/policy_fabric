@@ -1,76 +1,45 @@
-# Unit tests for DUO_0000025 (TS).  Run with:  opa test ts/ -v
 package subpolicy_test
 
 import data.subpolicy
+import data.testlib
+import rego.v1
 
-base_input := {
-	"policy_data": {"requiredDocumentID": "did:example:terms-1", "notAfter": "2027-12-31T23:59:59Z"},
-	"presentations": {"User": [
-		{
-			"type": "AgreementCredential",
-			"issuer": "did:example:platform",
-			"subject": "did:example:user-1",
-			"claims": {"agreementInfo": {"documentID": "did:example:terms-1", "documentVersion": "1.0"}},
-			"index": 0,
-		},
-		{
-			"type": "ComputeEnvironmentCredential",
-			"issuer": "did:example:compute-provider",
-			"subject": "did:example:node-1",
-			"claims": {"hasComputeProfile": {"profile": {"SecureHandlingOfResults": true, "shutsDownAt": "2027-06-01T00:00:00Z"}}},
-			"index": 1,
-		},
-		{
-			"type": "publicKeyCredential",
-			"issuer": "did:example:platform",
-			"subject": "did:example:user-1",
-			"claims": {"key": "PUBKEY"},
-			"index": 2,
-		},
-	]},
+agreement := testlib.credential(
+	"AgreementCredential",
+	testlib.requester,
+	{"agreementInfo": {"documentID": "did:example:terms-1", "documentVersion": "1"}},
+)
+
+environment(shuts_down_at) := testlib.credential(
+	"ComputeEnvironmentCredential",
+	testlib.requester,
+	{"hasComputeProfile": {"profile": {"SecureHandlingOfResults": true, "shutsDownAt": shuts_down_at}}},
+)
+
+data_ := {"requiredDocumentID": "did:example:terms-1", "notAfter": "2027-12-31T23:59:59Z"}
+
+test_requirements if {
+	subpolicy.requirements == {"User": ["AgreementCredential", "ComputeEnvironmentCredential"]}
 }
 
-test_requirements_are_user_role_with_credential_types if {
-	subpolicy.requirements == {"User": ["AgreementCredential", "ComputeEnvironmentCredential", "publicKeyCredential"]}
+test_allows_an_environment_that_shuts_down_in_time if {
+	held := [agreement, environment("2027-06-01T00:00:00Z")]
+	r := subpolicy.result with input as testlib.requester_input(held, data_, {})
+	r.decision
+	r.verification_tasks == [{"index": 0}, {"index": 1}]
 }
 
-test_allow_when_terms_accepted_and_within_time_limit if {
-	subpolicy.result.decision == true with input as base_input
+test_denies_an_environment_that_runs_past_the_deadline if {
+	held := [agreement, environment("2028-06-01T00:00:00Z")]
+	not subpolicy.result.decision with input as testlib.requester_input(held, data_, {})
 }
 
-test_operation_carries_name_and_channel_key if {
-	subpolicy.result.operation == {"name": "do_download", "parameters": {"channel_key": "PUBKEY"}} with input as base_input
+test_denies_without_the_terms if {
+	held := [environment("2027-06-01T00:00:00Z")]
+	not subpolicy.result.decision with input as testlib.requester_input(held, data_, {})
 }
 
-test_tasks_flag_agreement_compute_and_public_key if {
-	tasks := subpolicy.result.verification_tasks with input as base_input
-	count(tasks) == 3
-}
-
-test_deny_when_shutdown_after_deadline if {
-	late := json.patch(base_input, [{
-		"op": "replace",
-		"path": "/presentations/User/1/claims/hasComputeProfile/profile/shutsDownAt",
-		"value": "2028-06-01T00:00:00Z",
-	}])
-	subpolicy.result.decision == false with input as late
-}
-
-test_deny_when_no_compute_credential if {
-	nocompute := json.patch(base_input, [{"op": "remove", "path": "/presentations/User/1"}])
-	subpolicy.result.decision == false with input as nocompute
-}
-
-test_deny_when_required_terms_not_accepted if {
-	other := json.patch(base_input, [{
-		"op": "replace",
-		"path": "/presentations/User/0/claims/agreementInfo/documentID",
-		"value": "did:example:terms-other",
-	}])
-	subpolicy.result.decision == false with input as other
-}
-
-test_deny_when_no_public_key_credential if {
-	nokey := json.patch(base_input, [{"op": "remove", "path": "/presentations/User/2"}])
-	subpolicy.result.decision == false with input as nokey
+test_denies_an_environment_of_someone_else if {
+	held := [agreement, testlib.about_someone_else(environment("2027-06-01T00:00:00Z"))]
+	not subpolicy.result.decision with input as testlib.requester_input(held, data_, {})
 }

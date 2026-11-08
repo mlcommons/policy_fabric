@@ -1,4 +1,4 @@
-# Policy Card — FL-DS (Disease Specific Research, inference)
+# Policy Card — FL-DS Disease-Specific Research, for inference
 
 Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt`).
 
@@ -7,103 +7,101 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 1  Identification
 
 - **id:** `card.fl.inference-0000007-ds`
-- **version:** 1.1.0
+- **version:** 2.0.0
 - **status:** draft
-- **title:** Disease Specific Research for inference (FL-DS)
-- **description:** Permit an inference run over the dataset when the script to be
-  run declares an intended use within the owner's allowed diseases and states the
-  digest identifying it.
+- **title:** Disease-specific inference (FL-DS)
+- **description:** Permit an inference run only for a script that declares a use
+  within the data owner's disease scope.
 - **author:** MLCommons
 - **contact:** —
 
 ## 2  Scope & Target
 
-- **target.asset:** the dataset the data owner exposes for federated inference.
-- **target.operations:** `inference`.
-- **Out of scope:** what the requester does with the metrics an inference run
-  returns.
+- **target.asset:** the dataset the data owner exposes for controlled access.
+- **target.guardians:** `inference`.
+- **Out of scope:** any control over the asset after it is delivered
+  (redistribution, retention).
 
 ## 3  Version History
 
-| Version | Date       | Author    | Status | Summary of change                                                |
-|---------|------------|-----------|--------|------------------------------------------------------------------|
-| 1.0.0   | 2026-08-20 | MLCommons | draft  | Initial card, adapting DUO_0000007 DS to inference runs.         |
-| 1.1.0   | 2026-08-23 | MLCommons | draft  | Require the declared use and the digest to name the same script. |
+| Version | Date       | Author    | Status   | Summary of change                                      |
+|---------|------------|-----------|----------|--------------------------------------------------------|
+| 1.0.0   | 2026-08-20 | MLCommons | draft    | Initial card, adapting DUO_0000007 DS to inference runs. |
+| 2.0.0   | 2026-10-02 | MLCommons | draft    | Reads one fact per holder; evidence chains and delivery moved out. |
 
 ## 4  Summary & Intent
 
-The dataset stays where it is and a script is run against it in place. What has to
-declare a purpose is therefore the script, not a project the requester belongs to:
-the script presents an `IntendedDataUseCredential` whose declared diseases intersect
-the owner's allowed list, and a `ScriptHashCredential` giving its content digest.
+The data stays put and a script runs against it, so this card asks what the code
+is for rather than who is asking. The script asset holds an
+`IntendedDataUseCredential` about itself, from an authority this site accepts,
+and at least one of its `useOnlyFor.diseases` must be in the owner's
+`allowedDiseases`.
 
-Both credentials must be about the same script. A declaration of intended use is
-only meaningful for the code it describes, so pairing an in-scope declaration with
-the digest of some other script must not open the dataset.
+Which script runs is fixed by the inference delivery module, which authorizes
+the digest of the same script asset; both read facts about the one `Script`
+holder.
 
-- **Governance objective:** restrict inference over the asset to scripts whose
-  declared use falls within an approved set of diseases.
+- **Governance objective:** restrict inference to code declared for the diseases
+  the data is consented for.
 
 ## 5  Declarative Representation
 
 ```text
-Permission: run inference over the target dataset
-  Assignee:  the requester presenting the script's credentials
+Permission: use the target dataset through its guardian
+  Assignee:  the requester (the holder of each role's presentation)
   Conditions (all must hold):
-    - an IntendedDataUseCredential declares at least one disease ∈ allowedDiseases
-    - a ScriptHashCredential gives the digest of the script to be run
-    - both credentials name the same script as their subject
-  On grant:  a capability naming the approved script digest
-  Otherwise: denied
+    - an IntendedDataUseCredential about the script lists a disease ∈ allowedDiseases
+    - each credential is from an authority the owner accepts for its type
+  On grant:  the operation the guardian's delivery module names
+  Otherwise: deny
 ```
 
-## 6  Associated Credentials
+## 6  Associated Credentials (Evidence Requirements)
 
-| Credential type             | Claims consumed       | Required |
-|-----------------------------|-----------------------|----------|
-| `IntendedDataUseCredential` | `useOnlyFor.diseases` | yes      |
-| `ScriptHashCredential`      | `scriptHash`          | yes      |
+Every type resolves to a schema in [`../../../credentials/`](../../../credentials/).
 
-Both credentials describe the script and must share one subject — the script's
-identifier.
+| Role | Credential type | About | Claims consumed |
+|------|-----------------|-------|-----------------|
+| Script | `IntendedDataUseCredential` | the script | `useOnlyFor.diseases` |
+
+Each credential must be about the holder of its role: facts about third parties
+-- a PI, a project, a committee -- are inputs to authorities, never to this
+card.
 
 ## 7  Reference Values Schema
 
+The values the data owner configures, as a JSON Schema in
+[`card.json`](card.json) (`parameters`), which also generates the owner's form:
+
 ```json
 {
-  "allowedDiseases": ["list of MONDO disease codes"]
+  "allowedDiseases": ["string"]
 }
 ```
 
-- `allowedDiseases` — the MONDO disease codes this asset may be used to study. A
-  declared use qualifies if any of its diseases appears in this list.
+- `allowedDiseases` — MONDO codes of the diseases research may study.
 
 ## 8  Capability Granted
 
-```json
-{
-  "name": "do_inference",
-  "parameters": {
-    "script_digest": "<approved script digest>"
-  }
-}
-```
-
-- `script_digest` — the digest of the approved script, taken from the
-  `ScriptHashCredential`. The Asset Guardian compares it against the code actually
-  presented for execution, so a capability granted for one script cannot be used to
-  run another.
+None of its own. A card decides; it does not deliver. The asset's guardian type
+picks one delivery module, which describes the policy decision: `do_download`
+with the requester's channel key for a download guardian, `do_inference` with
+the approved script's digest for an inference guardian. The policy agent issues
+the decision only if every card on the asset allows, and the asset's token turns
+it into the capability.
 
 ## 9  Codified Representation
 
-The executable rules are in [`policy.rego`](policy.rego), with unit tests in
-[`policy_test.rego`](policy_test.rego). The module allows when one script both
-declares an allowed disease and states the digest identifying it.
+The rule is codified in Rego as [`policy.rego`](policy.rego), with unit tests in
+[`policy_test.rego`](policy_test.rego). It reads `input.presentations`,
+`input.holders`, `input.request` and this card's own `input.policy_data`, and
+returns the decision and the credentials to verify.
 
 ## 10  Legal & Disclaimers
 
-- **Reference implementation.** This card is part of a demonstration of the
-  Policy Fabric decoupling architecture and ships without warranty.
-- **Scope.** The card governs the access decision only. It makes no claim about
-  what happens to results after an inference run, and adopting it does not by
-  itself establish conformance with any external requirement.
+Reference-implementation status: this card and its Rego policy are a reference
+implementation provided as-is. You are responsible for verifying its accuracy and
+fitness for your use case before relying on it — it is not a certified or legally
+reviewed compliance control. Do not use this card or policy to protect sensitive
+data (e.g., health, medical, genetic, or other legally regulated personal data)
+without independent legal and security review.

@@ -1,5 +1,0 @@
-{
-  "approvedUsers": ["list of approved user identifiers"],
-  "allowedAccountTypes": ["list of allowed account types"],
-  "requiredProfileStatuses": ["list of accepted profile statuses"]
-}

@@ -1,4 +1,4 @@
-# Policy Card — DUO_0000028 IS (Institution Specific Restriction)
+# Policy Card — DUO_0000028 IS (Institution-Specific Restriction)
 
 Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt`).
 
@@ -7,50 +7,47 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 1  Identification
 
 - **id:** `card.duo.0000028-is`
-- **version:** 1.0.0
+- **version:** 2.0.0
 - **status:** released
-- **title:** Institution Specific Restriction (DUO_0000028 IS)
-- **description:** Grant access only when the requester presents a trusted
-  `AffiliationCredential` naming a data-owner–approved institution, together with
-  a `publicKeyCredential` carrying the public key their data is delivered to.
+- **title:** Institution-specific restriction (DUO_0000028 IS)
+- **description:** Grant access only to a requester who is a member of an
+  institution the data owner allows.
 - **author:** MLCommons
 - **contact:** —
 
 ## 2  Scope & Target
 
 - **target.asset:** the dataset the data owner exposes for controlled access.
-- **target.operations:** `download`.
+- **target.guardians:** `download`, `inference`.
 - **Out of scope:** any control over the asset after it is delivered
   (redistribution, retention).
 
 ## 3  Version History
 
-| Version | Date       | Author                        | Status   | Summary of change                                      |
-|---------|------------|-------------------------------|----------|--------------------------------------------------------|
-| 1.0.0   | 2026-07-10 | MLCommons                     | released | Initial policy card authored from the IS policy.       |
+| Version | Date       | Author    | Status   | Summary of change                                      |
+|---------|------------|-----------|----------|--------------------------------------------------------|
+| 1.0.0   | 2026-07-10 | MLCommons | released | Initial policy card authored from the IS policy.       |
+| 2.0.0   | 2026-10-02 | MLCommons | released | Reads one fact per holder; evidence chains and delivery moved out. |
 
 ## 4  Summary & Intent
 
-Access to the dataset is limited to requesters affiliated with an allowed
-institution. The requester presents an `AffiliationCredential` whose `isMemberOf`
-names one of the `allowedInstitutions` the data owner configured, together with a
-`publicKeyCredential` carrying the public key their data is delivered to. Both
-credentials must be issued to the **same subject**, so a single party both proves
-the affiliation and owns the key the data is encrypted to.
+The requester holds an `AffiliationCredential` about themselves, from an
+authority this asset accepts for that fact, and its `isMemberOf` must be one of
+the `allowedInstitutions` the owner sets. A requester with several affiliations
+qualifies through any one of them.
 
-- **Governance objective:** restrict download of the asset to members of
-  approved institutions.
+- **Governance objective:** restrict use of the asset to members of approved
+  institutions.
 
 ## 5  Declarative Representation
 
 ```text
-Permission: download the target dataset
-  Assignee:  the requester (the subject of the presented credentials)
+Permission: use the target dataset through its guardian
+  Assignee:  the requester (the holder of each role's presentation)
   Conditions (all must hold):
-    - an AffiliationCredential asserts  isMemberOf ∈ allowedInstitutions
-    - a publicKeyCredential provides the requester's delivery key (claim: key)
-    - both credentials are issued to the same subject
-  On grant:  operation "do_download", with the data encrypted to that key
+    - an AffiliationCredential about the requester asserts isMemberOf ∈ allowedInstitutions
+    - each credential is from an authority the owner accepts for its type
+  On grant:  the operation the guardian's delivery module names
   Otherwise: deny
 ```
 
@@ -58,52 +55,43 @@ Permission: download the target dataset
 
 Every type resolves to a schema in [`../../credentials/`](../../credentials/).
 
-| Credential type         | Claims consumed | Required |
-|-------------------------|-----------------|----------|
-| `AffiliationCredential` | `isMemberOf`    | yes      |
-| `publicKeyCredential`   | `key`           | yes      |
+| Role | Credential type | About | Claims consumed |
+|------|-----------------|-------|-----------------|
+| User | `AffiliationCredential` | the requester | `isMemberOf` |
 
-Both credentials must be issued to the same subject.
+Each credential must be about the holder of its role: facts about third parties
+-- a PI, a project, a committee -- are inputs to authorities, never to this
+card.
 
 ## 7  Reference Values Schema
 
-Reference values the data owner configures (see
-[`policy_data_schema.json`](policy_data_schema.json)):
+The values the data owner configures, as a JSON Schema in
+[`card.json`](card.json) (`parameters`), which also generates the owner's form:
 
 ```json
 {
-  "allowedInstitutions": ["list of strings"]
+  "allowedInstitutions": ["string"]
 }
 ```
 
-`allowedInstitutions` is the set of institution identifiers (as they appear in
-`AffiliationCredential.isMemberOf`, i.e. institution DIDs) for which access is
-permitted.
+- `allowedInstitutions` — DIDs of the institutions the requester may be a member
+  of.
 
 ## 8  Capability Granted
 
-On success the card grants the operation below, which the Asset Guardian
-enforces without interpreting policy logic:
-
-```json
-{
-  "operation": {
-    "name": "do_download",
-    "parameters": { "channel_key": "<requester public key>" }
-  }
-}
-```
-
-- **operation:** `do_download` — the guardian operation invoked on success.
-- **parameters.channel_key:** the `key` claim of the requester's
-  `publicKeyCredential`; the guardian encrypts the delivered data to it.
+None of its own. A card decides; it does not deliver. The asset's guardian type
+picks one delivery module, which describes the policy decision: `do_download`
+with the requester's channel key for a download guardian, `do_inference` with
+the approved script's digest for an inference guardian. The policy agent issues
+the decision only if every card on the asset allows, and the asset's token turns
+it into the capability.
 
 ## 9  Codified Representation
 
-The policy is codified in Rego: [`policy.rego`](policy.rego), with unit tests in
-[`policy_test.rego`](policy_test.rego). It evaluates to allow when the same
-subject holds both an approved `AffiliationCredential` and a
-`publicKeyCredential`, and returns the granted operation of section 8.
+The rule is codified in Rego as [`policy.rego`](policy.rego), with unit tests in
+[`policy_test.rego`](policy_test.rego). It reads `input.presentations`,
+`input.holders`, `input.request` and this card's own `input.policy_data`, and
+returns the decision and the credentials to verify.
 
 ## 10  Legal & Disclaimers
 

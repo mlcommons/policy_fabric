@@ -477,9 +477,9 @@ hr { border: none; border-top: 1px solid #eee; margin: 1.2rem 0; }
 /* ===== Inline identity change form (in navbar) ===== */
 .identity-modal .modal { max-width: 380px; }
 
-/* ===== Policy detail modal (rendered README + highlighted Rego) ===== */
-.policy-detail-modal .tabs { margin-bottom: 0; }
-.policy-detail-modal .tab-panel { padding-top: 1.25rem; }
+/* ===== Card detail modal (rendered README + highlighted Rego) ===== */
+.card-detail-modal .tabs { margin-bottom: 0; }
+.card-detail-modal .tab-panel { padding-top: 1.25rem; }
 
 /* Rendered Markdown */
 .markdown-body {
@@ -616,3 +616,77 @@ hr { border: none; border-top: 1px solid #eee; margin: 1.2rem 0; }
     animation: spin 0.8s linear infinite;
     vertical-align: middle;
 }
+
+.muted { color: var(--color-subtle); font-size: 0.88rem; }
+p.muted { margin: 0.25rem 0 0.75rem; }
+
+/* ===== Authorities, facts and trust ===== */
+.badge-code { background: #eef1f5; color: var(--color-primary); text-transform: none; }
+.badge-kind { text-transform: none; }
+.badge-kind-hand-signing { background: #f3e5f5; color: #6a1b9a; }
+.badge-kind-rule-based { background: #e3f2fd; color: #1565c0; }
+.badge-kind-system { background: #e8f5e9; color: #1b5e20; }
+.badge-kind-unlisted { background: #f5f5f5; color: #666; }
+
+.option-list { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.75rem; }
+.option-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: #fafafa;
+    font-weight: 400;
+}
+.option-item input { width: auto; margin-top: 0.2rem; }
+.option-item > label, .option-item > span { flex: 1; margin: 0; font-weight: 400; cursor: pointer; }
+.option-item small { display: block; margin-top: 0.15rem; }
+.option-rule { display: block; color: var(--color-text); font-size: 0.88rem; margin-top: 0.15rem; }
+
+.fact-row { padding: 0.75rem 0; border-bottom: 1px solid #f0f0f0; }
+.fact-row:last-child { border-bottom: none; }
+.fact-head { margin-bottom: 0.5rem; }
+.fact-head small { display: block; }
+.paste-did summary { cursor: pointer; color: var(--color-accent); font-size: 0.85rem; }
+.paste-did .trust-add { margin-top: 0.4rem; }
+
+.trust-lists { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.trust-table td { vertical-align: middle; }
+.trust-entry { display: flex; align-items: center; gap: 0.5rem; margin: 0.2rem 0; }
+.trust-add { display: flex; gap: 0.4rem; align-items: center; }
+.trust-add select, .trust-add input { min-width: 0; }
+
+.review-line {
+    padding: 0.75rem 1rem;
+    background: #f4f8fc;
+    border-left: 3px solid var(--color-accent);
+    border-radius: 0 4px 4px 0;
+}
+
+.schema-fieldset {
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 0.75rem 1rem 0.25rem;
+    margin-bottom: 1rem;
+}
+.schema-fieldset legend { font-weight: 600; font-size: 0.88rem; color: var(--color-primary); padding: 0 0.3rem; }
+
+/* ===== Readiness checklist ===== */
+.status {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.status-held { background: #e8f5e9; color: #1b5e20; }
+.status-automatic { background: #e3f2fd; color: #0d47a1; }
+.status-ask { background: #fff8e1; color: #6c4a00; }
+.status-held_not_accepted { background: #fde8e8; color: #9c1717; }
+.status-unreachable { background: #fde8e8; color: #9c1717; }
+.checklist { margin: 0.5rem 0 1rem; }
+.site-checklist h3 { margin-top: 0.75rem; }
+
+.credentials-table details { margin-top: 0.35rem; }

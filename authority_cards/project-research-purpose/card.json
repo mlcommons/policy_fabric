@@ -1,0 +1,15 @@
+{
+  "kind": "authority",
+  "id": "authority:project-research-purpose",
+  "name": "Project research purpose",
+  "rule": "The member works on their PI's project, and carries the use that project declared.",
+  "issues": "ResearchPurposeCredential",
+  "presenters": "The member presents the whole chain from their own wallet: their TeamCredential, and copies of the credentials about their PI, project that the issuing offices delivered to it. The research purpose lands in the member's wallet.",
+  "facts": {
+    "User": ["TeamCredential", "ProjectOwnershipCredential", "IntendedDataUseCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {}
+  }
+}

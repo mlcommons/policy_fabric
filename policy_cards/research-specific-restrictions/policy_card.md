@@ -1,4 +1,4 @@
-# Policy Card — DUO_0000012 RS (Research Specific Restrictions)
+# Policy Card — DUO_0000012 RS (Research-Specific Restrictions)
 
 Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt`).
 
@@ -7,56 +7,48 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 1  Identification
 
 - **id:** `card.duo.0000012-rs`
-- **version:** 1.0.0
+- **version:** 2.0.0
 - **status:** released
-- **title:** Research Specific Restrictions (DUO_0000012 RS)
-- **description:** Grant access only when a project's intended-use approval falls
-  within the data owner's allowed research scope, and the requester is bound to
-  that project as a member of the owning PI's team.
+- **title:** Research-specific restrictions (DUO_0000012 RS)
+- **description:** Grant access only for research within the scope the data
+  owner sets.
 - **author:** MLCommons
 - **contact:** —
 
 ## 2  Scope & Target
 
 - **target.asset:** the dataset the data owner exposes for controlled access.
-- **target.operations:** `download`.
+- **target.guardians:** `download`, `inference`.
 - **Out of scope:** any control over the asset after it is delivered
   (redistribution, retention).
 
 ## 3  Version History
 
-| Version | Date       | Author                        | Status   | Summary of change                                      |
-|---------|------------|-------------------------------|----------|--------------------------------------------------------|
-| 1.0.0   | 2026-07-15 | MLCommons                     | released | Initial policy card authored from the RS policy.       |
+| Version | Date       | Author    | Status   | Summary of change                                      |
+|---------|------------|-----------|----------|--------------------------------------------------------|
+| 1.0.0   | 2026-07-15 | MLCommons | released | Initial policy card authored from the RS policy.       |
+| 2.0.0   | 2026-10-02 | MLCommons | released | Reads one fact per holder; evidence chains and delivery moved out. |
 
 ## 4  Summary & Intent
 
-Access to the dataset is limited to research within the data owner's allowed
-scope. A project's `IntendedDataUseCredential` declares the purposes the project
-is approved to pursue; access is granted only when at least one of those purposes
-is in the `allowedPurposes` set the data owner configured. The requester is tied
-to the project through a chain: their `TeamCredential` names the PI whose
-`ProjectOwnershipCredential` names the project the `IntendedDataUseCredential` is
-about. The requester's `TeamCredential`, `AgreementCredential`, and
-`publicKeyCredential` are issued to the **same subject**, so a single party is on
-the team, has accepted the terms, and owns the key the data is encrypted to.
+The requester holds a `ResearchPurposeCredential` about themselves whose
+`purposes` include one of the owner's `allowedPurposes`. The fact must be about
+the project the request names, which keeps this card consistent with every other
+project-bound card on the same asset.
 
-- **Governance objective:** restrict download of the asset to projects whose
-  approved intended use falls within the allowed research scope.
+- **Governance objective:** restrict use of the asset to a research scope the
+  owner defines.
 
 ## 5  Declarative Representation
 
 ```text
-Permission: download the target dataset
-  Assignee:  the requester (subject of the TeamCredential / AgreementCredential / publicKeyCredential)
+Permission: use the target dataset through its guardian
+  Assignee:  the requester (the holder of each role's presentation)
   Conditions (all must hold):
-    - an IntendedDataUseCredential declares  useOnlyFor.purposes ∩ allowedPurposes ≠ ∅
-    - a ProjectOwnershipCredential shows a PI owns that project (Owns)
-    - a TeamCredential places the requester on that PI's team (MemberOfTeamOf)
-    - the requester presents an AgreementCredential (accepted terms)
-    - a publicKeyCredential provides the requester's delivery key (claim: key)
-    - the team, agreement, and public-key credentials share one subject
-  On grant:  operation "do_download", with the data encrypted to that key
+    - a ResearchPurposeCredential about the requester lists a purpose ∈ allowedPurposes
+    - the credential is about the project the request names
+    - each credential is from an authority the owner accepts for its type
+  On grant:  the operation the guardian's delivery module names
   Otherwise: deny
 ```
 
@@ -64,57 +56,44 @@ Permission: download the target dataset
 
 Every type resolves to a schema in [`../../credentials/`](../../credentials/).
 
-| Credential type              | Claims consumed          | Required |
-|------------------------------|--------------------------|----------|
-| `IntendedDataUseCredential`  | `useOnlyFor.purposes`    | yes      |
-| `ProjectOwnershipCredential` | `Owns`                   | yes      |
-| `TeamCredential`             | `MemberOfTeamOf`         | yes      |
-| `AgreementCredential`        | `agreementInfo`          | yes      |
-| `publicKeyCredential`        | `key`                    | yes      |
+| Role | Credential type | About | Claims consumed |
+|------|-----------------|-------|-----------------|
+| User | `ResearchPurposeCredential` | the requester | `purposes`, `project` |
 
-The team, agreement, and public-key credentials must be issued to the same
-subject (the requester); the ownership and intended-use credentials link that
-requester's PI to the governed project.
+Each credential must be about the holder of its role: facts about third parties
+-- a PI, a project, a committee -- are inputs to authorities, never to this
+card.
 
 ## 7  Reference Values Schema
 
-Reference values the data owner configures (see
-[`policy_data_schema.json`](policy_data_schema.json)):
+The values the data owner configures, as a JSON Schema in
+[`card.json`](card.json) (`parameters`), which also generates the owner's form:
 
 ```json
 {
-  "allowedPurposes": ["list of allowed research purposes"]
+  "allowedPurposes": ["string"]
 }
 ```
 
-`allowedPurposes` is the set of research purposes (as they appear in
-`IntendedDataUseCredential.useOnlyFor.purposes`) for which access is permitted.
+- `allowedPurposes` — Research purposes that qualify; the research must have at
+  least one.
 
 ## 8  Capability Granted
 
-On success the card grants the operation below, which the Asset Guardian
-enforces without interpreting policy logic:
-
-```json
-{
-  "operation": {
-    "name": "do_download",
-    "parameters": { "channel_key": "<requester public key>" }
-  }
-}
-```
-
-- **operation:** `do_download` — the guardian operation invoked on success.
-- **parameters.channel_key:** the `key` claim of the requester's
-  `publicKeyCredential`; the guardian encrypts the delivered data to it.
+None of its own. A card decides; it does not deliver. The asset's guardian type
+picks one delivery module, which describes the policy decision: `do_download`
+with the requester's channel key for a download guardian, `do_inference` with
+the approved script's digest for an inference guardian. The policy agent issues
+the decision only if every card on the asset allows, and the asset's token turns
+it into the capability.
 
 ## 9  Codified Representation
 
-The policy is codified in Rego: [`policy.rego`](policy.rego), with unit tests in
-[`policy_test.rego`](policy_test.rego). It evaluates to allow when a project's
-intended-use purposes fall within the allowed research scope and the
-ownership/team chain binds the requester to that project, and returns the granted
-operation of section 8.
+The rule is codified in Rego as the
+[`purpose-allowed`](../templates/purpose-allowed/policy.rego) rule template,
+with unit tests in [its tests](../templates/purpose-allowed/policy_test.rego).
+It reads `input.presentations`, `input.holders`, `input.request` and this card's
+own `input.policy_data`, and returns the decision and the credentials to verify.
 
 ## 10  Legal & Disclaimers
 

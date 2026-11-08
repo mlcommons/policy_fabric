@@ -1,4 +1,4 @@
-// Wallet dashboard: JSON-POST actions (update name, add VC, sign credential).
+// Wallet dashboard: JSON-POST actions (update name, add VC, sign as the wallet).
 // On success a mutating action reloads the page; signing reports inline, because
 // what it changed is another contract's credential store, not this page.
 
@@ -43,49 +43,40 @@
             }
         });
 
-        // ---- Sign credential as this wallet ----
+        // ---- Sign as this wallet ----
         // Signed with the wallet's own contract key; the server picks the key,
         // the client only says what is being claimed and about whom.
         var signForm = document.getElementById('sign-credential-form');
-        if (!signForm) return;
+        var claimsData = document.getElementById('own-claims-data');
+        if (!signForm || !claimsData) return;
+        var templates = JSON.parse(claimsData.textContent);
+        var factSelect = document.getElementById('sign-fact');
+        var claims = null;
 
-        var templateSelect = document.getElementById('sign-template-select');
-        var claimsTextarea = document.getElementById('sign-claims-input');
-        function prefillClaims() {
-            if (!templateSelect || !claimsTextarea) return;
-            var opt = templateSelect.options[templateSelect.selectedIndex];
-            if (!opt) return;
-            try {
-                var schema = JSON.parse(opt.dataset.schema || '{}');
-                claimsTextarea.value = JSON.stringify(schema, null, 2);
-            } catch (e) { /* leave textarea untouched */ }
+        function showFact() {
+            var t = templates.filter(function (x) { return x.type === factSelect.value; })[0];
+            if (!t) return;
+            document.getElementById('sign-fact-meaning').textContent = t.meaning;
+            claims = window.schemaForm.render(document.getElementById('sign-claims'), t.schema, {});
         }
-        if (templateSelect) {
-            templateSelect.addEventListener('change', prefillClaims);
-            prefillClaims();
-        }
+        factSelect.addEventListener('change', showFact);
+        showFact();
 
         signForm.addEventListener('submit', async function (e) {
             e.preventDefault();
-            var raw = (claimsTextarea.value || '').trim();
-            var claims = {};
-            if (raw) {
-                try { claims = JSON.parse(raw); }
-                catch (err) {
-                    window.flash('Invalid claims JSON: ' + err.message, 'error');
-                    return;
-                }
+            var errors = claims ? claims.errors() : ['Nothing to sign'];
+            if (errors.length) {
+                window.flash(errors.join('\n'), 'error');
+                return;
             }
-            var payload = {
-                template_type: templateSelect.value,
-                subject_did: document.getElementById('sign-subject-did').value.trim(),
-                claims: claims,
-            };
             try {
-                var res = await window.api.post(
-                    '/api/wallets/' + cidUrl + '/sign-credential/', payload);
+                var res = await window.api.post('/api/wallets/' + cidUrl + '/sign-credential/', {
+                    template_type: factSelect.value,
+                    subject_did: document.getElementById('sign-subject-did').value.trim(),
+                    claims: claims.value(),
+                });
                 document.getElementById('sign-credential-modal').classList.add('hidden');
-                window.flash(res.message || 'Credential issued.', 'success');
+                window.flash(res.message, 'success');
             } catch (err) {
                 window.flash(err.message, 'error');
             }

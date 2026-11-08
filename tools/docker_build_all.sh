@@ -1,16 +1,16 @@
 set -e
 
 # pdo-contracts revision the client image (and therefore the compiled contract
-# binaries) is built from. It must be one that carries rego_token's
-# create_capability op and the guardian request context, since the inference
-# flow issues a capability the FL client presents to its guardian later rather
-# than redeeming it inline.
-REPOSITORY=https://github.com/mlcommons/pdo-contracts
-BRANCH=a4323c18a2f9dc3e54652c0a08c9692b2d13dacc
+# binaries) is built from. It must carry the authorities work: rego_policy_agent,
+# the evaluation input with signer, holders and request, per-module policy data,
+# unregister_trusted_issuer and the digest-keyed wallet store. Pin it to the
+# commit once that branch is pushed and merged.
+REPOSITORY=https://github.com/hasan7n/pdo-contracts
+BRANCH=authorities
 
 # Bumped together whenever the images are rebuilt, so a new build never
 # overwrites the tag a running deployment already pulled.
-TAG=v2
+TAG=v3
 
 bash asset_registry/build.sh \
     --image mlcommons/pdo_toy_asset_registry:$TAG

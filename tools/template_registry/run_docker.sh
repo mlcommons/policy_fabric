@@ -3,6 +3,7 @@ INTERFACE=""
 PORT=""
 CREDENTIALS_DIR=""
 POLICY_CARDS_DIR=""
+AUTHORITY_CARDS_DIR=""
 
 usage() {
     cat <<EOF
@@ -16,6 +17,7 @@ Options:
   -p, --port PORT             Host port to publish (required)
   -c, --credentials-dir DIR   Host folder of credential JSON Schemas (required)
   -d, --policy-cards-dir DIR  Host folder of policy-card subfolders (required)
+  -a, --authority-cards-dir DIR  Host folder of authority-card subfolders (required)
   -h, --help                  Show this help and exit
 EOF
 }
@@ -27,6 +29,7 @@ while [ $# -gt 0 ]; do
         -p|--port)            PORT="$2"; shift 2 ;;
         -c|--credentials-dir) CREDENTIALS_DIR="$2"; shift 2 ;;
         -d|--policy-cards-dir) POLICY_CARDS_DIR="$2"; shift 2 ;;
+        -a|--authority-cards-dir) AUTHORITY_CARDS_DIR="$2"; shift 2 ;;
         -h|--help)            usage; exit 0 ;;
         *)                    echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
@@ -38,13 +41,16 @@ done
 [ -n "$PORT" ]                    || { echo "Missing required option: -p/--port" >&2; usage >&2; exit 1; }
 [ -n "$CREDENTIALS_DIR" ]         || { echo "Missing required option: -c/--credentials-dir" >&2; usage >&2; exit 1; }
 [ -n "$POLICY_CARDS_DIR" ]        || { echo "Missing required option: -d/--policy-cards-dir" >&2; usage >&2; exit 1; }
+[ -n "$AUTHORITY_CARDS_DIR" ]     || { echo "Missing required option: -a/--authority-cards-dir" >&2; usage >&2; exit 1; }
 
 # seed_templates reads these folders (they are not baked into the image), so
 # bind-mount them onto the container paths the image's CMD passes to run.sh
-# (/templates/credentials and /templates/policy_cards). docker -v needs absolute
-# paths, so resolve each (which also verifies it is an existing directory).
+# (/templates/credentials, /templates/policy_cards, /templates/authority_cards).
+# docker -v needs absolute paths, so resolve each (which also verifies it is an
+# existing directory).
 CREDENTIALS_ABS="$( cd "$CREDENTIALS_DIR" 2>/dev/null && pwd )"   || { echo "Missing credentials folder: $CREDENTIALS_DIR" >&2; exit 1; }
 POLICY_CARDS_ABS="$( cd "$POLICY_CARDS_DIR" 2>/dev/null && pwd )" || { echo "Missing policy_cards folder: $POLICY_CARDS_DIR" >&2; exit 1; }
+AUTHORITY_CARDS_ABS="$( cd "$AUTHORITY_CARDS_DIR" 2>/dev/null && pwd )" || { echo "Missing authority_cards folder: $AUTHORITY_CARDS_DIR" >&2; exit 1; }
 
 # Replace any registry already running under this name, the way the guardians
 # do. Without this a restart onto a new image fails on the name, leaving the old
@@ -56,4 +62,5 @@ docker run --rm --user "$(id -u):0" --name template_registry_container \
     -p $INTERFACE:$PORT:8000 \
     -v "$CREDENTIALS_ABS":/templates/credentials:ro \
     -v "$POLICY_CARDS_ABS":/templates/policy_cards:ro \
+    -v "$AUTHORITY_CARDS_ABS":/templates/authority_cards:ro \
     $TEMPLATE_REGISTRY_IMAGE

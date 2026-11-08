@@ -1,10 +1,11 @@
 from django.urls import path
 
 from .views.assets import (
+    AssetAcceptAuthorityEndpoint,
+    AssetChecklistEndpoint,
     AssetDashboardView,
     AssetExposeStreamView,
     AssetExposeView,
-    AssetRegisterPolicyIssuerEndpoint,
     AssetSetupStreamView,
     AssetSetupView,
     AssetsListView,
@@ -12,21 +13,25 @@ from .views.assets import (
     AssetUseEndpoint,
     AssetUseFormEndpoint,
     AssetUseStreamView,
+    AssetWithdrawAuthorityEndpoint,
+)
+from .views.authorities import (
+    AuthoritiesListView,
+    AuthorityAcceptEndpoint,
+    AuthorityDetailView,
+    AuthorityIssueEndpoint,
+    AuthoritySignCredentialEndpoint,
+    AuthorityUpdateNameEndpoint,
+    AuthorityWithdrawEndpoint,
 )
 from .views.config import ConfigPageView, IdentityProvisionView, IdentitySetView
 from .views.federated import (
+    FederatedChecklistEndpoint,
     FederatedPageView,
     FederatedRolesEndpoint,
     FederatedRunStreamView,
     FederatedSitesEndpoint,
     FederatedStartServerStreamView,
-)
-from .views.issuers import (
-    IssuerAddVCEndpoint,
-    IssuerDetailView,
-    IssuerSignCredentialEndpoint,
-    IssuersListView,
-    IssuerUpdateNameEndpoint,
 )
 from .views.wallets import (
     WalletAddVCEndpoint,
@@ -42,7 +47,7 @@ from .views.wallets import (
 #   * /api/... endpoints: POST-only, accept and return JSON. Used by JS
 #     for pages where multiple distinct actions are possible.
 #
-# Wallets/assets/issuers are addressed by their on-ledger contract_id.
+# Wallets/assets/authorities are addressed by their on-ledger contract_id.
 # Because PDO contract ids are base64 hashes (containing `/`, `+`, `=`), we
 # carry them through URL paths under their URL-safe encoding
 # (`app.url_safe_id`) bound to the `cid_url` kwarg. Views decode it
@@ -80,12 +85,12 @@ urlpatterns = [
         WalletDetailView.as_view(),
         name="wallet_detail",
     ),
-    # Issuers (pages)
-    path("issuers/", IssuersListView.as_view(), name="issuers"),
+    # Authorities (pages)
+    path("authorities/", AuthoritiesListView.as_view(), name="authorities"),
     path(
-        "issuers/<str:cid_url>/",
-        IssuerDetailView.as_view(),
-        name="issuer_detail",
+        "authorities/<str:cid_url>/",
+        AuthorityDetailView.as_view(),
+        name="authority_detail",
     ),
     # Config + identity (pages)
     path("config/", ConfigPageView.as_view(), name="config"),
@@ -108,6 +113,11 @@ urlpatterns = [
         name="api_asset_use_stream",
     ),
     path(
+        "api/assets/checklist/",
+        AssetChecklistEndpoint.as_view(),
+        name="api_asset_checklist",
+    ),
+    path(
         "api/federated/sites/",
         FederatedSitesEndpoint.as_view(),
         name="api_federated_sites",
@@ -116,6 +126,11 @@ urlpatterns = [
         "api/federated/roles/",
         FederatedRolesEndpoint.as_view(),
         name="api_federated_roles",
+    ),
+    path(
+        "api/federated/checklist/",
+        FederatedChecklistEndpoint.as_view(),
+        name="api_federated_checklist",
     ),
     path(
         "api/federated/run/stream/",
@@ -128,9 +143,14 @@ urlpatterns = [
         name="api_federated_start_server_stream",
     ),
     path(
-        "api/assets/<str:cid_url>/register-policy-issuer/",
-        AssetRegisterPolicyIssuerEndpoint.as_view(),
-        name="api_asset_register_policy_issuer",
+        "api/assets/<str:cid_url>/accept-authority/",
+        AssetAcceptAuthorityEndpoint.as_view(),
+        name="api_asset_accept_authority",
+    ),
+    path(
+        "api/assets/<str:cid_url>/withdraw-authority/",
+        AssetWithdrawAuthorityEndpoint.as_view(),
+        name="api_asset_withdraw_authority",
     ),
     path(
         "api/assets/<str:cid_url>/update-policy-data/",
@@ -153,18 +173,28 @@ urlpatterns = [
         name="api_wallet_update_name",
     ),
     path(
-        "api/issuers/<str:cid_url>/add-vc/",
-        IssuerAddVCEndpoint.as_view(),
-        name="api_issuer_add_vc",
+        "api/authorities/<str:cid_url>/update-name/",
+        AuthorityUpdateNameEndpoint.as_view(),
+        name="api_authority_update_name",
     ),
     path(
-        "api/issuers/<str:cid_url>/update-name/",
-        IssuerUpdateNameEndpoint.as_view(),
-        name="api_issuer_update_name",
+        "api/authorities/<str:cid_url>/sign-credential/",
+        AuthoritySignCredentialEndpoint.as_view(),
+        name="api_authority_sign_credential",
     ),
     path(
-        "api/issuers/<str:cid_url>/sign-credential/",
-        IssuerSignCredentialEndpoint.as_view(),
-        name="api_issuer_sign_credential",
+        "api/authorities/<str:cid_url>/accept-authority/",
+        AuthorityAcceptEndpoint.as_view(),
+        name="api_authority_accept_authority",
+    ),
+    path(
+        "api/authorities/<str:cid_url>/withdraw-authority/",
+        AuthorityWithdrawEndpoint.as_view(),
+        name="api_authority_withdraw_authority",
+    ),
+    path(
+        "api/authorities/<str:cid_url>/issue/",
+        AuthorityIssueEndpoint.as_view(),
+        name="api_authority_issue",
     ),
 ]

@@ -1,0 +1,30 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000025",
+  "code": "TS",
+  "name": "Time limit on use",
+  "rule": "The requester accepted your terms and computes in an environment that shuts down by your deadline.",
+  "guardianTypes": ["download", "inference"],
+  "facts": {
+    "User": ["AgreementCredential", "ComputeEnvironmentCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "requiredDocumentID": {
+        "type": "string",
+        "title": "Required terms",
+        "description": "DID of the terms document the requester must have accepted.",
+        "minLength": 1
+      },
+      "notAfter": {
+        "type": "string",
+        "title": "Deadline",
+        "description": "ISO-8601 time after which use is no longer permitted.",
+        "minLength": 1,
+        "format": "date-time"
+      }
+    },
+    "required": ["requiredDocumentID", "notAfter"]
+  }
+}

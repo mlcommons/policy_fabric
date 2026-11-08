@@ -1,0 +1,15 @@
+{
+  "kind": "authority",
+  "id": "authority:scoped-obligation-acceptance",
+  "name": "Scoped obligation acceptance",
+  "rule": "The member's institution accepted obligations for their project, each scoped to a dataset.",
+  "issues": "ObligationAcceptanceCredential",
+  "presenters": "The member presents the whole chain from their own wallet: their TeamCredential, and copies of the credentials about their PI, project, the institution and the agreement that the issuing offices delivered to it. The obligation acceptance lands in the member's wallet.",
+  "facts": {
+    "User": ["TeamCredential", "ProjectOwnershipCredential", "AffiliationCredential", "ScopedAgreementCredential", "AgreementCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {}
+  }
+}

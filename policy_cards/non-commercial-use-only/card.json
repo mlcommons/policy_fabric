@@ -1,0 +1,30 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000046",
+  "code": "NCU",
+  "name": "Non-commercial use only",
+  "rule": "The requester's research has no commercial purpose.",
+  "guardianTypes": ["download", "inference"],
+  "template": "purpose-prohibited",
+  "facts": {
+    "User": ["ResearchPurposeCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "prohibitedPurposes": {
+        "type": "array",
+        "title": "Prohibited purposes",
+        "description": "Research purposes that disqualify; the research must have none.",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      }
+    },
+    "required": ["prohibitedPurposes"]
+  },
+  "defaults": {
+    "prohibitedPurposes": ["commercial"]
+  }
+}

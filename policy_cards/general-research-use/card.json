@@ -1,0 +1,23 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000042",
+  "code": "GRU",
+  "name": "General research use",
+  "rule": "The requester accepted your terms.",
+  "guardianTypes": ["download", "inference"],
+  "facts": {
+    "User": ["AgreementCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "requiredDocumentID": {
+        "type": "string",
+        "title": "Required terms",
+        "description": "DID of the terms document the requester must have accepted.",
+        "minLength": 1
+      }
+    },
+    "required": ["requiredDocumentID"]
+  }
+}

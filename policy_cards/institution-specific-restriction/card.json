@@ -1,0 +1,26 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000028",
+  "code": "IS",
+  "name": "Institution-specific restriction",
+  "rule": "The requester is a member of an institution you allow.",
+  "guardianTypes": ["download", "inference"],
+  "facts": {
+    "User": ["AffiliationCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "allowedInstitutions": {
+        "type": "array",
+        "title": "Allowed institutions",
+        "description": "DIDs of the institutions the requester may be a member of.",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      }
+    },
+    "required": ["allowedInstitutions"]
+  }
+}

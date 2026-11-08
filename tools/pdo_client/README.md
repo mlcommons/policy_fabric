@@ -54,6 +54,9 @@ keys (which keeps them runnable inside the container, where there is no docker).
 
 ```bash
 docker/build.sh -i mlcommons/pdo_client:latest -r <repo_url> -b <branch> -f "<families>"
+# or, to run unpushed contract changes: rebuild the identity, authority and rego
+# families from a local checkout on top of a released image
+./build_local.sh -i mlcommons/pdo_base_client:v3 -B mlcommons/pdo_base_client:v2 -c ~/pdo-contracts
 # (start ledger + services first)
 docker/run_cli.sh -i <image> -c <cert> -s <site.toml> -H <host> -l <ledger_url> -e <eservice_url>
 # python test also needs a guardian running and pre-generated user keys:

@@ -13,7 +13,10 @@ from .. import (
     ledger_client,
     naming,
     pdo_runner,
+    readiness,
     registry_client,
+    schemas,
+    trust,
 )
 from ..did_utils import make_did, parse_did
 from ..models import AppConfig
@@ -203,38 +206,27 @@ def _clean_wallets(data, user_name):
     return cleaned
 
 
-def _resolve_policy_id(token_contract_id, user_name):
-    """Return the policy agent contract id for a given token, by reading the
-    token's trusted-issuer list. The token registers exactly one issuer at
-    expose-time: the policy agent. Returns ``None`` if none is registered.
-    """
-    issuers = pdo_runner.list_token_trusted_issuers(token_contract_id, user_name)
-    if not issuers:
-        return None
-    return next(iter(issuers.keys()))
+def _token_and_policy(did, user_name):
+    """The token and policy agent behind an exposed asset, or raise ValidationError."""
+    try:
+        metadata = registry_client.get_asset_by_did(did)["metadata"]
+    except Exception as e:
+        raise ValidationError(f"failed to look up asset in registry: {e}")
+    if "policy_contract" not in metadata:
+        raise ValidationError("Asset has no policy agent yet (expose it first).")
+    token_id, _ = parse_did(metadata["policy_contract"])
+    try:
+        return token_id, pdo_runner.resolve_policy_id(token_id, user_name)
+    except ValueError as e:
+        raise ValidationError(str(e))
 
 
-def _flatten_policy_issuers(raw_issuers):
-    """Flatten the policy agent's trusted-issuer map into display rows.
-
-    ``raw_issuers`` is shaped as ``{contract_id: [entry, ...]}`` where each
-    entry has ``verifying_context.prefix_path`` and ``credential_types``.
-    Returns a list of ``{"did", "credential_types"}`` dicts, one per
-    (contract_id, prefix_path) pair.
-    """
-    rows = []
-    for contract_id, entries in (raw_issuers or {}).items():
-        for entry in entries or []:
-            prefix_path = (entry.get("verifying_context") or {}).get(
-                "prefix_path"
-            ) or []
-            rows.append(
-                {
-                    "did": make_did(contract_id, prefix_path),
-                    "credential_types": entry.get("credential_types") or [],
-                }
-            )
-    return rows
+def _facts_needing_authorities(modules, templates):
+    """The facts some module reads that an authority has to establish: all but
+    the self-asserted ones, which the requester signs and the policy checks
+    against their key."""
+    facts = {t for m in modules for types in m["requirements"].values() for t in types}
+    return sorted(f for f in facts if not templates[f]["self_asserted"])
 
 
 def _short_id(contract_id, n=12):
@@ -429,11 +421,11 @@ class AssetSetupView(BaseView):
 class AssetDashboardView(BaseView):
     """GET-only: render the per-asset dashboard.
 
-    Determines whether the asset already has a policy agent by reading the
-    registry's ``policy_contract`` metadata (a token DID, set at expose time)
-    and querying the token's trusted-issuer list. When a policy exists, the
-    dashboard also lists its currently registered trusted issuers; otherwise
-    it surfaces the Expose form.
+    Before the asset is exposed, the dashboard offers the Expose panel: the cards
+    that can sit in front of this asset's guardian, a parameter form per card,
+    and the authorities the owner accepts for each fact. Afterwards it shows the
+    cards attached, the accepted authorities by name and kind (with a way to
+    withdraw or add trust), and the policy data.
     """
 
     def get(self, request, cid_url):
@@ -444,22 +436,17 @@ class AssetDashboardView(BaseView):
 
         try:
             asset = registry_client.get_asset_by_did(did) or {}
+            registry_error = None
         except Exception as e:
             logger.exception("Failed to fetch asset from registry")
-            asset = {}
-            registry_error = str(e)
-        else:
-            registry_error = None
+            asset, registry_error = {}, str(e)
 
         metadata = asset.get("metadata", {}) or {}
         guardian_url = metadata.get("guardian_url", "")
         guardian_port = metadata.get("guardian_port", "")
         guardian_deployed = bool(guardian_url and guardian_port)
-        # A guardian that enforces nothing has nothing to attach a policy to, so the
-        # Expose form is only offered for the ones that do.
         guardian_type = action_runners.guardian_type_of(metadata)
         runner_class = action_runners.RUNNERS.get(guardian_type)
-        supports_policy = bool(runner_class and runner_class.needs_policy)
         ctx = {
             "asset": {
                 "contract_id": contract_id,
@@ -467,121 +454,189 @@ class AssetDashboardView(BaseView):
                 "did": did,
                 "name": asset.get("name") or f"Asset {_short_id(contract_id)}",
             },
-            "wallets": _user_wallet_cards(user_name),
             "guardian_deployed": guardian_deployed,
-            "guardian_url": guardian_url,
-            "guardian_port": guardian_port,
             "guardian_type": guardian_type,
             "serve_on": metadata.get("serve_on", ""),
-            "supports_policy": supports_policy,
+            "supports_policy": bool(runner_class and runner_class.needs_policy),
             "guardian_endpoint": (
-                _guardian_url_port(guardian_url, guardian_port)
-                if guardian_deployed
-                else ""
+                _guardian_url_port(guardian_url, guardian_port) if guardian_deployed else ""
             ),
             "has_policy": False,
-            "policy_contract_id": None,
-            "token_contract_id": None,
-            "policy_issuers": [],
-            "policy_issuers_error": None,
-            "policy_data": {},
-            "policy_data_json": "",
-            "policy_data_error": None,
             "registry_error": registry_error,
-            "templates": [],
-            "templates_error": None,
-            "policy_details": {},
-            "credential_templates": [],
-            "credential_templates_error": None,
-            "credential_type_options": [],
+            "error": None,
         }
 
-        token_did = metadata.get("policy_contract", "")
-        if token_did:
-            try:
-                token_id, _ = parse_did(token_did)
-                policy_id = _resolve_policy_id(token_id, user_name)
-            except Exception as e:
-                logger.exception("Failed to resolve policy id from token")
-                ctx["policy_issuers_error"] = str(e)
-                policy_id = None
-                token_id = None
-
-            if policy_id:
-                ctx["has_policy"] = True
-                ctx["policy_contract_id"] = policy_id
-                ctx["token_contract_id"] = token_id
-                try:
-                    raw_issuers = pdo_runner.list_policy_trusted_issuers(
-                        policy_id, user_name
-                    )
-                    ctx["policy_issuers"] = _flatten_policy_issuers(raw_issuers)
-                except Exception as e:
-                    logger.exception("Failed to list policy trusted issuers")
-                    ctx["policy_issuers_error"] = str(e)
-                try:
-                    ctx["policy_data"] = pdo_runner.get_policy_data(
-                        policy_id, user_name
-                    )
-                    ctx["policy_data_json"] = json.dumps(ctx["policy_data"], indent=2)
-                except Exception as e:
-                    logger.exception("Failed to get policy data")
-                    ctx["policy_data_error"] = str(e)
-                    ctx["policy_data_json"] = ""
-                try:
-                    ctx["credential_templates"] = (
-                        registry_client.list_credential_templates()
-                    )
-                except Exception as e:
-                    logger.exception("Failed to fetch credential templates")
-                    ctx["credential_templates_error"] = str(e)
-
-        if not ctx["has_policy"]:
-            try:
-                # only Rego-backed templates can be provisioned as subpolicies
-                ctx["templates"] = [
-                    t
-                    for t in registry_client.list_policy_templates()
-                    if (t.get("rego_source") or "").strip()
-                ]
-                for t in ctx["templates"]:
-                    t["policy_data_schema_json"] = json.dumps(
-                        t.get("policy_data_schema") or {}
-                    )
-                # rego source + README per policy, for the "View" popup (keyed by id)
-                ctx["policy_details"] = {
-                    str(t["id"]): {
-                        "name": t.get("name", ""),
-                        "rego_source": t.get("rego_source", ""),
-                        "readme": t.get("readme", ""),
-                    }
-                    for t in ctx["templates"]
-                }
-            except Exception as e:
-                logger.exception("Failed to fetch policy templates")
-                ctx["templates_error"] = str(e)
-
-            # Credential types the expose form's inline "trusted issuers" section
-            # offers as checkboxes.
-            try:
-                ctx["credential_templates"] = (
-                    registry_client.list_credential_templates()
-                )
-                ctx["credential_type_options"] = [
-                    t.get("template_type") for t in ctx["credential_templates"]
-                ]
-            except Exception as e:
-                logger.exception("Failed to fetch credential templates")
-                ctx["credential_templates_error"] = str(e)
-
+        if "policy_contract" in metadata:
+            self._exposed(ctx, did, metadata, user_name)
+        elif guardian_deployed and ctx["supports_policy"]:
+            self._expose_panel(ctx, guardian_type)
         return render(request, "assets/dashboard.html", ctx)
+
+    def _exposed(self, ctx, did, metadata, user_name):
+        ctx["has_policy"] = True
+        try:
+            token_id, policy_id = _token_and_policy(did, user_name)
+            requirements = pdo_runner.get_policy_requirements(token_id, user_name)
+            trusted = pdo_runner.list_trusted_issuers(policy_id, user_name)
+            policy_data = pdo_runner.get_policy_data(policy_id, user_name)
+            templates = registry_client.credential_templates_by_type()
+            modules = {t["name"]: t for t in registry_client.list_policy_templates()}
+            directory = registry_client.list_authorities()
+        except Exception as e:
+            logger.exception("Failed to read the asset's policy")
+            ctx["error"] = str(e)
+            return
+
+        names = {t: v["display_name"] for t, v in templates.items()}
+        facts = _facts_needing_authorities([{"requirements": requirements}], templates)
+        every_fact = {t for types in requirements.values() for t in types}
+        ctx.update({
+            "policy_contract_id": policy_id,
+            "cards": [
+                {
+                    **card,
+                    "parameters_schema": modules[card["name"]]["parameters_schema"],
+                    "values": policy_data[card["name"]],
+                }
+                for card in metadata["cards"]
+            ],
+            "delivery": modules[metadata["delivery"]]["title"],
+            "trust_rows": trust.panel(facts, trusted, directory, names),
+            "self_asserted": [names[t] for t in sorted(every_fact - set(facts))],
+        })
+
+    def _expose_panel(self, ctx, guardian_type):
+        try:
+            cards = registry_client.policy_templates_for(guardian_type, "policy")
+            delivery = registry_client.delivery_template(guardian_type)
+            credentials = registry_client.list_credential_templates()
+            ctx["expose"] = {
+                "cards": [
+                    {k: c[k] for k in ("id", "name", "code", "title", "rule", "requirements",
+                                       "parameters_schema", "defaults", "readme", "rego_source")}
+                    for c in cards
+                ],
+                "delivery": {k: delivery[k] for k in ("name", "title", "rule", "requirements")},
+                "facts": {
+                    t["template_type"]: {
+                        "name": t["display_name"],
+                        "meaning": t["meaning"],
+                        "self_asserted": t["self_asserted"],
+                    }
+                    for t in credentials
+                },
+                "authorities": [trust.describe(a) for a in registry_client.list_authorities()],
+                "trust_lists": registry_client.list_trust_lists(),
+            }
+        except Exception as e:
+            logger.exception("Failed to load the expose panel")
+            ctx["error"] = str(e)
+
+
+def _expose_steps(contract_id, did, user_name, payload):
+    """The steps that expose an asset: the chosen cards and the delivery module of
+    its guardian in one policy agent, each card's parameters under its own module
+    id, and the authorities accepted for each fact.
+
+    ``payload`` is ``{cards: [template id, ...], parameters: {template id: {...}},
+    authorities: {fact: [authority DID, ...]}}``, with parameters for every card
+    and authorities for every fact an authority has to establish.
+    """
+    for key, kind in (("cards", list), ("parameters", dict), ("authorities", dict)):
+        if not isinstance(payload.get(key), kind):
+            raise ValidationError(f"'{key}' must be a {kind.__name__}")
+    card_ids = [str(i) for i in payload["cards"]]
+    parameters, choices = payload["parameters"], payload["authorities"]
+    if not card_ids:
+        raise ValidationError("Select at least one policy.")
+    if set(parameters) != set(card_ids):
+        raise ValidationError("'parameters' must hold the parameters of every selected policy")
+
+    def load(ctx):
+        asset = registry_client.get_asset_by_did(did)
+        meta = asset["metadata"]
+        host, port = meta["guardian_url"], meta["guardian_port"]
+        if not host or not port:
+            raise ValueError("Guardian URL/port missing on this asset.")
+
+        cards = [registry_client.get_policy_template(i) for i in card_ids]
+        delivery = registry_client.delivery_template(action_runners.guardian_type_of(meta))
+        # every module reads its own slice; the delivery module has no parameters
+        policy_data, problems = {delivery["name"]: {}}, []
+        for card in cards:
+            values = parameters[str(card["id"])]
+            for problem in schemas.errors(values, card["parameters_schema"]):
+                problems.append(f"{card['code']} {problem}")
+            policy_data[card["name"]] = values
+        if problems:
+            raise ValueError("Parameters do not fit: " + "; ".join(problems))
+
+        facts = _facts_needing_authorities(cards + [delivery], registry_client.credential_templates_by_type())
+        if set(choices) != set(facts):
+            raise ValueError("'authorities' must name the accepted authorities of: " + ", ".join(facts))
+        unaccepted = [f for f in facts if not choices[f]]
+        if unaccepted:
+            raise ValueError("Accept at least one authority for: " + ", ".join(unaccepted))
+
+        ctx.update({
+            "modules": [[c["name"], c["rego_source"]] for c in cards + [delivery]],
+            "policy_data": policy_data,
+            "cards": [{"name": c["name"], "code": c["code"], "title": c["title"], "rule": c["rule"]} for c in cards],
+            "delivery": delivery["name"],
+            "guardian": _guardian_url_port(host, port),
+            "asset_name": asset["name"],
+            "registrations": trust.registrations({f: choices[f] for f in facts}),
+        })
+        return {"detail": f"{len(cards)} polic{'y' if len(cards) == 1 else 'ies'} and the {delivery['title'].lower()}"}
+
+    def create_policy(ctx):
+        result = pdo_runner.create_asset_policy(
+            f"Policy for {ctx['asset_name']}", ctx["guardian"], user_name, ctx["modules"]
+        )
+        ctx["policy_id"] = result["policy_contract_id"]
+        ctx["token_id"] = result["token_contract_id"]
+
+    def set_data(ctx):
+        pdo_runner.set_policy_data(ctx["policy_id"], ctx["policy_data"], user_name)
+
+    def accept_authorities(ctx):
+        for issuer_id, path, facts in ctx["registrations"]:
+            pdo_runner.register_trusted_issuer(
+                ctx["policy_id"], issuer_id, user_name, path=path, credential_types=facts
+            )
+        return {"detail": f"{len(ctx['registrations'])} authorit{'y' if len(ctx['registrations']) == 1 else 'ies'}"}
+
+    def update_registry(ctx):
+        registry_client.update_asset_metadata_by_did(did, {
+            "policy_contract": make_did(ctx["token_id"]),
+            "policy_data": ctx["policy_data"],
+            "cards": ctx["cards"],
+            "delivery": ctx["delivery"],
+        })
+
+    return [
+        ("load", "Loading the selected policies", load),
+        ("policy", "Creating the policy and token contracts", create_policy),
+        ("data", "Setting each policy's parameters", set_data),
+        ("authorities", "Accepting the chosen authorities", accept_authorities),
+        ("registry", "Updating the asset registry", update_registry),
+    ]
+
+
+def expose(contract_id, did, user_name, payload):
+    """Expose an asset in one go; the plain counterpart of the streamed flow."""
+    ctx = {}
+    for _, _, fn in _expose_steps(contract_id, did, user_name, payload):
+        try:
+            fn(ctx)
+        except SkipStep:
+            continue
+    return ctx
 
 
 class AssetExposeView(BaseView):
-    """POST-only now: create policy + token contracts, set policy data, and
-    update the registry. The form lives inside the dashboard page; on success
-    we redirect back there.
-    """
+    """POST: the plain-form fallback of :class:`AssetExposeStreamView`, with the
+    same JSON payload in a ``payload`` field."""
 
     def get(self, request, cid_url):
         return redirect("asset_dashboard", cid_url=cid_url)
@@ -590,129 +645,32 @@ class AssetExposeView(BaseView):
         contract_id = decode_cid(cid_url)
         user_name = AppConfig.get_instance().public_key
         _require_user_asset(user_name, contract_id)
-        did = make_did(contract_id)
         dashboard_url = f"/assets/{cid_url}/"
-
-        policy_data_raw = (request.POST.get("policy_data") or "").strip()
         try:
-            policy_data = json.loads(policy_data_raw) if policy_data_raw else {}
-        except json.JSONDecodeError as e:
-            return redirect_with_msg(
-                dashboard_url, f"Invalid policy data JSON: {e}", "error"
-            )
-
-        # Trusted issuers added inline in the expose form (optional). The JS
-        # serializes each box as {"did", "credential_types": [...]} into a hidden
-        # field; they are registered on the new policy after it is created.
-        trusted_issuers_raw = (request.POST.get("trusted_issuers") or "").strip()
-        try:
-            trusted_issuers = json.loads(trusted_issuers_raw) if trusted_issuers_raw else []
-        except json.JSONDecodeError:
-            trusted_issuers = []
-        if not isinstance(trusted_issuers, list):
-            trusted_issuers = []
-
-        # The owner may select one or more policy templates; each becomes a Rego
-        # subpolicy provisioned into the rego_policy_agent via set_rego_policy.
-        policy_template_ids = request.POST.getlist("policy_templates")
-        if not policy_template_ids:
-            return redirect_with_msg(
-                dashboard_url, "Select at least one policy.", "error"
-            )
-
-        try:
-            rego_modules = []
-            for tid in policy_template_ids:
-                tpl = registry_client.get_policy_template(tid)
-                source = (tpl.get("rego_source") or "").strip()
-                if not source:
-                    return redirect_with_msg(
-                        dashboard_url,
-                        f"Policy '{tpl.get('name', tid)}' has no rego source.",
-                        "error",
-                    )
-                rego_modules.append([tpl["name"], source])
-        except Exception as e:
-            logger.exception("Failed to load selected policy templates")
-            return redirect_with_msg(
-                dashboard_url, f"Failed to load selected policies: {e}", "error"
-            )
-
-        # Guardian info is on the registry record (set at asset registration).
-        try:
-            asset = registry_client.get_asset_by_did(did) or {}
-            meta = asset.get("metadata", {}) or {}
-        except Exception as e:
-            return redirect_with_msg(
-                dashboard_url, f"Failed to read asset metadata: {e}", "error"
-            )
-        guardian_host = meta.get("guardian_url", "")
-        guardian_port = meta.get("guardian_port", "")
-        if not guardian_host or not guardian_port:
-            return redirect_with_msg(
-                dashboard_url, "Guardian URL/port missing on this asset.", "error"
-            )
-
-        guardian = _guardian_url_port(guardian_host, guardian_port)
-        asset_name = asset.get("name") or _short_id(contract_id)
-
-        try:
-            result = pdo_runner.create_asset_policy(
-                f"Policy for {asset_name}", guardian, user_name, rego_modules
-            )
-
-            if policy_data:
-                pdo_runner.set_policy_data(
-                    result["policy_contract_id"], policy_data, user_name
-                )
-
-            token_did = make_did(result["token_contract_id"])
-            registry_client.update_asset_metadata_by_did(
-                did,
-                {"policy_contract": token_did, "policy_data": policy_data},
-            )
-
+            payload = json.loads(request.POST["payload"])
+            expose(contract_id, make_did(contract_id), user_name, payload)
         except Exception as e:
             logger.exception("Failed to expose asset")
-            return redirect_with_msg(
-                dashboard_url, f"Failed to expose asset: {e}", "error"
-            )
+            return redirect_with_msg(dashboard_url, f"Failed to expose asset: {e}", "error")
+        return redirect_with_msg(dashboard_url, "Asset exposed.", "success")
 
-        # The asset is now exposed; register any trusted issuers from the form as
-        # a best effort. A failed issuer is reported but doesn't undo the expose —
-        # it can be added later from the dashboard's Trusted Issuers section.
-        policy_id = result["policy_contract_id"]
-        issuer_errors = []
-        for entry in trusted_issuers:
-            if not isinstance(entry, dict):
-                continue
-            entry_did = (entry.get("did") or "").strip()
-            credential_types = entry.get("credential_types") or []
-            if not entry_did or not credential_types:
-                continue
-            try:
-                issuer_contract_id, issuer_path = parse_did(entry_did)
-                pdo_runner.register_policy_trusted_issuer(
-                    policy_id,
-                    issuer_contract_id,
-                    user_name,
-                    path=[issuer_path] if issuer_path else [],
-                    credential_types=credential_types,
-                )
-            except Exception as e:
-                logger.exception("Failed to register trusted issuer %s", entry_did)
-                issuer_errors.append(f"{entry_did}: {e}")
 
-        if issuer_errors:
-            return redirect_with_msg(
-                dashboard_url,
-                "Asset exposed, but some trusted issuers failed: "
-                + "; ".join(issuer_errors),
-                "error",
-            )
+class AssetExposeStreamView(BaseView):
+    """POST {cards, parameters, authorities} -- expose the asset, streaming progress."""
 
-        return redirect_with_msg(
-            dashboard_url, "Asset exposed via rego policy.", "success"
+    http_method_names = ["post"]
+
+    def post(self, request, cid_url):
+        contract_id = decode_cid(cid_url)
+        user_name = AppConfig.get_instance().public_key
+        _require_user_asset(user_name, contract_id)
+        try:
+            steps = _expose_steps(contract_id, make_did(contract_id), user_name, _json_body(request))
+        except ValidationError as e:
+            return JsonResponse({"error": str(e)}, status=400)
+        return stream_steps(
+            steps,
+            complete=lambda ctx: {"redirect": f"/assets/{cid_url}/", "message": "Asset exposed."},
         )
 
 
@@ -788,8 +746,13 @@ class AssetUseFormEndpoint(JsonView):
                 )
             token_id, _ = parse_did(token_did)
             requirements = pdo_runner.get_policy_requirements(token_id, user_name)
+            templates = registry_client.credential_templates_by_type()
             roles = [
-                {"role": role, "credential_types": sorted(set(types))}
+                {
+                    "role": role,
+                    "credential_types": sorted(set(types)),
+                    "facts": [templates[t]["display_name"] for t in sorted(set(types))],
+                }
                 for role, types in sorted(requirements.items())
             ]
 
@@ -802,63 +765,96 @@ class AssetUseFormEndpoint(JsonView):
         }
 
 
-class AssetRegisterPolicyIssuerEndpoint(JsonView):
-    """POST {issuer_did, credential_types: [...]} — register a signature
-    authority (identified by its DID, optionally with a ``#path`` signing
-    context) as a trusted issuer for one or more credential types on the
-    asset's policy agent.
-    """
+def checklist_for(asset_did, wallets, user_name):
+    """The readiness checklist of one asset, for the wallets chosen so far."""
+    metadata = registry_client.get_asset_by_did(asset_did)["metadata"]
+    if "policy_contract" not in metadata:
+        raise ValidationError("Asset has not been exposed (no policy_contract in registry).")
+    token_did = metadata["policy_contract"]
+    token_id, _ = parse_did(token_did)
+    assessment = readiness.assess(token_id, wallets, user_name)
+    rows = [
+        {
+            "role": r["role"],
+            "type": r["type"],
+            "name": r["name"],
+            "status": r["status"],
+            "authorities": r["authorities"],
+            "via": r["via"]["name"] if r["via"] else None,
+        }
+        for r in assessment["rows"]
+    ]
+    return {
+        "rows": rows,
+        "ready": assessment["ready"],
+        "needs_project": assessment["needs_project"],
+        "projects": assessment["projects"],
+    }
+
+
+class AssetChecklistEndpoint(JsonView):
+    """POST {asset_did, wallets} — what the requester holds, can get on the way,
+    or has to ask for, before anything is submitted."""
+
+    def handle(self, request, data, **kwargs):
+        asset_did = require(data, "asset_did")
+        user_name = AppConfig.get_instance().public_key
+        if not isinstance(data.get("wallets"), dict):
+            raise ValidationError("'wallets' must map each role to a wallet, or to '' while none is chosen")
+        wallets = {role: cid for role, cid in data["wallets"].items() if cid}
+        for contract_id in wallets.values():
+            if not ledger_client.user_owns_contract(user_name, contract_id):
+                raise ValidationError(f"wallet not found: {contract_id}")
+        return {"ok": True, **checklist_for(asset_did, wallets, user_name)}
+
+
+class AssetAcceptAuthorityEndpoint(JsonView):
+    """POST {did, credential_types} — accept an authority for some facts."""
 
     def handle(self, request, data, cid_url):
         contract_id = decode_cid(cid_url)
         user_name = AppConfig.get_instance().public_key
         _require_user_asset(user_name, contract_id)
-        did = make_did(contract_id)
-
-        issuer_did = require(data, "issuer_did")
-        credential_types = data.get("credential_types")
-        if not isinstance(credential_types, list) or not credential_types:
-            raise ValidationError(
-                "'credential_types' must be a non-empty list of strings"
-            )
-
+        did = require(data, "did")
+        types = data.get("credential_types")
+        if not isinstance(types, list) or not types:
+            raise ValidationError("'credential_types' must be a non-empty list of strings")
         try:
-            issuer_contract_id, issuer_path = parse_did(issuer_did)
+            registrations = trust.registrations({t: [did] for t in types})
         except ValueError as e:
             raise ValidationError(str(e))
-        path = [issuer_path] if issuer_path else []
 
-        try:
-            asset = registry_client.get_asset_by_did(did) or {}
-        except Exception as e:
-            raise ValidationError(f"failed to look up asset in registry: {e}")
-        token_did = (asset.get("metadata", {}) or {}).get("policy_contract", "")
-        if not token_did:
-            raise ValidationError("Asset has no policy agent yet (expose it first).")
+        _, policy_id = _token_and_policy(make_did(contract_id), user_name)
+        for issuer_id, path, facts in registrations:
+            pdo_runner.register_trusted_issuer(
+                policy_id, issuer_id, user_name, path=path, credential_types=facts
+            )
+        return {"ok": True, "message": "Accepted for: " + ", ".join(types)}
 
-        token_id, _ = parse_did(token_did)
-        policy_id = _resolve_policy_id(token_id, user_name)
-        if not policy_id:
-            raise ValidationError("Token contract has no registered policy agent.")
 
-        pdo_runner.register_policy_trusted_issuer(
-            policy_id,
-            issuer_contract_id,
-            user_name,
-            path=path,
-            credential_types=credential_types,
+class AssetWithdrawAuthorityEndpoint(JsonView):
+    """POST {contract_id, credential_types} — stop accepting an authority for
+    some facts."""
+
+    def handle(self, request, data, cid_url):
+        contract_id = decode_cid(cid_url)
+        user_name = AppConfig.get_instance().public_key
+        _require_user_asset(user_name, contract_id)
+        issuer_id = require(data, "contract_id")
+        types = data.get("credential_types")
+        if not isinstance(types, list) or not types:
+            raise ValidationError("'credential_types' must be a non-empty list of strings")
+        _, policy_id = _token_and_policy(make_did(contract_id), user_name)
+        pdo_runner.unregister_trusted_issuer(
+            policy_id, issuer_id, user_name, credential_types=types
         )
-        return {
-            "ok": True,
-            "message": "Issuer registered for: " + ", ".join(credential_types),
-        }
+        return {"ok": True, "message": "Trust withdrawn."}
 
 
 class AssetUpdatePolicyDataEndpoint(JsonView):
-    """POST {policy_data: {...}} — call set_policy_data on the asset's policy
-    agent. Also mirrors the new data into the asset registry metadata so the
-    list view's policy_data field stays in sync.
-    """
+    """POST {policy_data: {module_id: {...}}} — replace the parameters of every
+    card on the asset, each under its module id; the delivery module's slice stays
+    empty. Also mirrors it into the registry."""
 
     def handle(self, request, data, cid_url):
         contract_id = decode_cid(cid_url)
@@ -867,41 +863,35 @@ class AssetUpdatePolicyDataEndpoint(JsonView):
         did = make_did(contract_id)
 
         policy_data = data.get("policy_data")
-        if not isinstance(policy_data, dict):
-            raise ValidationError("'policy_data' must be a JSON object")
+        if not isinstance(policy_data, dict) or not all(isinstance(v, dict) for v in policy_data.values()):
+            raise ValidationError("'policy_data' must map each policy to an object of its parameters")
 
-        try:
-            asset = registry_client.get_asset_by_did(did) or {}
-        except Exception as e:
-            raise ValidationError(f"failed to look up asset in registry: {e}")
-        token_did = (asset.get("metadata", {}) or {}).get("policy_contract", "")
-        if not token_did:
-            raise ValidationError("Asset has no policy agent yet (expose it first).")
+        metadata = registry_client.get_asset_by_did(did)["metadata"]
+        cards = {card["name"] for card in metadata["cards"]}
+        if set(policy_data) != cards:
+            raise ValidationError("'policy_data' must hold the parameters of every policy on the asset: " + ", ".join(sorted(cards)))
 
-        token_id, _ = parse_did(token_did)
-        policy_id = _resolve_policy_id(token_id, user_name)
-        if not policy_id:
-            raise ValidationError("Token contract has no registered policy agent.")
+        templates = {t["name"]: t for t in registry_client.list_policy_templates()}
+        problems = [
+            f"{module_id} {problem}"
+            for module_id, values in policy_data.items()
+            for problem in schemas.errors(values, templates[module_id]["parameters_schema"])
+        ]
+        if problems:
+            raise ValidationError("Parameters do not fit: " + "; ".join(problems))
+        policy_data = {**policy_data, metadata["delivery"]: {}}
 
+        _, policy_id = _token_and_policy(did, user_name)
         pdo_runner.set_policy_data(policy_id, policy_data, user_name)
-
         try:
-            registry_client.update_asset_metadata_by_did(
-                did, {"policy_data": policy_data}
-            )
+            registry_client.update_asset_metadata_by_did(did, {"policy_data": policy_data})
         except Exception:
             logger.exception("Failed to mirror policy_data into registry metadata")
-
         return {"ok": True, "message": "Policy data updated."}
 
 
 # ============================================================
 # Streaming variants (live per-step progress)
-#
-# Same work as the register / expose / use handlers above, but emitted as a
-# stream of progress steps (see app/views/_streaming.py) so the UI can show what
-# is happening behind the scenes. The page-form / JSON handlers above remain as
-# the plain fallbacks.
 # ============================================================
 class AssetSetupStreamView(BaseView):
     """POST {name, data_source, guardian_type, serve_on, port} — deploy a guardian
@@ -985,130 +975,6 @@ class AssetSetupStreamView(BaseView):
                     f'Asset "{name}" registered behind '
                     f"{_with_article(guardian_type)} guardian."
                 ),
-            },
-        )
-
-
-class AssetExposeStreamView(BaseView):
-    """POST {policy_templates: [...], policy_data, trusted_issuers: [...]} —
-    create the policy + token, set data, update the registry, and register
-    trusted issuers, streaming progress. JS variant of :class:`AssetExposeView`."""
-
-    http_method_names = ["post"]
-
-    def post(self, request, cid_url):
-        contract_id = decode_cid(cid_url)
-        user_name = AppConfig.get_instance().public_key
-        _require_user_asset(user_name, contract_id)
-        did = make_did(contract_id)
-        dashboard_url = f"/assets/{cid_url}/"
-
-        data = _json_body(request)
-        policy_template_ids = data.get("policy_templates") or []
-        if not isinstance(policy_template_ids, list) or not policy_template_ids:
-            return JsonResponse({"error": "Select at least one policy."}, status=400)
-
-        policy_data_raw = (data.get("policy_data") or "").strip()
-        try:
-            policy_data = json.loads(policy_data_raw) if policy_data_raw else {}
-        except json.JSONDecodeError as e:
-            return JsonResponse({"error": f"Invalid policy data JSON: {e}"}, status=400)
-
-        trusted_issuers = data.get("trusted_issuers") or []
-        if not isinstance(trusted_issuers, list):
-            trusted_issuers = []
-
-        def load(ctx):
-            rego_modules = []
-            for tid in policy_template_ids:
-                tpl = registry_client.get_policy_template(tid)
-                source = (tpl.get("rego_source") or "").strip()
-                if not source:
-                    raise ValueError(
-                        f"Policy '{tpl.get('name', tid)}' has no rego source."
-                    )
-                rego_modules.append([tpl["name"], source])
-            asset = registry_client.get_asset_by_did(did) or {}
-            meta = asset.get("metadata", {}) or {}
-            host, port = meta.get("guardian_url", ""), meta.get("guardian_port", "")
-            if not host or not port:
-                raise ValueError("Guardian URL/port missing on this asset.")
-            ctx["rego_modules"] = rego_modules
-            ctx["guardian"] = _guardian_url_port(host, port)
-            ctx["asset_name"] = asset.get("name") or _short_id(contract_id)
-            return {"detail": f"{len(rego_modules)} policy(ies)"}
-
-        def create_policy(ctx):
-            result = pdo_runner.create_asset_policy(
-                f"Policy for {ctx['asset_name']}",
-                ctx["guardian"],
-                user_name,
-                ctx["rego_modules"],
-            )
-            ctx["policy_id"] = result["policy_contract_id"]
-            ctx["token_id"] = result["token_contract_id"]
-
-        def set_data(ctx):
-            if not policy_data:
-                raise SkipStep("no policy data provided")
-            pdo_runner.set_policy_data(ctx["policy_id"], policy_data, user_name)
-
-        def update_registry(ctx):
-            registry_client.update_asset_metadata_by_did(
-                did,
-                {"policy_contract": make_did(ctx["token_id"]), "policy_data": policy_data},
-            )
-
-        def register_issuers(ctx):
-            entries = [
-                e
-                for e in trusted_issuers
-                if isinstance(e, dict)
-                and (e.get("did") or "").strip()
-                and (e.get("credential_types") or [])
-            ]
-            if not entries:
-                raise SkipStep("none provided")
-            errors = []
-            for entry in entries:
-                entry_did = entry["did"].strip()
-                try:
-                    issuer_contract_id, issuer_path = parse_did(entry_did)
-                    pdo_runner.register_policy_trusted_issuer(
-                        ctx["policy_id"],
-                        issuer_contract_id,
-                        user_name,
-                        path=[issuer_path] if issuer_path else [],
-                        credential_types=entry["credential_types"],
-                    )
-                except Exception as e:
-                    logger.exception("Failed to register trusted issuer %s", entry_did)
-                    errors.append(f"{entry_did}: {e}")
-            if errors:
-                # Failed, not done: a finished flow redirects straight to the
-                # dashboard, so a failure reported as a detail is gone before
-                # anyone reads it, and the policy then denies every request that
-                # relied on the missing issuer with no hint as to why. The policy
-                # itself exists by now, so say so and where to finish the job.
-                raise ValueError(
-                    "Asset exposed, but some trusted issuers failed: "
-                    + "; ".join(errors)
-                    + ". Reload the page and add them under Trusted Issuers."
-                )
-            return {"detail": f"{len(entries)} issuer(s)"}
-
-        steps = [
-            ("load", "Loading the selected policies", load),
-            ("policy", "Creating the policy and token contracts", create_policy),
-            ("data", "Setting the policy data", set_data),
-            ("registry", "Updating the asset registry", update_registry),
-            ("issuers", "Registering trusted issuers", register_issuers),
-        ]
-        return stream_steps(
-            steps,
-            complete=lambda ctx: {
-                "redirect": dashboard_url,
-                "message": "Asset exposed via rego policy.",
             },
         )
 

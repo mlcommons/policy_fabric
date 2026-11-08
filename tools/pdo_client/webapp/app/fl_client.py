@@ -9,6 +9,7 @@ client holds which asset DID (the server's DID -> client mapping), submitting a
 round to it, and waiting for the round to come back.
 """
 
+import hashlib
 import logging
 
 import requests
@@ -17,6 +18,12 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 TERMINAL_STATUSES = ("complete", "failed")
+
+
+def script_digest(script):
+    """The digest an FL client measures the script it receives by
+    (``fl_framework.client.script_digest``), and a capability is minted for."""
+    return "sha256:" + hashlib.sha256(script.encode("utf-8")).hexdigest()
 
 
 def default_server_url():

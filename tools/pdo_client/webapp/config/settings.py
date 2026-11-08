@@ -138,7 +138,7 @@ FL_SERVER_URL_FROM_GUARDIAN = os.environ.get(
 FL_SERVER_DIR = os.environ.get(
     "FL_SERVER_DIR", str(Path(GUARDIANS_DIR).parent / "fl_server")
 )
-FL_SERVER_IMAGE = os.environ.get("FL_SERVER_IMAGE", "mlcommons/pdo_fl_server:v2")
+FL_SERVER_IMAGE = os.environ.get("FL_SERVER_IMAGE", "mlcommons/pdo_fl_server:v3")
 
 # When the webapp itself runs inside a container it has no Docker access, so it
 # cannot run the guardian directly. Instead it writes the guardian command as a

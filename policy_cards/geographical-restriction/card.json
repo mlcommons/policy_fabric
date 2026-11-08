@@ -1,0 +1,26 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000022",
+  "code": "GS",
+  "name": "Geographical restriction",
+  "rule": "The requester is located in a country you allow.",
+  "guardianTypes": ["download", "inference"],
+  "facts": {
+    "User": ["LocationCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "allowedCountries": {
+        "type": "array",
+        "title": "Allowed countries",
+        "description": "Countries the requester may be located in, as LocationCredential names them.",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      }
+    },
+    "required": ["allowedCountries"]
+  }
+}

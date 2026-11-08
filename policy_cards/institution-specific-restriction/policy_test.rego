@@ -1,65 +1,46 @@
-# Unit tests for DUO_0000028 (IS).  Run with:  opa test is/ -v
 package subpolicy_test
 
 import data.subpolicy
+import data.testlib
+import rego.v1
 
-base_input := {
-	"policy_data": {"allowedInstitutions": ["did:example:university", "did:example:hospital"]},
-	"presentations": {"User": [
-		{
-			"type": "AffiliationCredential",
-			"issuer": "did:example:university",
-			"subject": "did:example:user-1",
-			"claims": {"isMemberOf": "did:example:university", "typeOfMembership": "student"},
-			"index": 0,
-		},
-		{
-			"type": "publicKeyCredential",
-			"issuer": "did:example:key-authority",
-			"subject": "did:example:user-1",
-			"claims": {"key": "PUBKEY"},
-			"index": 1,
-		},
-	]},
+affiliation(institution) := testlib.credential(
+	"AffiliationCredential",
+	testlib.requester,
+	{"isMemberOf": institution, "typeOfMembership": "faculty"},
+)
+
+data_ := {"allowedInstitutions": ["did:example:university"]}
+
+test_requirements if {
+	subpolicy.requirements == {"User": ["AffiliationCredential"]}
 }
 
-test_requirements_are_user_role_with_credential_types if {
-	subpolicy.requirements == {"User": ["AffiliationCredential", "publicKeyCredential"]}
+test_allows_an_allowed_institution if {
+	r := subpolicy.result with input as testlib.requester_input([affiliation("did:example:university")], data_, {})
+	r.decision
+	r.verification_tasks == [{"index": 0}]
+	not "credential" in object.keys(r)
 }
 
-test_allow_when_member_of_approved_institution if {
-	subpolicy.result.decision == true with input as base_input
+test_denies_another_institution if {
+	held := [affiliation("did:example:elsewhere")]
+	not subpolicy.result.decision with input as testlib.requester_input(held, data_, {})
 }
 
-test_operation_carries_name_and_channel_key if {
-	subpolicy.result.operation == {"name": "do_download", "parameters": {"channel_key": "PUBKEY"}} with input as base_input
+test_allows_when_one_of_several_affiliations_qualifies if {
+	held := [affiliation("did:example:elsewhere"), affiliation("did:example:university")]
+	r := subpolicy.result with input as testlib.requester_input(held, data_, {})
+	r.decision
+	r.verification_tasks == [{"index": 1}]
 }
 
-test_tasks_flag_affiliation_and_public_key if {
-	tasks := subpolicy.result.verification_tasks with input as base_input
-	count(tasks) == 2
+test_denies_an_affiliation_of_someone_else if {
+	c := testlib.about_someone_else(affiliation("did:example:university"))
+	not subpolicy.result.decision with input as testlib.requester_input([c], data_, {})
 }
 
-test_deny_when_institution_not_approved if {
-	other := json.patch(base_input, [{
-		"op": "replace",
-		"path": "/presentations/User/0/claims/isMemberOf",
-		"value": "did:example:unknown",
-	}])
-	subpolicy.result.decision == false with input as other
-}
-
-test_deny_when_no_public_key_credential if {
-	nokey := json.patch(base_input, [{"op": "remove", "path": "/presentations/User/1"}])
-	subpolicy.result.decision == false with input as nokey
-}
-
-test_deny_when_subjects_differ if {
-	# the public key credential is for a different subject than the affiliation credential
-	mismatched := json.patch(base_input, [{
-		"op": "replace",
-		"path": "/presentations/User/1/subject",
-		"value": "did:example:someone-else",
-	}])
-	subpolicy.result.decision == false with input as mismatched
+test_ignores_an_untrusted_affiliation if {
+	c := testlib.untrusted(affiliation("did:example:university"))
+	not subpolicy.result.decision with input as testlib.requester_input([c], data_, {})
 }

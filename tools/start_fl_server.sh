@@ -8,6 +8,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # round is submitted to an FL server that is already there, chosen by whoever
 # asks for the round. FL_SERVER_PORT lets a second one run beside the first.
 bash ${SCRIPT_DIR}/fl_server/run.sh \
-    --image "${FL_SERVER_IMAGE:-mlcommons/pdo_fl_server:v2}" \
+    --image "${FL_SERVER_IMAGE:-mlcommons/pdo_fl_server:v3}" \
     --interface 0.0.0.0 \
     --port "${FL_SERVER_PORT:-7920}" &

@@ -78,14 +78,14 @@ echo "==> Pulling images (first run only; this can take a few minutes)"
 PULL_PIDS=()
 PULL_IMAGES=()
 for img in \
-    mlcommons/pdo_ledger:v2 \
-    mlcommons/pdo_services:v2 \
-    mlcommons/pdo_base_client:v2 \
-    mlcommons/pdo_toy_asset_registry:v2 \
-    mlcommons/pdo_toy_template_registry:v2 \
-    mlcommons/toy_guardian:v2 \
-    mlcommons/toy_inference_guardian:v2 \
-    mlcommons/pdo_fl_server:v2 ; do
+    mlcommons/pdo_ledger:v3 \
+    mlcommons/pdo_services:v3 \
+    mlcommons/pdo_base_client:v3 \
+    mlcommons/pdo_toy_asset_registry:v3 \
+    mlcommons/pdo_toy_template_registry:v3 \
+    mlcommons/toy_guardian:v3 \
+    mlcommons/toy_inference_guardian:v3 \
+    mlcommons/pdo_fl_server:v3 ; do
     docker pull --quiet "$img" >/dev/null &
     PULL_PIDS+=("$!")
     PULL_IMAGES+=("$img")

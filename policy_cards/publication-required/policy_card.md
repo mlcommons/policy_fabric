@@ -7,55 +7,50 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 1  Identification
 
 - **id:** `card.duo.0000019-pub`
-- **version:** 1.0.0
+- **version:** 2.0.0
 - **status:** released
-- **title:** Publication Required (DUO_0000019 PUB)
-- **description:** Grant access only when an executed publication agreement binds
-  the requester's institution to the governed dataset, and the requester is a
-  member of the team of a PI affiliated with that institution.
+- **title:** Publication required (DUO_0000019 PUB)
+- **description:** Grant access only when the requester's institution accepted
+  to publish results from this dataset.
 - **author:** MLCommons
 - **contact:** —
 
 ## 2  Scope & Target
 
 - **target.asset:** the dataset the data owner exposes for controlled access.
-- **target.operations:** `download`.
+- **target.guardians:** `download`, `inference`.
 - **Out of scope:** any control over the asset after it is delivered
-  (redistribution, retention), including whether results are ultimately published.
+  (redistribution, retention).
 
 ## 3  Version History
 
-| Version | Date       | Author                        | Status   | Summary of change                                      |
-|---------|------------|-------------------------------|----------|--------------------------------------------------------|
-| 1.0.0   | 2026-07-15 | MLCommons                     | released | Initial policy card authored from the PUB policy.      |
+| Version | Date       | Author    | Status   | Summary of change                                      |
+|---------|------------|-----------|----------|--------------------------------------------------------|
+| 1.0.0   | 2026-07-15 | MLCommons | released | Initial policy card authored from the PUB policy.      |
+| 2.0.0   | 2026-10-02 | MLCommons | released | Reads one fact per holder; evidence chains and delivery moved out. |
 
 ## 4  Summary & Intent
 
-Access to the dataset requires a publication agreement to be in place. The
-requester is tied to a project and institution through a chain: their
-`TeamCredential` names a PI whose `ProjectOwnershipCredential` names a project and
-whose `AffiliationCredential` names an institution. A `ScopedAgreementCredential`
-identifies a terms document scoped to that project carrying the `Publication`
-obligation for the governed dataset, and an `AgreementCredential` shows the
-institution has agreed to that document. Access is granted only when the whole
-chain resolves to a single requester who also presents the delivery key.
+The requester holds an `ObligationAcceptanceCredential` about themselves: their
+institution accepted the `Publication` obligation for their project and for this
+dataset (`datasetID`). The fact must be about the project the request names,
+which keeps this card consistent with every other project-bound card on the same
+asset.
 
-- **Governance objective:** restrict download of the asset to requesters whose
-  institution has executed a publication agreement covering the dataset.
+- **Governance objective:** make use of the asset conditional on a publication
+  commitment.
 
 ## 5  Declarative Representation
 
 ```text
-Permission: download the target dataset
-  Assignee:  the requester (subject of the TeamCredential / publicKeyCredential)
+Permission: use the target dataset through its guardian
+  Assignee:  the requester (the holder of each role's presentation)
   Conditions (all must hold):
-    - a TeamCredential places the requester on a PI's team (MemberOfTeamOf)
-    - a ProjectOwnershipCredential shows that PI owns a project (Owns)
-    - an AffiliationCredential shows that PI belongs to an institution (isMemberOf)
-    - a ScopedAgreementCredential scopes a terms document to that project with obligation = Publication and dataset = datasetID
-    - an AgreementCredential shows the institution agreed to that terms document (agreementInfo.documentID)
-    - a publicKeyCredential provides the requester's delivery key (claim: key)
-  On grant:  operation "do_download", with the data encrypted to that key
+    - an ObligationAcceptanceCredential about the requester lists a scope with obligation = Publication
+    - and dataset = datasetID
+    - the credential is about the project the request names
+    - each credential is from an authority the owner accepts for its type
+  On grant:  the operation the guardian's delivery module names
   Otherwise: deny
 ```
 
@@ -63,57 +58,42 @@ Permission: download the target dataset
 
 Every type resolves to a schema in [`../../credentials/`](../../credentials/).
 
-| Credential type              | Claims consumed                              | Required |
-|------------------------------|----------------------------------------------|----------|
-| `ProjectOwnershipCredential` | `Owns`                                       | yes      |
-| `AffiliationCredential`      | `isMemberOf`                                 | yes      |
-| `TeamCredential`             | `MemberOfTeamOf`                             | yes      |
-| `ScopedAgreementCredential`  | `agreementInfo.scope` (obligation, project, dataset) | yes      |
-| `AgreementCredential`        | `agreementInfo.documentID`                   | yes      |
-| `publicKeyCredential`        | `key`                                        | yes      |
+| Role | Credential type | About | Claims consumed |
+|------|-----------------|-------|-----------------|
+| User | `ObligationAcceptanceCredential` | the requester | `project`, `scopes` (`obligation`, `dataset`) |
 
-The team and public-key credentials share the requester's subject; the ownership,
-affiliation, scoped-agreement, and agreement credentials link that requester's PI,
-institution, and the governed dataset to the publication terms.
+Each credential must be about the holder of its role: facts about third parties
+-- a PI, a project, a committee -- are inputs to authorities, never to this
+card.
 
 ## 7  Reference Values Schema
 
-Reference values the data owner configures (see
-[`policy_data_schema.json`](policy_data_schema.json)):
+The values the data owner configures, as a JSON Schema in
+[`card.json`](card.json) (`parameters`), which also generates the owner's form:
 
 ```json
 {
-  "datasetID": "DID of the governed dataset"
+  "datasetID": "string"
 }
 ```
 
-`datasetID` is the identifier of the dataset the publication agreement must be
-scoped to (as it appears in `ScopedAgreementCredential.agreementInfo.scope.dataset`).
+- `datasetID` — DID of this dataset, as the obligation names it.
 
 ## 8  Capability Granted
 
-On success the card grants the operation below, which the Asset Guardian
-enforces without interpreting policy logic:
-
-```json
-{
-  "operation": {
-    "name": "do_download",
-    "parameters": { "channel_key": "<requester public key>" }
-  }
-}
-```
-
-- **operation:** `do_download` — the guardian operation invoked on success.
-- **parameters.channel_key:** the `key` claim of the requester's
-  `publicKeyCredential`; the guardian encrypts the delivered data to it.
+None of its own. A card decides; it does not deliver. The asset's guardian type
+picks one delivery module, which describes the policy decision: `do_download`
+with the requester's channel key for a download guardian, `do_inference` with
+the approved script's digest for an inference guardian. The policy agent issues
+the decision only if every card on the asset allows, and the asset's token turns
+it into the capability.
 
 ## 9  Codified Representation
 
-The policy is codified in Rego: [`policy.rego`](policy.rego), with unit tests in
-[`policy_test.rego`](policy_test.rego). It evaluates to allow when a publication
-agreement scoped to the governed dataset ties the requester's institution to the
-project the requester's PI owns, and returns the granted operation of section 8.
+The rule is codified in Rego as [`policy.rego`](policy.rego), with unit tests in
+[`policy_test.rego`](policy_test.rego). It reads `input.presentations`,
+`input.holders`, `input.request` and this card's own `input.policy_data`, and
+returns the decision and the credentials to verify.
 
 ## 10  Legal & Disclaimers
 

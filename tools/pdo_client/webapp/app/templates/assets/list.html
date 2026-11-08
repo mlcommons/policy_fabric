@@ -65,6 +65,16 @@
              modal opens, cloning #use-role-template for each. -->
         <div id="use-roles"></div>
 
+        <!-- What the chosen wallets hold, can get on the way, or have to ask for. -->
+        <div id="use-checklist" class="hidden"></div>
+
+        <div class="form-group hidden" id="use-project-group">
+            <label for="use-project">Project</label>
+            <select id="use-project"></select>
+            <small>A fact this asset needs is about a project: name the project this use is for.</small>
+            <small class="hidden" id="use-project-none">None of your wallets names a project yet: it needs a fact about your project, or a copy of your PI's project ownership.</small>
+        </div>
+
         <div class="form-actions">
             <button type="submit" class="btn btn-primary" id="use-submit">Use</button>
             <button type="button" class="btn"
@@ -117,5 +127,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/js/checklist.js"></script>
 <script src="/static/js/assets_list.js"></script>
 {% endblock %}

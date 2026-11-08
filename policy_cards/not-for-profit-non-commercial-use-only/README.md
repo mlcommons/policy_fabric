@@ -2,21 +2,30 @@
 
 **Rule type:** Permission (constraint) · **Outcomes:** allow / deny
 
-Access is limited to not-for-profit organizations pursuing a non-commercial use.
-The requester presents a **LegalDesignationCredential** (claim `hasLegalForm`, an
-ISO 20275 ELF code) and a **publicKeyCredential** (claim `key`) carrying their
-channel public key, both issued to the same subject, together with the project's
-**IntendedDataUseCredential** (claim `useOnlyFor.purposes`). The data owner
-configures the accepted `nonprofitLegalForms` and the `prohibitedPurposes` in
-`policy_data`. Access is **allowed** when the legal form is not-for-profit, the
-intended use declares no prohibited (commercial) purpose, and a channel key is
-present; otherwise it is **denied**. The credentials the decision relies on are
-emitted as `verification_tasks` so the contract verifies their signatures before
-the result is trusted.
+**Rule:** The requester acts for a not-for-profit organisation, and their research has no commercial purpose.
 
-**Requirements** (`data.subpolicy.requirements`): `{ "User": ["LegalDesignationCredential", "IntendedDataUseCredential", "publicKeyCredential"] }`
-**Policy data:** `nonprofitLegalForms: [..]`, `prohibitedPurposes: [..]`
-**Context returned:** `{ "channel_key": "<requester public key>" }`
+The requester holds a `LegalDesignationCredential` about themselves with a
+not-for-profit legal form (`nonprofitLegalForms`), and a
+`ResearchPurposeCredential` about themselves none of whose purposes is
+prohibited (`prohibitedPurposes`, preset to the commercial term). The fact must
+be about the project the request names, which keeps this card consistent with
+every other project-bound card on the same asset.
 
-> Source of truth for the executable logic is [`policy.rego`](policy.rego); this
-> file is the human-readable companion. The two are maintained in parallel.
+| Role | Fact | About | Read from it |
+|------|------|-------|--------------|
+| User | `LegalDesignationCredential` | the requester | `hasLegalForm` |
+| User | `ResearchPurposeCredential` | the requester | `purposes`, `project` |
+
+**Parameters**
+
+- `nonprofitLegalForms` — ISO 20275 ELF codes of the legal forms that count as
+  not-for-profit. Preset: `["V2VJ", "8ES1"]`.
+- `prohibitedPurposes` — Research purposes that disqualify; the research must
+  have none. Preset: `["commercial"]`.
+
+Each fact must be about the holder of its role, and from an authority this asset
+accepts for that type. The card names no operation: the delivery module of the
+asset's guardian does.
+
+> The executable rule is [`policy.rego`](policy.rego); this file is its
+> human-readable companion, and [`card.json`](card.json) is its manifest.

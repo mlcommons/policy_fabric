@@ -7,51 +7,46 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 1  Identification
 
 - **id:** `card.duo.0000025-ts`
-- **version:** 1.0.0
+- **version:** 2.0.0
 - **status:** released
-- **title:** Time Limit on Use (DUO_0000025 TS)
-- **description:** Grant access only for a bounded period: the requester must
-  accept the required terms and run on a compute environment attested to shut down
-  no later than the policy deadline.
+- **title:** Time limit on use (DUO_0000025 TS)
+- **description:** Grant access only to a requester whose compute environment
+  shuts down by the data owner's deadline.
 - **author:** MLCommons
 - **contact:** —
 
 ## 2  Scope & Target
 
 - **target.asset:** the dataset the data owner exposes for controlled access.
-- **target.operations:** `download`.
+- **target.guardians:** `download`, `inference`.
 - **Out of scope:** any control over the asset after it is delivered
   (redistribution, retention).
 
 ## 3  Version History
 
-| Version | Date       | Author                        | Status   | Summary of change                                      |
-|---------|------------|-------------------------------|----------|--------------------------------------------------------|
-| 1.0.0   | 2026-07-15 | MLCommons                     | released | Initial policy card authored from the TS policy.       |
+| Version | Date       | Author    | Status   | Summary of change                                      |
+|---------|------------|-----------|----------|--------------------------------------------------------|
+| 1.0.0   | 2026-07-15 | MLCommons | released | Initial policy card authored from the TS policy.       |
+| 2.0.0   | 2026-10-02 | MLCommons | released | Reads one fact per holder; evidence chains and delivery moved out. |
 
 ## 4  Summary & Intent
 
-Access to the dataset is limited to a defined time period. The requester presents
-an `AgreementCredential` accepting the `requiredDocumentID` the data owner
-configured, together with a `publicKeyCredential` carrying the delivery key; both
-are issued to the **same subject**. A `ComputeEnvironmentCredential` must attest
-that the compute environment shuts down no later than the `notAfter` deadline, so
-use of the data cannot continue past that time.
+The requester holds an `AgreementCredential` about themselves for the owner's
+terms (`requiredDocumentID`), and a `ComputeEnvironmentCredential` about
+themselves whose profile shuts down no later than `notAfter`.
 
-- **Governance objective:** restrict download of the asset to requesters who
-  accept the terms and run in a compute environment that shuts down by the
-  configured deadline.
+- **Governance objective:** limit how long the asset can be used.
 
 ## 5  Declarative Representation
 
 ```text
-Permission: download the target dataset
-  Assignee:  the requester (subject of the AgreementCredential / publicKeyCredential)
+Permission: use the target dataset through its guardian
+  Assignee:  the requester (the holder of each role's presentation)
   Conditions (all must hold):
-    - an AgreementCredential accepts the required terms document (agreementInfo.documentID = requiredDocumentID)
-    - a publicKeyCredential provides the requester's delivery key (claim: key), same subject as the agreement
-    - a ComputeEnvironmentCredential attests hasComputeProfile.profile.shutsDownAt ≤ notAfter
-  On grant:  operation "do_download", with the data encrypted to that key
+    - an AgreementCredential about the requester has agreementInfo.documentID = requiredDocumentID
+    - a ComputeEnvironmentCredential about the requester has profile.shutsDownAt ≤ notAfter
+    - each credential is from an authority the owner accepts for its type
+  On grant:  the operation the guardian's delivery module names
   Otherwise: deny
 ```
 
@@ -59,57 +54,46 @@ Permission: download the target dataset
 
 Every type resolves to a schema in [`../../credentials/`](../../credentials/).
 
-| Credential type              | Claims consumed                          | Required |
-|------------------------------|------------------------------------------|----------|
-| `AgreementCredential`        | `agreementInfo.documentID`               | yes      |
-| `ComputeEnvironmentCredential` | `hasComputeProfile.profile.shutsDownAt`  | yes      |
-| `publicKeyCredential`        | `key`                                    | yes      |
+| Role | Credential type | About | Claims consumed |
+|------|-----------------|-------|-----------------|
+| User | `AgreementCredential` | the requester | `agreementInfo.documentID` |
+| User | `ComputeEnvironmentCredential` | the requester | `hasComputeProfile.profile.shutsDownAt` |
 
-The agreement and public-key credentials are issued to the same subject (the
-requester); the compute-environment credential attests the node the work runs on.
+Each credential must be about the holder of its role: facts about third parties
+-- a PI, a project, a committee -- are inputs to authorities, never to this
+card.
 
 ## 7  Reference Values Schema
 
-Reference values the data owner configures (see
-[`policy_data_schema.json`](policy_data_schema.json)):
+The values the data owner configures, as a JSON Schema in
+[`card.json`](card.json) (`parameters`), which also generates the owner's form:
 
 ```json
 {
-  "requiredDocumentID": "DID of the terms document the requester must accept",
-  "notAfter": "ISO-8601 datetime after which use is no longer permitted"
+  "requiredDocumentID": "string",
+  "notAfter": "date-time"
 }
 ```
 
-- `requiredDocumentID` — the terms document the requester's `AgreementCredential`
-  must accept (as it appears in `AgreementCredential.agreementInfo.documentID`).
-- `notAfter` — the latest permitted compute-environment shutdown time, compared
-  against `ComputeEnvironmentCredential.hasComputeProfile.profile.shutsDownAt`.
+- `requiredDocumentID` — DID of the terms document the requester must have
+  accepted.
+- `notAfter` — ISO-8601 time after which use is no longer permitted.
 
 ## 8  Capability Granted
 
-On success the card grants the operation below, which the Asset Guardian
-enforces without interpreting policy logic:
-
-```json
-{
-  "operation": {
-    "name": "do_download",
-    "parameters": { "channel_key": "<requester public key>" }
-  }
-}
-```
-
-- **operation:** `do_download` — the guardian operation invoked on success.
-- **parameters.channel_key:** the `key` claim of the requester's
-  `publicKeyCredential`; the guardian encrypts the delivered data to it.
+None of its own. A card decides; it does not deliver. The asset's guardian type
+picks one delivery module, which describes the policy decision: `do_download`
+with the requester's channel key for a download guardian, `do_inference` with
+the approved script's digest for an inference guardian. The policy agent issues
+the decision only if every card on the asset allows, and the asset's token turns
+it into the capability.
 
 ## 9  Codified Representation
 
-The policy is codified in Rego: [`policy.rego`](policy.rego), with unit tests in
-[`policy_test.rego`](policy_test.rego). It evaluates to allow when the same subject
-holds an `AgreementCredential` accepting the required terms and a
-`publicKeyCredential`, and a `ComputeEnvironmentCredential` attests a shutdown time
-no later than `notAfter`, and returns the granted operation of section 8.
+The rule is codified in Rego as [`policy.rego`](policy.rego), with unit tests in
+[`policy_test.rego`](policy_test.rego). It reads `input.presentations`,
+`input.holders`, `input.request` and this card's own `input.policy_data`, and
+returns the decision and the credentials to verify.
 
 ## 10  Legal & Disclaimers
 

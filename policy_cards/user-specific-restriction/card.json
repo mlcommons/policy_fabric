@@ -1,0 +1,40 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000026",
+  "code": "US",
+  "name": "User-specific restriction",
+  "rule": "The requester's platform account is approved by id, account type or profile status.",
+  "guardianTypes": ["download", "inference"],
+  "facts": {
+    "User": ["UserPlatformCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "approvedUsers": {
+        "type": "array",
+        "title": "Approved users",
+        "description": "Platform account ids approved by name.",
+        "items": {
+          "type": "string"
+        }
+      },
+      "allowedAccountTypes": {
+        "type": "array",
+        "title": "Allowed account types",
+        "description": "Account types approved as a group.",
+        "items": {
+          "type": "string"
+        }
+      },
+      "requiredProfileStatuses": {
+        "type": "array",
+        "title": "Accepted profile statuses",
+        "description": "Profile statuses approved as a group.",
+        "items": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

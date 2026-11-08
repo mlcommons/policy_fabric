@@ -1,0 +1,27 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000012",
+  "code": "RS",
+  "name": "Research-specific restrictions",
+  "rule": "The requester's research has a purpose within the scope you set.",
+  "guardianTypes": ["download", "inference"],
+  "template": "purpose-allowed",
+  "facts": {
+    "User": ["ResearchPurposeCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "allowedPurposes": {
+        "type": "array",
+        "title": "Allowed purposes",
+        "description": "Research purposes that qualify; the research must have at least one.",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      }
+    },
+    "required": ["allowedPurposes"]
+  }
+}

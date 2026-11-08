@@ -1,15 +1,15 @@
 """Seed the template registry from files on disk.
 
 Credential templates come from the ``credentials/`` folder (one JSON Schema per
-credential) and policy templates come from the ``policy_cards/`` folder (one
-subfolder per DUO). Their locations are taken from the ``CREDENTIALS_DIR`` and
-``POLICY_CARDS_DIR`` environment variables, which are required -- the command
-fails if either is unset (run.sh sets them from its path arguments).
+credential type). Policy and delivery templates come from the ``policy_cards/``
+folder and authority templates from ``authority_cards/``: every folder holding a
+``card.json`` is a card, whose rule is its own ``policy.rego`` or the one of the
+rule template it names. The folders are taken from the ``CREDENTIALS_DIR``,
+``POLICY_CARDS_DIR`` and ``AUTHORITY_CARDS_DIR`` environment variables, which
+are required (run.sh sets them from its arguments).
 
-The command reads everything it needs from those folders, so adding a credential
-schema or a DUO -- or editing a rego module, its README, or its policy data
-schema -- is picked up simply by re-running it. It is idempotent
-(``update_or_create`` keyed on the natural unique field).
+Adding a card or a credential type, or editing one, is picked up by re-running
+the command; it is idempotent (``update_or_create`` keyed on the name).
 
     python manage.py seed_templates
 """
@@ -20,10 +20,11 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
-from app.models import CredentialTemplate, PolicyTemplate
+from app.models import AuthorityTemplate, CredentialTemplate, PolicyTemplate
 
 CREDENTIALS_DIR = Path(os.environ["CREDENTIALS_DIR"])
 POLICY_CARDS_DIR = Path(os.environ["POLICY_CARDS_DIR"])
+AUTHORITY_CARDS_DIR = Path(os.environ["AUTHORITY_CARDS_DIR"])
 
 CREDENTIAL_SUFFIX = ".schema.json"
 
@@ -47,27 +48,35 @@ def _simplify(properties):
     return out
 
 
-def _template_name(duo_dir):
-    """The registry name for a policy folder, from its path under POLICY_CARDS_DIR.
+def _template_name(card_dir, root):
+    """The registry name for a card folder: its path under the root, joined with
+    ``-`` and upper-cased, so ``FL/inference-...`` stays one flat identifier. It is
+    also the module id the policy agent keys the card's policy data by."""
+    return "-".join(card_dir.relative_to(root).parts).upper()
 
-    Policies may be grouped in subfolders (``FL/inference-...``), so the name is the
-    whole relative path rather than the leaf, joined with ``-`` to stay a flat
-    identifier. A policy sitting directly under the root keeps exactly the name it
-    had before grouping existed.
-    """
-    relative = duo_dir.relative_to(POLICY_CARDS_DIR)
-    return "-".join(relative.parts).upper()
+
+def _card(card_dir):
+    """A card's manifest, the rule it runs -- its template's, when it names one --
+    and its README."""
+    manifest = json.loads((card_dir / "card.json").read_text())
+    if "template" in manifest:
+        rule = POLICY_CARDS_DIR / "templates" / manifest["template"] / "policy.rego"
+    else:
+        rule = card_dir / "policy.rego"
+    return manifest, rule.read_text(), (card_dir / "README.md").read_text()
 
 
 class Command(BaseCommand):
     help = (
-        "Seed credential templates (from credentials/) and policy templates "
-        "(from policy_cards/)."
+        "Seed credential templates (from credentials/), policy and delivery "
+        "templates (from policy_cards/) and authority templates (from "
+        "authority_cards/)."
     )
 
     def handle(self, *args, **options):
         self._seed_credentials()
         self._seed_policies()
+        self._seed_authorities()
         self.stdout.write(self.style.SUCCESS("Template registry seeded."))
 
     def _seed_credentials(self):
@@ -77,31 +86,64 @@ class Command(BaseCommand):
             template_type = schema.get("$id") or path.name[: -len(CREDENTIAL_SUFFIX)]
             CredentialTemplate.objects.update_or_create(
                 template_type=template_type,
-                defaults={"claims_schema": _simplify(schema.get("properties", {}))},
+                defaults={
+                    "display_name": schema["displayName"],
+                    "meaning": schema["meaning"],
+                    "subject_kinds": schema["subjectKinds"],
+                    "self_asserted": schema["selfAsserted"],
+                    "json_schema": schema,
+                    "claims_schema": _simplify(schema.get("properties", {})),
+                },
             )
-            self.stdout.write(f"  credential template: {template_type}")
             count += 1
         self.stdout.write(f"seeded {count} credential template(s)")
 
     def _seed_policies(self):
         count = 0
-        for duo_dir in sorted(p.parent for p in POLICY_CARDS_DIR.rglob("policy.rego")):
-            rego_path = duo_dir / "policy.rego"
-            readme_path = duo_dir / "README.md"
-            schema_path = duo_dir / "policy_data_schema.json"
-            name = _template_name(duo_dir)
+        for card_dir in sorted(p.parent for p in POLICY_CARDS_DIR.rglob("card.json")):
+            manifest, source, readme = _card(card_dir)
+            name = _template_name(card_dir, POLICY_CARDS_DIR)
+            policy = manifest["kind"] == PolicyTemplate.POLICY
             PolicyTemplate.objects.update_or_create(
                 name=name,
                 defaults={
-                    "rego_source": rego_path.read_text(),
-                    "readme": readme_path.read_text() if readme_path.exists() else "",
-                    "policy_data_schema": (
-                        json.loads(schema_path.read_text())
-                        if schema_path.exists()
-                        else {}
-                    ),
+                    "kind": manifest["kind"],
+                    # a policy has a code; a delivery module names an operation
+                    "code": manifest["code"] if policy else "",
+                    "title": manifest["name"],
+                    "rule": manifest["rule"],
+                    "guardian_types": manifest["guardianTypes"],
+                    "requirements": manifest["facts"],
+                    "parameters_schema": manifest["parameters"],
+                    # a preset, for the cards that ship one
+                    "defaults": manifest["defaults"] if "defaults" in manifest else {},
+                    "operation": "" if policy else manifest["operation"],
+                    "rego_source": source,
+                    "readme": readme,
                 },
             )
-            self.stdout.write(f"  policy template: {name}")
+            self.stdout.write(f"  {manifest['kind']} template: {name}")
             count += 1
         self.stdout.write(f"seeded {count} policy template(s)")
+
+    def _seed_authorities(self):
+        count = 0
+        for card_dir in sorted(p.parent for p in AUTHORITY_CARDS_DIR.rglob("card.json")):
+            manifest, source, readme = _card(card_dir)
+            name = _template_name(card_dir, AUTHORITY_CARDS_DIR)
+            AuthorityTemplate.objects.update_or_create(
+                name=name,
+                defaults={
+                    "title": manifest["name"],
+                    "rule": manifest["rule"],
+                    "issues": manifest["issues"],
+                    "presenters": manifest["presenters"],
+                    "requirements": manifest["facts"],
+                    "parameters_schema": manifest["parameters"],
+                    "rego_source": source,
+                    "readme": readme,
+                },
+            )
+            self.stdout.write(f"  authority template: {name}")
+            count += 1
+        self.stdout.write(f"seeded {count} authority template(s)")

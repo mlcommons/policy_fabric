@@ -1,0 +1,14 @@
+{
+  "kind": "delivery",
+  "name": "Inference delivery",
+  "rule": "Run the approved script, identified by its digest.",
+  "guardianTypes": ["inference"],
+  "operation": "do_inference",
+  "facts": {
+    "Script": ["ScriptHashCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {}
+  }
+}

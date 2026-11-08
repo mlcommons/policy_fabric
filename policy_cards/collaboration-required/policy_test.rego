@@ -1,112 +1,53 @@
-# Unit tests for DUO_0000020 (COL).  Run with:  opa test col/ -v
 package subpolicy_test
 
 import data.subpolicy
+import data.testlib
+import rego.v1
 
-base_input := {
-	"policy_data": {"datasetID": "did:example:dataset-1"},
-	"presentations": {"User": [
-		{
-			"type": "ProjectOwnershipCredential",
-			"issuer": "did:example:registry",
-			"subject": "did:example:pi-1",
-			"claims": {"Owns": "did:example:project-1"},
-			"index": 0,
-		},
-		{
-			"type": "AffiliationCredential",
-			"issuer": "did:example:registry",
-			"subject": "did:example:pi-1",
-			"claims": {"isMemberOf": "did:example:institution-1", "typeOfMembership": "faculty"},
-			"index": 1,
-		},
-		{
-			"type": "TeamCredential",
-			"issuer": "did:example:registry",
-			"subject": "did:example:user-1",
-			"claims": {"MemberOfTeamOf": "did:example:pi-1"},
-			"index": 2,
-		},
-		{
-			"type": "ScopedAgreementCredential",
-			"issuer": "did:example:notary",
-			"subject": "did:example:terms-1",
-			"claims": {"agreementInfo": {
-				"counterParty": "did:example:owner-1",
-				"scope": {"obligation": "Collaboration", "project": "did:example:project-1", "dataset": "did:example:dataset-1"},
-			}},
-			"index": 3,
-		},
-		{
-			"type": "AgreementCredential",
-			"issuer": "did:example:notary",
-			"subject": "did:example:institution-1",
-			"claims": {"agreementInfo": {"documentID": "did:example:terms-1", "documentVersion": "1.0"}},
-			"index": 4,
-		},
-		{
-			"type": "publicKeyCredential",
-			"issuer": "did:example:platform",
-			"subject": "did:example:user-1",
-			"claims": {"key": "PUBKEY"},
-			"index": 5,
-		},
-	]},
+scope(obligation, dataset) := {"obligation": obligation, "dataset": dataset, "agreement": "did:example:agreement"}
+
+accepted(scopes) := testlib.credential(
+	"ObligationAcceptanceCredential",
+	testlib.requester,
+	{"project": "did:example:p1", "scopes": scopes},
+)
+
+data_ := {"datasetID": "did:example:dataset-1"}
+
+p1 := {"project": "did:example:p1"}
+
+test_requirements if {
+	subpolicy.requirements == {"User": ["ObligationAcceptanceCredential"]}
 }
 
-test_requirements_list_the_chain_credentials if {
-	subpolicy.requirements == {"User": [
-		"ProjectOwnershipCredential",
-		"AffiliationCredential",
-		"TeamCredential",
-		"ScopedAgreementCredential",
-		"AgreementCredential",
-		"publicKeyCredential",
-	]}
+test_allows_the_accepted_obligation_for_this_dataset if {
+	r := subpolicy.result with input as testlib.requester_input([accepted([scope("Collaboration", "did:example:dataset-1")])], data_, p1)
+	r.decision
+	r.verification_tasks == [{"index": 0}]
 }
 
-test_allow_when_collaboration_agreement_in_place if {
-	subpolicy.result.decision == true with input as base_input
+test_finds_the_obligation_among_the_accepted_scopes if {
+	held := [accepted([scope("Publication", "did:example:dataset-1"), scope("Collaboration", "did:example:dataset-1")])]
+	subpolicy.result.decision with input as testlib.requester_input(held, data_, p1)
 }
 
-test_operation_carries_name_and_channel_key if {
-	subpolicy.result.operation == {"name": "do_download", "parameters": {"channel_key": "PUBKEY"}} with input as base_input
+test_denies_another_obligation if {
+	held := [accepted([scope("Publication", "did:example:dataset-1")])]
+	not subpolicy.result.decision with input as testlib.requester_input(held, data_, p1)
 }
 
-test_tasks_flag_the_whole_chain if {
-	tasks := subpolicy.result.verification_tasks with input as base_input
-	count(tasks) == 6
+test_denies_an_obligation_for_another_dataset if {
+	held := [accepted([scope("Collaboration", "did:example:dataset-2")])]
+	not subpolicy.result.decision with input as testlib.requester_input(held, data_, p1)
 }
 
-test_deny_when_obligation_is_not_collaboration if {
-	other := json.patch(base_input, [{
-		"op": "replace",
-		"path": "/presentations/User/3/claims/agreementInfo/scope/obligation",
-		"value": "Publication",
-	}])
-	subpolicy.result.decision == false with input as other
+test_requires_the_requested_project if {
+	held := [accepted([scope("Collaboration", "did:example:dataset-1")])]
+	not subpolicy.result.decision with input as testlib.requester_input(held, data_, {"project": "did:example:p2"})
+	not subpolicy.result.decision with input as testlib.requester_input(held, data_, {})
 }
 
-test_deny_when_agreement_is_for_a_different_dataset if {
-	other := json.patch(base_input, [{
-		"op": "replace",
-		"path": "/presentations/User/3/claims/agreementInfo/scope/dataset",
-		"value": "did:example:dataset-other",
-	}])
-	subpolicy.result.decision == false with input as other
-}
-
-test_deny_when_institution_has_not_agreed if {
-	# the institution's agreement points at a different terms document
-	other := json.patch(base_input, [{
-		"op": "replace",
-		"path": "/presentations/User/4/claims/agreementInfo/documentID",
-		"value": "did:example:terms-other",
-	}])
-	subpolicy.result.decision == false with input as other
-}
-
-test_deny_when_no_public_key_credential if {
-	nokey := json.patch(base_input, [{"op": "remove", "path": "/presentations/User/5"}])
-	subpolicy.result.decision == false with input as nokey
+test_ignores_an_untrusted_acceptance if {
+	c := testlib.untrusted(accepted([scope("Collaboration", "did:example:dataset-1")]))
+	not subpolicy.result.decision with input as testlib.requester_input([c], data_, p1)
 }

@@ -2,19 +2,25 @@
 
 **Rule type:** Permission (constraint) · **Outcomes:** allow / deny
 
+**Rule:** The requester is located in a country you allow.
+
 Access depends on where the requester (or their institution) is located. The
-requester must present a **LocationCredential** (claim `locatedAt` with at least
-a `country`) issued by an authority the policy agent trusts for that credential
-type, and a **publicKeyCredential** (claim `key`) carrying their channel public
-key. The data owner configures the list of `allowedCountries` in `policy_data`.
-Access is **allowed** when the credential's country is in `allowedCountries` and
-a channel key is present; otherwise it is **denied**. The matching location and
-the public key credential are emitted as `verification_tasks` so the contract
-verifies their signatures before the result is trusted.
+requester holds a `LocationCredential` about themselves, from an authority this
+asset accepts for that fact, and its `locatedAt.country` must be one of the
+`allowedCountries` the owner sets.
 
-**Requirements** (`data.subpolicy.requirements`): `{ "User": ["LocationCredential", "publicKeyCredential"] }`
-**Policy data:** `allowedCountries: [..]`
-**Context returned:** `{ "channel_key": "<requester public key>" }`
+| Role | Fact | About | Read from it |
+|------|------|-------|--------------|
+| User | `LocationCredential` | the requester | `locatedAt.country` |
 
-> Source of truth for the executable logic is [`policy.rego`](policy.rego); this
-> file is the human-readable companion. The two are maintained in parallel.
+**Parameters**
+
+- `allowedCountries` — Countries the requester may be located in, as
+  LocationCredential names them.
+
+Each fact must be about the holder of its role, and from an authority this asset
+accepts for that type. The card names no operation: the delivery module of the
+asset's guardian does.
+
+> The executable rule is [`policy.rego`](policy.rego); this file is its
+> human-readable companion, and [`card.json`](card.json) is its manifest.

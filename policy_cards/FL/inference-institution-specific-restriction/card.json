@@ -1,0 +1,27 @@
+{
+  "kind": "policy",
+  "id": "FL-IS",
+  "code": "FL-IS",
+  "name": "Institution-specific inference",
+  "rule": "The requester is a member of an institution you allow, and owns the script they bring.",
+  "guardianTypes": ["inference"],
+  "facts": {
+    "User": ["AffiliationCredential", "WalletVerifyingKeyCredential"],
+    "Script": ["ScriptOwnershipCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "allowedInstitutions": {
+        "type": "array",
+        "title": "Allowed institutions",
+        "description": "DIDs of the institutions the requester may be a member of.",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      }
+    },
+    "required": ["allowedInstitutions"]
+  }
+}

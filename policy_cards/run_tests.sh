@@ -1,57 +1,29 @@
 #!/usr/bin/env bash
-# Run the per-DUO Rego unit tests.
+# Run every policy and delivery card's Rego unit tests, then the checks across
+# cards: manifests against their rules, facts against the credential vocabulary,
+# parameter schemas, agreement with regorus, and cards combined on one asset the
+# way the policy agent combines them.
 #
-# Each DUO lives in its own folder so that the (intentionally identical)
-# `package duo` modules are compiled independently and do not collide -- this
-# mirrors how the rego_policy_agent contract evaluates each module in its own
-# regorus engine.
+# Each folder is tested on its own: every module is package subpolicy, which is
+# also why the policy agent evaluates each in its own engine.
+#
+# Needs opa (or $OPA), regorus (or $REGORUS) and python3 with jsonschema.
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-opa="$(command -v opa || true)"
-
-if [[ -z "${opa}" ]]; then
-    echo "error: opa binary not found" >&2
-    exit 1
-fi
+export OPA="${OPA:-$(command -v opa || true)}"
+[ -n "$OPA" ] || { echo "error: opa binary not found; set OPA=/path/to/opa" >&2; exit 1; }
+export REGORUS="${REGORUS:-$(command -v regorus || true)}"
+[ -n "$REGORUS" ] || { echo "error: regorus binary not found; set REGORUS=/path/to/regorus" >&2; exit 1; }
 
 status=0
-for duo in \
-    geographical-restriction \
-    institution-specific-restriction \
-    disease-specific-research \
-    health-or-medical-or-biomedical-research \
-    genetic-studies-only \
-    no-general-methods-research \
-    non-commercial-use-only \
-    research-specific-restrictions \
-    population-origins-or-ancestry-research-prohibited \
-    population-origins-or-ancestry-research-only \
-    project-specific-restriction \
-    collaboration-required \
-    publication-required \
-    ethics-approval-required \
-    general-research-use \
-    publication-moratorium \
-    return-to-database-or-resource \
-    time-limit-on-use \
-    user-specific-restriction \
-    not-for-profit-organisation-use-only \
-    not-for-profit-non-commercial-use-only \
-    FL/inference-institution-specific-restriction \
-    FL/inference-disease-specific-research; do
-    echo "== testing ${duo} =="
-    if ! "$opa" test "${here}/${duo}" -v; then
-        status=1
-    fi
-done
+while read -r test; do
+    folder="$(dirname "$test")"
+    echo "== ${folder#"$here"/}"
+    "$OPA" test "$folder" "$here/tests/testlib.rego" || status=1
+done < <(find "$here" -name policy_test.rego | sort)
 
-# The FL policies are meant to be selected together, so also check that they
-# combine the way the contract merges them.
-echo "== testing FL combination =="
-if ! OPA="$opa" "${here}/FL/run_combination_test.sh"; then
-    status=1
-fi
+echo "== across cards"
+( cd "$here/tests" && python3 -m unittest -v test_policy_cards ) || status=1
 
 exit "$status"

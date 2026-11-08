@@ -1,111 +1,44 @@
-# Unit tests for DUO_0000006 (HMB).  Run with:  opa test hmb/ -v
 package subpolicy_test
 
 import data.subpolicy
+import data.testlib
+import rego.v1
 
-base_input := {
-	"policy_data": {"allowedPurposes": ["HMB"], "prohibitedPurposes": ["POA"]},
-	"presentations": {"User": [
-		{
-			"type": "IntendedDataUseCredential",
-			"issuer": "did:example:dac",
-			"subject": "did:example:project-1",
-			"claims": {"useOnlyFor": {"purposes": ["HMB"]}},
-			"index": 0,
-		},
-		{
-			"type": "ProjectOwnershipCredential",
-			"issuer": "did:example:registry",
-			"subject": "did:example:pi-1",
-			"claims": {"Owns": "did:example:project-1"},
-			"index": 1,
-		},
-		{
-			"type": "TeamCredential",
-			"issuer": "did:example:registry",
-			"subject": "did:example:user-1",
-			"claims": {"MemberOfTeamOf": "did:example:pi-1"},
-			"index": 2,
-		},
-		{
-			"type": "AgreementCredential",
-			"issuer": "did:example:platform",
-			"subject": "did:example:user-1",
-			"claims": {"agreementInfo": {"documentID": "did:example:terms", "documentVersion": "1.0"}},
-			"index": 3,
-		},
-		{
-			"type": "publicKeyCredential",
-			"issuer": "did:example:platform",
-			"subject": "did:example:user-1",
-			"claims": {"key": "PUBKEY"},
-			"index": 4,
-		},
-	]},
+declared := {"project": "did:example:p1"}
+
+research(purposes) := testlib.credential(
+	"ResearchPurposeCredential",
+	testlib.requester,
+	{"project": "did:example:p1", "purposes": purposes, "diseases": []},
+)
+
+data_ := {"allowedPurposes": ["HMB"], "prohibitedPurposes": ["POA"]}
+
+test_requirements if {
+	subpolicy.requirements == {"User": ["ResearchPurposeCredential"]}
 }
 
-test_requirements_list_the_chain_credentials if {
-	subpolicy.requirements == {"User": [
-		"IntendedDataUseCredential",
-		"ProjectOwnershipCredential",
-		"TeamCredential",
-		"AgreementCredential",
-		"publicKeyCredential",
-	]}
+test_allows_a_health_purpose if {
+	r := subpolicy.result with input as testlib.requester_input([research(["HMB"])], data_, declared)
+	r.decision
+	r.verification_tasks == [{"index": 0}]
 }
 
-test_allow_when_allowed_and_not_prohibited if {
-	subpolicy.result.decision == true with input as base_input
+test_denies_without_a_health_purpose if {
+	not subpolicy.result.decision with input as testlib.requester_input([research(["GSO"])], data_, declared)
 }
 
-test_operation_carries_name_and_channel_key if {
-	subpolicy.result.operation == {"name": "do_download", "parameters": {"channel_key": "PUBKEY"}} with input as base_input
+test_denies_a_prohibited_purpose_alongside_a_health_one if {
+	not subpolicy.result.decision with input as testlib.requester_input([research(["HMB", "POA"])], data_, declared)
 }
 
-test_tasks_flag_the_whole_chain if {
-	tasks := subpolicy.result.verification_tasks with input as base_input
-	count(tasks) == 5
+test_requires_the_requested_project if {
+	held := [research(["HMB"])]
+	not subpolicy.result.decision with input as testlib.requester_input(held, data_, {"project": "did:example:p2"})
+	not subpolicy.result.decision with input as testlib.requester_input(held, data_, {})
 }
 
-test_deny_when_prohibited_purpose_present if {
-	prohibited := json.patch(base_input, [{
-		"op": "replace",
-		"path": "/presentations/User/0/claims/useOnlyFor/purposes",
-		"value": ["HMB", "POA"],
-	}])
-	subpolicy.result.decision == false with input as prohibited
-}
-
-test_deny_when_no_allowed_purpose if {
-	other := json.patch(base_input, [{
-		"op": "replace",
-		"path": "/presentations/User/0/claims/useOnlyFor/purposes",
-		"value": ["SomethingElse"],
-	}])
-	subpolicy.result.decision == false with input as other
-}
-
-test_deny_when_no_public_key_credential if {
-	nokey := json.patch(base_input, [{"op": "remove", "path": "/presentations/User/4"}])
-	subpolicy.result.decision == false with input as nokey
-}
-
-test_deny_when_requester_not_on_owning_pis_team if {
-	# the team credential names a PI who does not own the project
-	mismatched := json.patch(base_input, [{
-		"op": "replace",
-		"path": "/presentations/User/2/claims/MemberOfTeamOf",
-		"value": "did:example:pi-other",
-	}])
-	subpolicy.result.decision == false with input as mismatched
-}
-
-test_deny_when_owned_project_is_not_the_idu_project if {
-	# the PI owns a different project than the one the IDU is about
-	mismatched := json.patch(base_input, [{
-		"op": "replace",
-		"path": "/presentations/User/1/claims/Owns",
-		"value": "did:example:project-other",
-	}])
-	subpolicy.result.decision == false with input as mismatched
+test_ignores_untrusted_research if {
+	c := testlib.untrusted(research(["HMB"]))
+	not subpolicy.result.decision with input as testlib.requester_input([c], data_, declared)
 }
