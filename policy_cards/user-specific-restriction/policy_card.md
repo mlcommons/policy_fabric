@@ -1,4 +1,4 @@
-# Policy Card — DUO_0000026 US (User Specific Restriction)
+# Policy Card — DUO_0000026 US (User-Specific Restriction)
 
 Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt`).
 
@@ -7,51 +7,47 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 1  Identification
 
 - **id:** `card.duo.0000026-us`
-- **version:** 1.0.0
+- **version:** 2.0.0
 - **status:** released
-- **title:** User Specific Restriction (DUO_0000026 US)
-- **description:** Grant access only when the requester's platform account meets at
-  least one of the data owner's eligibility criteria (approved user, allowed
-  account type, or required profile status).
+- **title:** User-specific restriction (DUO_0000026 US)
+- **description:** Grant access only to requesters whose platform account the
+  data owner approved.
 - **author:** MLCommons
 - **contact:** —
 
 ## 2  Scope & Target
 
 - **target.asset:** the dataset the data owner exposes for controlled access.
-- **target.operations:** `download`.
+- **target.guardians:** `download`, `inference`.
 - **Out of scope:** any control over the asset after it is delivered
   (redistribution, retention).
 
 ## 3  Version History
 
-| Version | Date       | Author                        | Status   | Summary of change                                      |
-|---------|------------|-------------------------------|----------|--------------------------------------------------------|
-| 1.0.0   | 2026-07-15 | MLCommons                     | released | Initial policy card authored from the US policy.       |
+| Version | Date       | Author    | Status   | Summary of change                                      |
+|---------|------------|-----------|----------|--------------------------------------------------------|
+| 1.0.0   | 2026-07-15 | MLCommons | released | Initial policy card authored from the US policy.       |
+| 2.0.0   | 2026-10-02 | MLCommons | released | Reads one fact per holder; evidence chains and delivery moved out. |
 
 ## 4  Summary & Intent
 
-Access to the dataset is limited to eligible users. The requester presents a
-`UserPlatformCredential` describing their platform account, together with a
-`publicKeyCredential` carrying the public key their data is delivered to; both are
-issued to the **same subject**. Access is granted when the account satisfies at
-least one eligibility route the data owner configured — an approved user
-identifier, an allowed account type, or a required profile status.
+The requester holds a `UserPlatformCredential` about themselves, from an
+authority this asset accepts for that fact. The account qualifies through any
+one of three routes the owner configures: its `userId` is approved by name, its
+`accountType` is allowed as a group, or its `profileStatus` is accepted.
 
-- **Governance objective:** restrict download of the asset to requesters whose
-  platform account meets the configured eligibility criteria.
+- **Governance objective:** restrict use of the asset to approved platform
+  users.
 
 ## 5  Declarative Representation
 
 ```text
-Permission: download the target dataset
-  Assignee:  the requester (subject of the presented credentials)
+Permission: use the target dataset through its guardian
+  Assignee:  the requester (the holder of each role's presentation)
   Conditions (all must hold):
-    - a UserPlatformCredential satisfies at least one route:
-        userId ∈ approvedUsers  OR  accountType ∈ allowedAccountTypes  OR  profileStatus ∈ requiredProfileStatuses
-    - a publicKeyCredential provides the requester's delivery key (claim: key)
-    - both credentials are issued to the same subject
-  On grant:  operation "do_download", with the data encrypted to that key
+    - a UserPlatformCredential about the requester asserts userId ∈ approvedUsers, or accountType ∈ allowedAccountTypes, or profileStatus ∈ requiredProfileStatuses
+    - each credential is from an authority the owner accepts for its type
+  On grant:  the operation the guardian's delivery module names
   Otherwise: deny
 ```
 
@@ -59,54 +55,46 @@ Permission: download the target dataset
 
 Every type resolves to a schema in [`../../credentials/`](../../credentials/).
 
-| Credential type          | Claims consumed                       | Required |
-|--------------------------|---------------------------------------|----------|
-| `UserPlatformCredential` | `userId`, `accountType`, `profileStatus` | yes   |
-| `publicKeyCredential`    | `key`                                 | yes      |
+| Role | Credential type | About | Claims consumed |
+|------|-----------------|-------|-----------------|
+| User | `UserPlatformCredential` | the requester | `userId`, `accountType`, `profileStatus` |
 
-Both credentials must be issued to the same subject.
+Each credential must be about the holder of its role: facts about third parties
+-- a PI, a project, a committee -- are inputs to authorities, never to this
+card.
 
 ## 7  Reference Values Schema
 
-Reference values the data owner configures (see
-[`policy_data_schema.json`](policy_data_schema.json)):
+The values the data owner configures, as a JSON Schema in
+[`card.json`](card.json) (`parameters`), which also generates the owner's form:
 
 ```json
 {
-  "approvedUsers": ["list of approved user identifiers"],
-  "allowedAccountTypes": ["list of allowed account types"],
-  "requiredProfileStatuses": ["list of accepted profile statuses"]
+  "approvedUsers": ["string"],
+  "allowedAccountTypes": ["string"],
+  "requiredProfileStatuses": ["string"]
 }
 ```
 
-Each list is one eligibility route (matched against `UserPlatformCredential.userId`,
-`.accountType`, and `.profileStatus` respectively); a requester qualifies by
-satisfying any one of them.
+- `approvedUsers` — Platform account ids approved by name.
+- `allowedAccountTypes` — Account types approved as a group.
+- `requiredProfileStatuses` — Profile statuses approved as a group.
 
 ## 8  Capability Granted
 
-On success the card grants the operation below, which the Asset Guardian
-enforces without interpreting policy logic:
-
-```json
-{
-  "operation": {
-    "name": "do_download",
-    "parameters": { "channel_key": "<requester public key>" }
-  }
-}
-```
-
-- **operation:** `do_download` — the guardian operation invoked on success.
-- **parameters.channel_key:** the `key` claim of the requester's
-  `publicKeyCredential`; the guardian encrypts the delivered data to it.
+None of its own. A card decides; it does not deliver. The asset's guardian type
+picks one delivery module, which describes the policy decision: `do_download`
+with the requester's channel key for a download guardian, `do_inference` with
+the approved script's digest for an inference guardian. The policy agent issues
+the decision only if every card on the asset allows, and the asset's token turns
+it into the capability.
 
 ## 9  Codified Representation
 
-The policy is codified in Rego: [`policy.rego`](policy.rego), with unit tests in
-[`policy_test.rego`](policy_test.rego). It evaluates to allow when the same subject
-holds a `UserPlatformCredential` satisfying an eligibility route and a
-`publicKeyCredential`, and returns the granted operation of section 8.
+The rule is codified in Rego as [`policy.rego`](policy.rego), with unit tests in
+[`policy_test.rego`](policy_test.rego). It reads `input.presentations`,
+`input.holders`, `input.request` and this card's own `input.policy_data`, and
+returns the decision and the credentials to verify.
 
 ## 10  Legal & Disclaimers
 

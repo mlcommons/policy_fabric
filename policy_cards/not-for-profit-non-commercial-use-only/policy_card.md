@@ -7,51 +7,51 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 1  Identification
 
 - **id:** `card.duo.0000018-npuncu`
-- **version:** 1.0.0
+- **version:** 2.0.0
 - **status:** released
-- **title:** Not-for-Profit, Non-Commercial Use Only (DUO_0000018 NPUNCU)
-- **description:** Grant access only when the requester's organization has a
-  not-for-profit legal form and the project's intended use declares no commercial
-  purpose.
+- **title:** Not-for-profit, non-commercial use only (DUO_0000018 NPUNCU)
+- **description:** Grant access only to a not-for-profit requester whose
+  research has no commercial purpose.
 - **author:** MLCommons
 - **contact:** —
 
 ## 2  Scope & Target
 
 - **target.asset:** the dataset the data owner exposes for controlled access.
-- **target.operations:** `download`.
+- **target.guardians:** `download`, `inference`.
 - **Out of scope:** any control over the asset after it is delivered
   (redistribution, retention).
 
 ## 3  Version History
 
-| Version | Date       | Author                        | Status   | Summary of change                                      |
-|---------|------------|-------------------------------|----------|--------------------------------------------------------|
-| 1.0.0   | 2026-07-15 | MLCommons                     | released | Initial policy card authored from the NPUNCU policy.   |
+| Version | Date       | Author    | Status   | Summary of change                                      |
+|---------|------------|-----------|----------|--------------------------------------------------------|
+| 1.0.0   | 2026-07-15 | MLCommons | released | Initial policy card authored from the NPUNCU policy.   |
+| 2.0.0   | 2026-10-02 | MLCommons | released | Reads one fact per holder; evidence chains and delivery moved out. |
 
 ## 4  Summary & Intent
 
-Access to the dataset is limited to not-for-profit organizations pursuing a
-non-commercial use. The requester presents a `LegalDesignationCredential` whose
-`hasLegalForm` is one of the `nonprofitLegalForms` the data owner configured,
-together with a `publicKeyCredential` carrying the delivery key; both are issued to
-the **same subject**. The project's `IntendedDataUseCredential` must declare no
-purpose in the data owner's `prohibitedPurposes` (e.g. commercial use).
+The requester holds a `LegalDesignationCredential` about themselves with a
+not-for-profit legal form (`nonprofitLegalForms`), and a
+`ResearchPurposeCredential` about themselves none of whose purposes is
+prohibited (`prohibitedPurposes`, preset to the commercial term). The fact must
+be about the project the request names, which keeps this card consistent with
+every other project-bound card on the same asset.
 
-- **Governance objective:** restrict download of the asset to not-for-profit
-  organizations whose declared intended use is non-commercial.
+- **Governance objective:** restrict use of the asset to not-for-profit,
+  non-commercial research.
 
 ## 5  Declarative Representation
 
 ```text
-Permission: download the target dataset
-  Assignee:  the requester (subject of the LegalDesignationCredential / publicKeyCredential)
+Permission: use the target dataset through its guardian
+  Assignee:  the requester (the holder of each role's presentation)
   Conditions (all must hold):
-    - a LegalDesignationCredential asserts  hasLegalForm ∈ nonprofitLegalForms
-    - an IntendedDataUseCredential declares  useOnlyFor.purposes ∩ prohibitedPurposes = ∅
-    - a publicKeyCredential provides the requester's delivery key (claim: key)
-    - the legal designation and public-key credentials are issued to the same subject
-  On grant:  operation "do_download", with the data encrypted to that key
+    - a LegalDesignationCredential about the requester asserts hasLegalForm ∈ nonprofitLegalForms
+    - a ResearchPurposeCredential about the requester lists no purpose ∈ prohibitedPurposes
+    - the research is about the project the request names
+    - each credential is from an authority the owner accepts for its type
+  On grant:  the operation the guardian's delivery module names
   Otherwise: deny
 ```
 
@@ -59,58 +59,47 @@ Permission: download the target dataset
 
 Every type resolves to a schema in [`../../credentials/`](../../credentials/).
 
-| Credential type              | Claims consumed          | Required |
-|------------------------------|--------------------------|----------|
-| `LegalDesignationCredential` | `hasLegalForm`           | yes      |
-| `IntendedDataUseCredential`  | `useOnlyFor.purposes`    | yes      |
-| `publicKeyCredential`        | `key`                    | yes      |
+| Role | Credential type | About | Claims consumed |
+|------|-----------------|-------|-----------------|
+| User | `LegalDesignationCredential` | the requester | `hasLegalForm` |
+| User | `ResearchPurposeCredential` | the requester | `purposes`, `project` |
 
-The legal-designation and public-key credentials are issued to the same subject
-(the requester); the intended-use credential declares the project's purposes.
+Each credential must be about the holder of its role: facts about third parties
+-- a PI, a project, a committee -- are inputs to authorities, never to this
+card.
 
 ## 7  Reference Values Schema
 
-Reference values the data owner configures (see
-[`policy_data_schema.json`](policy_data_schema.json)):
+The values the data owner configures, as a JSON Schema in
+[`card.json`](card.json) (`parameters`), which also generates the owner's form:
 
 ```json
 {
-  "nonprofitLegalForms": ["list of not-for-profit ISO 20275 ELF codes"],
-  "prohibitedPurposes": ["list of prohibited purpose terms"]
+  "nonprofitLegalForms": ["string"],
+  "prohibitedPurposes": ["string"]
 }
 ```
 
-- `nonprofitLegalForms` — ISO 20275 ELF codes (as they appear in
-  `LegalDesignationCredential.hasLegalForm`) the data owner treats as not-for-profit.
-- `prohibitedPurposes` — purpose terms (as they appear in
-  `IntendedDataUseCredential.useOnlyFor.purposes`) that make the use commercial and
-  therefore disqualifying.
+- `nonprofitLegalForms` — ISO 20275 ELF codes of the legal forms that count as
+  not-for-profit. Preset: `["V2VJ", "8ES1"]`.
+- `prohibitedPurposes` — Research purposes that disqualify; the research must
+  have none. Preset: `["commercial"]`.
 
 ## 8  Capability Granted
 
-On success the card grants the operation below, which the Asset Guardian
-enforces without interpreting policy logic:
-
-```json
-{
-  "operation": {
-    "name": "do_download",
-    "parameters": { "channel_key": "<requester public key>" }
-  }
-}
-```
-
-- **operation:** `do_download` — the guardian operation invoked on success.
-- **parameters.channel_key:** the `key` claim of the requester's
-  `publicKeyCredential`; the guardian encrypts the delivered data to it.
+None of its own. A card decides; it does not deliver. The asset's guardian type
+picks one delivery module, which describes the policy decision: `do_download`
+with the requester's channel key for a download guardian, `do_inference` with
+the approved script's digest for an inference guardian. The policy agent issues
+the decision only if every card on the asset allows, and the asset's token turns
+it into the capability.
 
 ## 9  Codified Representation
 
-The policy is codified in Rego: [`policy.rego`](policy.rego), with unit tests in
-[`policy_test.rego`](policy_test.rego). It evaluates to allow when the same subject
-holds a not-for-profit `LegalDesignationCredential` and a `publicKeyCredential`,
-and a project `IntendedDataUseCredential` declares no prohibited purpose, and
-returns the granted operation of section 8.
+The rule is codified in Rego as [`policy.rego`](policy.rego), with unit tests in
+[`policy_test.rego`](policy_test.rego). It reads `input.presentations`,
+`input.holders`, `input.request` and this card's own `input.policy_data`, and
+returns the decision and the credentials to verify.
 
 ## 10  Legal & Disclaimers
 

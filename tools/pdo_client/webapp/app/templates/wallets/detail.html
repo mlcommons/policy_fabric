@@ -12,7 +12,7 @@
         <div class="card-actions">
             <button type="button" class="btn btn-sm" data-modal-open="update-name-modal">Edit Name</button>
             <button type="button" class="btn btn-sm btn-primary"
-                    data-modal-open="sign-credential-modal">Sign Credential</button>
+                    data-modal-open="sign-credential-modal">Sign as this Wallet</button>
             <a href="/wallets/" class="btn">Back to Wallets</a>
         </div>
     </div>
@@ -38,22 +38,28 @@
                     data-modal-open="add-vc-modal">+ Add Credential</button>
         </div>
 
-        {% if vcs_error %}
-        <div class="alert alert-error">{{ vcs_error }}</div>
-        {% elif vcs %}
-        <table class="data-table">
-            <thead><tr><th>Type</th><th>Credential</th></tr></thead>
+        {% if error %}
+        <div class="alert alert-error">{{ error }}</div>
+        {% elif credentials %}
+        <table class="data-table credentials-table">
+            <thead><tr><th>Fact</th><th>About</th><th>Signed by</th><th>Claims</th></tr></thead>
             <tbody>
-                {% for type, vc in vcs.items %}
-                <tr>
-                    <td><strong>{{ type }}</strong></td>
-                    <td><pre class="code-block" style="margin:0">{{ vc|stringformat:'s' }}</pre></td>
+                {% for c in credentials %}
+                <tr data-fact="{{ c.type }}">
+                    <td><strong>{{ c.name }}</strong><div class="did-display">{{ c.type }}</div></td>
+                    <td class="did-display">{{ c.about }}</td>
+                    <td>{{ c.issuer }}</td>
+                    <td>
+                        <pre class="code-block" style="margin:0">{{ c.claims }}</pre>
+                        <details><summary class="muted">Signed credential</summary>
+                            <pre class="code-block" style="margin:0">{{ c.vc }}</pre></details>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
         {% else %}
-        <p style="color:#999">No credentials stored yet.</p>
+        <p class="muted">No credentials stored yet.</p>
         {% endif %}
     </div>
 
@@ -98,55 +104,48 @@
     </form>
 </div>
 
-<!-- A wallet signing in its own name, with its own contract key. Unlike an
-     issuer vouching for someone else, this is a self-assertion: it is worth
-     something only where a policy can check it against a key an authority has
-     attested for this wallet. -->
+<!-- A wallet signs in its own name, with its own contract key, only the facts a
+     requester asserts about themselves; a policy checks them against a key an
+     authority attested for this wallet. -->
 <div id="sign-credential-modal" class="modal-backdrop hidden">
-    <form class="modal" id="sign-credential-form">
+    <form class="modal" id="sign-credential-form" style="max-width:560px">
         <div class="modal-header">
-            <span class="modal-title">Sign Credential as this Wallet</span>
+            <span class="modal-title">Sign as this Wallet</span>
             <button type="button" class="modal-close"
                     data-modal-close="sign-credential-modal">&times;</button>
         </div>
-
-        {% if templates_error %}
-        <div class="alert alert-error">{{ templates_error }}</div>
-        {% endif %}
-
         <div class="form-group">
-            <label for="sign-template-select">Credential Template</label>
-            <select id="sign-template-select" name="template_type" required>
-                {% for t in templates %}
-                <option value="{{ t.template_type }}"
-                        data-schema="{{ t.claims_schema_json }}">{{ t.template_type }}</option>
+            <label for="sign-fact">Claim</label>
+            <select id="sign-fact" name="template_type" required>
+                {% for t in own_claims %}
+                <option value="{{ t.type }}">{{ t.name }}</option>
                 {% empty %}
-                <option value="">No templates available</option>
+                <option value="">Nothing a wallet signs itself</option>
                 {% endfor %}
             </select>
+            <small id="sign-fact-meaning"></small>
         </div>
-
         <div class="form-group">
-            <label for="sign-subject-did">Subject DID</label>
+            <label for="sign-subject-did">About</label>
             <input type="text" id="sign-subject-did" name="subject_did" required
-                   placeholder="did:pdo:abc123...">
+                   placeholder="did:pdo:…">
             <small>The credential is stored in whatever this DID names.</small>
         </div>
-
-        <div class="form-group">
-            <label for="sign-claims-input">Claims</label>
-            <textarea id="sign-claims-input" name="claims" class="mono" rows="5"></textarea>
-        </div>
-
+        <fieldset class="schema-fieldset">
+            <legend>Claims</legend>
+            <div id="sign-claims"></div>
+        </fieldset>
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Sign &amp; Issue</button>
+            <button type="submit" class="btn btn-primary">Sign &amp; Store</button>
             <button type="button" class="btn"
                     data-modal-close="sign-credential-modal">Cancel</button>
         </div>
     </form>
 </div>
+{{ own_claims|json_script:"own-claims-data" }}
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/js/schema_form.js"></script>
 <script src="/static/js/wallet_detail.js"></script>
 {% endblock %}

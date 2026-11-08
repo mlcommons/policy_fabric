@@ -1,0 +1,15 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000021",
+  "code": "IRB",
+  "name": "Ethics approval required",
+  "rule": "The requester's research has ethics approval.",
+  "guardianTypes": ["download", "inference"],
+  "facts": {
+    "User": ["EthicsApprovalCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {}
+  }
+}

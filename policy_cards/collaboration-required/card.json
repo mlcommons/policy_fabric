@@ -1,0 +1,23 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000020",
+  "code": "COL",
+  "name": "Collaboration required",
+  "rule": "The requester's institution accepted to collaborate with you on this dataset.",
+  "guardianTypes": ["download", "inference"],
+  "facts": {
+    "User": ["ObligationAcceptanceCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "datasetID": {
+        "type": "string",
+        "title": "Dataset",
+        "description": "DID of this dataset, as the obligation names it.",
+        "minLength": 1
+      }
+    },
+    "required": ["datasetID"]
+  }
+}

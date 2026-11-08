@@ -1,43 +1,33 @@
-# FL-IS — Institution Specific Restriction (inference)
+# FL-IS — Institution-Specific Restriction, for inference
 
 **Rule type:** Permission (constraint) · **Outcomes:** allow / deny
 
-The inference counterpart of [DUO_0000028 IS](../../institution-specific-restriction/).
-It keeps that rule — the requester must belong to an allowed institution — and adds
-the question inference raises that download does not: *whose code is about to run on
-the data?*
+**Rule:** The requester is a member of an institution you allow, and owns the script they bring.
 
-The requester presents an **AffiliationCredential** (claim `isMemberOf`), a
-**publicKeyCredential** (claim `key`) carrying their channel public key, and a
-**WalletVerifyingKeyCredential** (claim `verifying_key`) binding their wallet to the
-key it is registered with. The script presents a **ScriptHashCredential** (claim
-`scriptHash`) stating its content digest and a **ScriptOwnershipCredential** (claim
-`ownedBy`) in which a wallet claims the script as its own.
+The requester holds an `AffiliationCredential` about themselves naming one of
+the owner's `allowedInstitutions`, and a `WalletVerifyingKeyCredential` binding
+their wallet to the key it is registered with on the ledger. The script holds a
+`ScriptOwnershipCredential` in which the requester's wallet claims it.
 
-The ownership credential is issued by the requester's own wallet, not by a
-registered authority. It is therefore checked against the verifying key the
-WalletVerifyingKeyCredential carries — which is what makes a self-issued claim
-mean something, and what ties the script to the same person the affiliation is
-about.
+That ownership claim is self-issued, so no trusted issuer stands behind it. The
+card checks its signature against the wallet key an authority attested instead,
+through `vc_supplied_verification_tasks`: the claim counts because the
+requester's own wallet signed it.
 
-Access is **allowed** when everything lines up on one wallet and one script: the
-affiliation names an approved institution, the channel key and the wallet key are
-about that same wallet, that wallet is the one claiming the script, and the hash
-credential describes that same script. Otherwise it is **denied**.
+| Role | Fact | About | Read from it |
+|------|------|-------|--------------|
+| User | `AffiliationCredential` | the requester | `isMemberOf` |
+| User | `WalletVerifyingKeyCredential` | the requester | `verifying_key` |
+| Script | `ScriptOwnershipCredential` | the script | `ownedBy` |
 
-The policy says nothing about what the script is *for* — only who stands behind it.
+**Parameters**
 
-**Requirements** (`data.subpolicy.requirements`):
+- `allowedInstitutions` — DIDs of the institutions the requester may be a member
+  of.
 
-```json
-{
-  "User": ["AffiliationCredential", "publicKeyCredential", "WalletVerifyingKeyCredential"],
-  "Script": ["ScriptOwnershipCredential", "ScriptHashCredential"]
-}
-```
+Each fact must be about the holder of its role, and from an authority this asset
+accepts for that type. The card names no operation: the delivery module of the
+asset's guardian does.
 
-**Policy data:** `allowedInstitutions: [..]`
-**Context returned:** `{ "channel_key": "<requester public key>", "script_digest": "<approved script digest>" }`
-
-> Source of truth for the executable logic is [`policy.rego`](policy.rego); this
-> file is the human-readable companion. The two are maintained in parallel.
+> The executable rule is [`policy.rego`](policy.rego); this file is its
+> human-readable companion, and [`card.json`](card.json) is its manifest.

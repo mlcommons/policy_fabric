@@ -9,7 +9,7 @@ INTERFACE="$(hostname -I | awk '{print $1}')"
 # WEBAPP_PORT is for a host that already has something there.
 bash pdo_client/docker/run_webapp.sh \
     --csrf-trusted-origins "${CSRF_TRUSTED_ORIGINS:-}" \
-    --image mlcommons/pdo_base_client:v2 \
+    --image mlcommons/pdo_base_client:v3 \
     --interface 127.0.0.1 \
     --port "${WEBAPP_PORT:-8000}" \
     --cert-path /tmp/pdo_ledger/ccf/keys/networkcert.pem \

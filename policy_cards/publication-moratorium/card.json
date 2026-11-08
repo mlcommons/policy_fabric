@@ -1,0 +1,24 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000024",
+  "code": "MOR",
+  "name": "Publication moratorium",
+  "rule": "The requester accepted your moratorium terms and handles results securely.",
+  "guardianTypes": ["download", "inference"],
+  "template": "secure-results",
+  "facts": {
+    "User": ["AgreementCredential", "ComputeEnvironmentCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "requiredDocumentID": {
+        "type": "string",
+        "title": "Required terms",
+        "description": "DID of the terms document the requester must have accepted.",
+        "minLength": 1
+      }
+    },
+    "required": ["requiredDocumentID"]
+  }
+}

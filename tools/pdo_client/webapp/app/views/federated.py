@@ -293,24 +293,72 @@ class FederatedRolesEndpoint(JsonView):
                 logger.exception("Failed to read policy requirements for %s", asset_did)
                 problems.append(f"{name}: {e}")
                 continue
-            for role, types in (requirements or {}).items():
+            for role, types in requirements.items():
                 roles.setdefault(role, set()).update(types)
 
         if problems and not roles:
             raise ValidationError("; ".join(problems))
 
+        templates = registry_client.credential_templates_by_type()
         return {
             "ok": True,
             "roles": [
-                {"role": role, "credential_types": sorted(types)}
+                {
+                    "role": role,
+                    "credential_types": sorted(types),
+                    "facts": [templates[t]["display_name"] for t in sorted(types)],
+                }
                 for role, types in sorted(roles.items())
             ],
             "problems": problems,
         }
 
 
+class FederatedChecklistEndpoint(JsonView):
+    """POST {asset_dids, wallets} — each selected site's readiness checklist.
+
+    Every site's policy names its own facts and accepts its own authorities, so
+    the requester sees one checklist per site; a site that is not ready would
+    refuse its capability, and the round would run without it.
+    """
+
+    def handle(self, request, data, **kwargs):
+        from .assets import checklist_for  # local: avoids a circular import
+
+        asset_dids = data.get("asset_dids")
+        if not isinstance(asset_dids, list) or not asset_dids:
+            raise ValidationError("select at least one site")
+        user_name = AppConfig.get_instance().public_key
+        if not isinstance(data.get("wallets"), dict):
+            raise ValidationError("'wallets' must map each role to a wallet, or to '' while none is chosen")
+        wallets = {role: cid for role, cid in data["wallets"].items() if cid}
+        for contract_id in wallets.values():
+            if not ledger_client.user_owns_contract(user_name, contract_id):
+                raise ValidationError(f"identity not found: {contract_id}")
+
+        sites = []
+        for asset_did in asset_dids:
+            site = {"asset_did": asset_did, "name": asset_did}
+            try:
+                site["name"] = registry_client.get_asset_by_did(asset_did)["name"]
+                site.update(checklist_for(asset_did, wallets, user_name))
+            except Exception as e:
+                logger.exception("Failed to build the checklist for %s", asset_did)
+                # a site whose checklist failed is not ready, and asks for nothing
+                site.update({"rows": [], "ready": False, "needs_project": False, "projects": [], "error": str(e)})
+            sites.append(site)
+
+        return {
+            "ok": True,
+            "sites": sites,
+            "needs_project": any(site["needs_project"] for site in sites),
+            "projects": sorted({p for site in sites for p in site["projects"]}),
+        }
+
+
 class FederatedRunStreamView(BaseView):
-    """POST {server_url, asset_dids, wallets} — run one federated round, streaming.
+    """POST {server_url, asset_dids, wallets, project?} — run one federated round,
+    streaming.
 
     The steps are emitted by hand rather than through ``stream_steps`` because the
     shape of this flow depends on what the requester selected: one capability step
@@ -390,6 +438,7 @@ class FederatedRunStreamView(BaseView):
                 asset_dids=asset_dids,
                 wallets=wallets,
                 script_did=script_did,
+                declared={"project": data["project"]} if "project" in data else {},
                 state=state,
             ),
             complete=lambda: {
@@ -406,7 +455,7 @@ class FederatedRunStreamView(BaseView):
         )
 
     # -----------------------------------------------------------------
-    def _events(self, *, user_name, server_url, asset_dids, wallets, script_did, state):
+    def _events(self, *, user_name, server_url, asset_dids, wallets, script_did, declared, state):
         """Yield one progress event per transition, in the order they happen."""
         names = {asset_did: self._name_of(asset_did) for asset_did in asset_dids}
 
@@ -440,7 +489,11 @@ class FederatedRunStreamView(BaseView):
             logger.exception("Failed to fetch the script")
             yield make_event(step, "error", label, str(e))
             return
-        yield make_event(step, "done", label, f"{len(script)} bytes from {script_did}")
+        digest = fl_client.script_digest(script)
+        yield make_event(step, "done", label, f"{len(script)} bytes from {script_did}, {digest[:19]}…")
+        # every capability is minted for this digest, the one each FL client will
+        # measure the script by
+        params = {"script_digest": digest, **declared}
 
         # ---- one capability per site, each from that site's own policy ------
         # Asked one at a time and independently. Nothing about this round is
@@ -467,7 +520,7 @@ class FederatedRunStreamView(BaseView):
                 not_connected.append({"asset_did": asset_did, "name": name, "error": detail})
                 yield make_event(step, "error", label, detail)
                 continue
-            outcome = self._mint(user_name, asset_did, wallets)
+            outcome = self._mint(user_name, asset_did, wallets, params)
             if outcome["ok"]:
                 participants.append(
                     {"asset_did": asset_did, "capability": outcome["capability"]}
@@ -608,7 +661,7 @@ class FederatedRunStreamView(BaseView):
         except Exception:
             return asset_did
 
-    def _mint(self, user_name, asset_did, wallets):
+    def _mint(self, user_name, asset_did, wallets, params):
         """Ask one site's policy for a capability. Never raises.
 
         Returns ``{"ok", "capability"|"detail"}``. A refusal is a result, not an
@@ -622,6 +675,7 @@ class FederatedRunStreamView(BaseView):
                 asset_did=asset_did,
                 metadata=asset.get("metadata") or {},
                 wallets=wallets,
+                params=params,
             )
             if not runner.federated:
                 return {

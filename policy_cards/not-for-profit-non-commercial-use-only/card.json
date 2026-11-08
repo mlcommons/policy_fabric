@@ -1,0 +1,39 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000018",
+  "code": "NPUNCU",
+  "name": "Not-for-profit, non-commercial use only",
+  "rule": "The requester acts for a not-for-profit organisation, and their research has no commercial purpose.",
+  "guardianTypes": ["download", "inference"],
+  "facts": {
+    "User": ["LegalDesignationCredential", "ResearchPurposeCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "nonprofitLegalForms": {
+        "type": "array",
+        "title": "Not-for-profit legal forms",
+        "description": "ISO 20275 ELF codes of the legal forms that count as not-for-profit.",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      },
+      "prohibitedPurposes": {
+        "type": "array",
+        "title": "Prohibited purposes",
+        "description": "Research purposes that disqualify; the research must have none.",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      }
+    },
+    "required": ["nonprofitLegalForms", "prohibitedPurposes"]
+  },
+  "defaults": {
+    "nonprofitLegalForms": ["V2VJ", "8ES1"],
+    "prohibitedPurposes": ["commercial"]
+  }
+}

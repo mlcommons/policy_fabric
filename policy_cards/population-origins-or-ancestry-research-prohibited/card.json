@@ -1,0 +1,30 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000044",
+  "code": "NPOA",
+  "name": "Population origins or ancestry research prohibited",
+  "rule": "The requester's research does not study population origins or ancestry.",
+  "guardianTypes": ["download", "inference"],
+  "template": "purpose-prohibited",
+  "facts": {
+    "User": ["ResearchPurposeCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "prohibitedPurposes": {
+        "type": "array",
+        "title": "Prohibited purposes",
+        "description": "Research purposes that disqualify; the research must have none.",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      }
+    },
+    "required": ["prohibitedPurposes"]
+  },
+  "defaults": {
+    "prohibitedPurposes": ["POA"]
+  }
+}

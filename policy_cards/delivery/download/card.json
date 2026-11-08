@@ -1,0 +1,14 @@
+{
+  "kind": "delivery",
+  "name": "Download delivery",
+  "rule": "Release the data encrypted to the requester's session key.",
+  "guardianTypes": ["download"],
+  "operation": "do_download",
+  "facts": {
+    "User": ["publicKeyCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {}
+  }
+}

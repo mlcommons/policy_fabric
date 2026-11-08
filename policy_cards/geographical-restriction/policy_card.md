@@ -7,50 +7,47 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 1  Identification
 
 - **id:** `card.duo.0000022-gs`
-- **version:** 1.0.0
+- **version:** 2.0.0
 - **status:** released
-- **title:** Geographical Restriction (DUO_0000022 GS)
-- **description:** Grant access only when the requester presents a trusted
-  `LocationCredential` placing them in a data-owner–approved country, together
-  with a `publicKeyCredential` carrying the public key their data is delivered to.
+- **title:** Geographical restriction (DUO_0000022 GS)
+- **description:** Grant access only to a requester located in a country the
+  data owner allows.
 - **author:** MLCommons
 - **contact:** —
 
 ## 2  Scope & Target
 
 - **target.asset:** the dataset the data owner exposes for controlled access.
-- **target.operations:** `download`.
+- **target.guardians:** `download`, `inference`.
 - **Out of scope:** any control over the asset after it is delivered
   (redistribution, retention).
 
 ## 3  Version History
 
-| Version | Date       | Author                        | Status   | Summary of change                                      |
-|---------|------------|-------------------------------|----------|--------------------------------------------------------|
-| 1.0.0   | 2026-07-10 | MLCommons                     | released | Initial policy card authored from the GS policy.       |
+| Version | Date       | Author    | Status   | Summary of change                                      |
+|---------|------------|-----------|----------|--------------------------------------------------------|
+| 1.0.0   | 2026-07-10 | MLCommons | released | Initial policy card authored from the GS policy.       |
+| 2.0.0   | 2026-10-02 | MLCommons | released | Reads one fact per holder; evidence chains and delivery moved out. |
 
 ## 4  Summary & Intent
 
-Access to the dataset depends on where the requester (or their institution) is
-located. The requester presents a `LocationCredential` whose `locatedAt.country`
-must be one of the `allowedCountries` the data owner configured, together with a
-`publicKeyCredential` carrying the public key their data is delivered to. Both
-credentials must be issued to the **same subject**, so a single party both proves
-the location and owns the key the data is encrypted to.
+Access depends on where the requester (or their institution) is located. The
+requester holds a `LocationCredential` about themselves, from an authority this
+asset accepts for that fact, and its `locatedAt.country` must be one of the
+`allowedCountries` the owner sets.
 
-- **Governance objective:** restrict download of the asset to requesters located
-  in an approved country.
+- **Governance objective:** restrict use of the asset to requesters located in
+  an approved country.
 
 ## 5  Declarative Representation
 
 ```text
-Permission: download the target dataset
-  Assignee:  the requester (the subject of the presented credentials)
+Permission: use the target dataset through its guardian
+  Assignee:  the requester (the holder of each role's presentation)
   Conditions (all must hold):
-    - a LocationCredential asserts  locatedAt.country ∈ allowedCountries
-    - a publicKeyCredential provides the requester's delivery key (claim: key)
-    - both credentials are issued to the same subject
-  On grant:  operation "do_download", with the data encrypted to that key
+    - a LocationCredential about the requester asserts locatedAt.country ∈ allowedCountries
+    - each credential is from an authority the owner accepts for its type
+  On grant:  the operation the guardian's delivery module names
   Otherwise: deny
 ```
 
@@ -58,51 +55,43 @@ Permission: download the target dataset
 
 Every type resolves to a schema in [`../../credentials/`](../../credentials/).
 
-| Credential type       | Claims consumed     | Required |
-|-----------------------|---------------------|----------|
-| `LocationCredential`  | `locatedAt.country` | yes      |
-| `publicKeyCredential` | `key`               | yes      |
+| Role | Credential type | About | Claims consumed |
+|------|-----------------|-------|-----------------|
+| User | `LocationCredential` | the requester | `locatedAt.country` |
 
-Both credentials must be issued to the same subject.
+Each credential must be about the holder of its role: facts about third parties
+-- a PI, a project, a committee -- are inputs to authorities, never to this
+card.
 
 ## 7  Reference Values Schema
 
-Reference values the data owner configures (see
-[`policy_data_schema.json`](policy_data_schema.json)):
+The values the data owner configures, as a JSON Schema in
+[`card.json`](card.json) (`parameters`), which also generates the owner's form:
 
 ```json
 {
-  "allowedCountries": ["list of strings"]
+  "allowedCountries": ["string"]
 }
 ```
 
-`allowedCountries` is the set of country values (as they appear in
-`LocationCredential.locatedAt.country`) for which access is permitted.
+- `allowedCountries` — Countries the requester may be located in, as
+  LocationCredential names them.
 
 ## 8  Capability Granted
 
-On success the card grants the operation below, which the Asset Guardian
-enforces without interpreting policy logic:
-
-```json
-{
-  "operation": {
-    "name": "do_download",
-    "parameters": { "channel_key": "<requester public key>" }
-  }
-}
-```
-
-- **operation:** `do_download` — the guardian operation invoked on success.
-- **parameters.channel_key:** the `key` claim of the requester's
-  `publicKeyCredential`; the guardian encrypts the delivered data to it.
+None of its own. A card decides; it does not deliver. The asset's guardian type
+picks one delivery module, which describes the policy decision: `do_download`
+with the requester's channel key for a download guardian, `do_inference` with
+the approved script's digest for an inference guardian. The policy agent issues
+the decision only if every card on the asset allows, and the asset's token turns
+it into the capability.
 
 ## 9  Codified Representation
 
-The policy is codified in Rego: [`policy.rego`](policy.rego), with unit tests in
-[`policy_test.rego`](policy_test.rego). It evaluates to allow when the same
-subject holds both an allowed-country `LocationCredential` and a
-`publicKeyCredential`, and returns the granted operation of section 8.
+The rule is codified in Rego as [`policy.rego`](policy.rego), with unit tests in
+[`policy_test.rego`](policy_test.rego). It reads `input.presentations`,
+`input.holders`, `input.request` and this card's own `input.policy_data`, and
+returns the decision and the credentials to verify.
 
 ## 10  Legal & Disclaimers
 

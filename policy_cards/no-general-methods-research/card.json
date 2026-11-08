@@ -1,0 +1,30 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000015",
+  "code": "NMDS",
+  "name": "No general methods research",
+  "rule": "The requester's research does not develop general methods.",
+  "guardianTypes": ["download", "inference"],
+  "template": "purpose-prohibited",
+  "facts": {
+    "User": ["ResearchPurposeCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "prohibitedPurposes": {
+        "type": "array",
+        "title": "Prohibited purposes",
+        "description": "Research purposes that disqualify; the research must have none.",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      }
+    },
+    "required": ["prohibitedPurposes"]
+  },
+  "defaults": {
+    "prohibitedPurposes": ["MDS", "AI_Development", "Software_Development", "TrainModel"]
+  }
+}

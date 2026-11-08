@@ -2,7 +2,7 @@
 
 This tutorial walks you through the **entire flow using a web UI**. By the end, a **Script Owner** runs one piece of code across **two hospitals at once** and never sees either of their datasets. Neither dataset leaves the hospital's own **FL client** that holds it; the code travels to the data instead, the hospital's **Guardian** decides whether it may run, and only aggregate numbers come back. Each hospital has independently decided what it will allow, and the two have decided differently.
 
-If you have not done the [download tutorial](tutorial.md) yet, do that one first. It introduces wallets, issuer objects, credentials and policies with a simpler flow. This tutorial assumes those terms.
+If you have not done the [download tutorial](tutorial.md) yet, do that one first. It introduces wallets, authorities, credentials and policies with a simpler flow. This tutorial assumes those terms.
 
 ---
 
@@ -22,37 +22,28 @@ Four personas participate:
 
 | Policy | The question it answers | Who attaches it |
 | --- | --- | --- |
-| **FL-DS** — disease-specific research | *what is this code for?* | Hospital A, and Hospital B |
-| **FL-IS** — institution-specific restriction | *who is running it, and do they stand behind it?* | Hospital B only |
+| **FL-DS** — disease-specific inference | *what is this code for?* | Hospital A, and Hospital B |
+| **FL-IS** — institution-specific inference | *who is running it, and do they stand behind it?* | Hospital B only |
 
-**Hospital A** is satisfied by a rule about the code. **Hospital B** wants that *and* a rule about the requester, so it attaches **both**. An asset can carry any number of policies: each becomes a subpolicy of its policy agent, the contract asks every one of them, and the request is allowed only if **all** of them allow it. Their credential requirements are unioned and their operations merged into one capability.
+**Hospital A** is satisfied by a rule about the code. **Hospital B** wants that *and* a rule about the requester, so it attaches **both**. Every inference asset also gets the guardian's **delivery module**, which names what the capability allows: *run the script identified by this digest*. The contract asks every module, the request is allowed only if **all** of them allow it, and the requester has to satisfy the union of the facts they read.
 
-So a single request will be judged twice at Hospital B and once at Hospital A — and the Script Owner has to satisfy the union of what all of them ask for.
+So a single request is judged by two modules at Hospital A and three at Hospital B.
 
-### What FL-DS reads
+### What each module reads
 
-The code that is about to run must carry a declaration of what it is for, and that declared disease scope must overlap the owner's **allowed diseases** — here **`MONDO:0005148`** (type 2 diabetes mellitus). Two credentials, both about **the same script**:
+The facts are about two identities: the **Script**, presented from the script asset, and the **User**, presented from the requester's wallet.
 
-| Credential | What it says about the script |
-| --- | --- |
-| `IntendedDataUseCredential` | the diseases this code is declared for |
-| `ScriptHashCredential` | the digest identifying this code |
+| Module | Role | Fact | What it says |
+| --- | --- | --- | --- |
+| FL-DS | **Script** | Intended data use | the diseases this code is declared for, which must overlap the owner's **allowed diseases** — here **`MONDO:0005148`** (type 2 diabetes mellitus) |
+| delivery | **Script** | Script digest | the digest identifying this code |
+| FL-IS | **User** | Affiliation | which institution the requester belongs to |
+| FL-IS | **User** | Wallet key | which key the requester's wallet is registered with on the ledger |
+| FL-IS | **Script** | Script ownership | a wallet's claim that the script is **its** script |
 
-The digest is the part that makes the declaration mean anything. Without it, an in-scope declaration attached to one script could be presented alongside a completely different piece of code.
+The digest is what makes the declaration mean anything. The request names the digest of the script actually being sent, and the delivery module approves that digest only if an accepted authority signed it for this script. Without it, an in-scope declaration attached to one script could be presented alongside a completely different piece of code.
 
-### What FL-IS reads
-
-Five credentials, across two roles:
-
-| Role | Credential | What it says |
-| --- | --- | --- |
-| **User** | `AffiliationCredential` | which institution the requester belongs to |
-| **User** | `publicKeyCredential` | the requester's session key, so results can reach them |
-| **User** | `WalletVerifyingKeyCredential` | which key the requester's wallet is registered with on the ledger |
-| **Script** | `ScriptHashCredential` | the digest identifying the code (the same one FL-DS reads) |
-| **Script** | `ScriptOwnershipCredential` | a wallet's claim that the script is **its** script |
-
-Four of those come from issuer objects. The fifth — the ownership claim — is signed by the requester's **own wallet**, which is the interesting part. On its own, "this script is mine" is worth nothing: anyone can say it about anything. It becomes evidence because the policy checks that signature against the key in the `WalletVerifyingKeyCredential`, which *is* from an authority. So the chain is: an authority says *this wallet holds this key*, the wallet uses that key to say *this script is mine*, and an issuer says *this wallet belongs to that institution*. All three must be about one wallet, and the ownership claim must be about the same script the digest names.
+The ownership claim is the interesting one: it is *self-asserted*, signed by the requester's **own wallet**. On its own, "this script is mine" is worth nothing: anyone can say it about anything. It becomes evidence because FL-IS checks that signature against the key in the Wallet key credential, which *is* from an authority. So the chain is: an authority says *this wallet holds this key*, the wallet uses that key to say *this script is mine*, and another authority says *this wallet belongs to that institution*. All three must be about one wallet, and the ownership claim must be about the script being run.
 
 ---
 
@@ -63,7 +54,7 @@ Everything runs against a single client identity at a time. You change roles by 
 | Role | What they do |
 | ------ | -------------- |
 | **`data_user`** | is the **Script Owner**. They publish the script as an asset, get a **wallet**, claim the script with it, and later ask for the run. |
-| **`vc_issuer`** | is the **Trusted Issuer**. They hand-sign the credentials about the script and about the requester, and create the session-key issuer that binds a fresh key to the requester's wallet. |
+| **`vc_issuer`** | is the **Trusted Issuer**. They create a hand-signing authority that signs the credentials about the script and about the requester, and a system authority that attests wallet keys. |
 | **`hospital_a`** | is the first **Dataset Owner**. Cohort behind an inference guardian, FL-DS attached. |
 | **`hospital_b`** | is the second **Dataset Owner**. Own cohort, own guardian, and **both** policies. |
 
@@ -198,21 +189,14 @@ This is where credentials *about the requester* will live. Hospital A will never
 
 ### 1.4 The wallet claims the script
 
-1. Click **Open** on `researcher_wallet`, then **Sign Credential**.
+1. Click **Open** on `researcher_wallet`, then **Sign as this Wallet**.
 2. Fill the modal:
-      - **Credential Template:** `ScriptOwnershipCredential`
-      - **Subject DID:** the `SCRIPT_DID` from step 1.2 — the claim is *about the script*
-      - **Claims:**
+      - **Claim:** `Script ownership`
+      - **About:** the `SCRIPT_DID` from step 1.2 — the claim is *about the script*
+      - **Owned by:** the `WALLET_DID` from step 1.3
+3. Click **Sign & Store**. The credential is stored on the **script asset**, because that is what it is about.
 
-        ```json
-        {
-          "ownedBy": "PASTE_YOUR_WALLET_DID_HERE"
-        }
-        ```
-
-3. Click **Sign & Issue**. The credential is stored on the **script asset**, because that is what it is about.
-
-*What's happening in the background:* a wallet cannot issue a credential the way an issuer object does — signing *from a signing context* is what makes something an authority, and a wallet is not one. What every contract does have is the key pair PDO generated for it at creation, whose public half the ledger records in the contract's metadata. That is the key this signature uses, and it is exactly the key the wallet key authority will certify in Part 2. Signed with anything else, FL-IS would have nothing to check the claim against.
+*What's happening in the background:* a wallet only signs what a requester asserts about themselves; everything else needs an authority. What every contract does have is the key pair PDO generated for it at creation, whose public half the ledger records in the contract's metadata. That is the key this signature uses, and it is exactly the key the wallet key authority will attest in Part 5. Signed with anything else, FL-IS would have nothing to check the claim against.
 
 ---
 
@@ -220,83 +204,60 @@ This is where credentials *about the requester* will live. Hospital A will never
 
 > **🔁 Switch identity to `vc_issuer`.**
 
-### 2.1 Create the issuer object
+### 2.1 Create a hand-signing authority
 
-1. Go to **Issuers** (navbar) → **+ Create Issuer**.
-2. **Name:** e.g. `code review board`. **Issuer Type:** **Manual**. → **Create**.
-3. Open it and click **Copy** next to its **DID**.
+1. Go to **Authorities** (navbar) → **+ Create Authority**.
+2. **Name:** `Code review board`. **Kind:** **Hand-signing**.
+3. Under **Facts it attests**, check **Script digest**, **Intended data use** and **Affiliation**.
+4. **What it checks:** `Reviews the code it is shown, and the requester's appointment.` → **Create**.
 
-> 📋 **Keep this as `ISSUER_DID` in your notes.** Both hospitals will decide, separately, to trust it.
+Both hospitals will find it in the directory and decide, separately, whether to accept it.
 
-### 2.2 Issue the **ScriptHashCredential**
+### 2.2 Sign the **Script digest**
 
-1. On the issuer object's page click **Sign Credential**.
+1. Open `Code review board` and click **Sign Credential**.
 2. Fill the modal:
-      - **Credential Template:** `ScriptHashCredential`
-      - **Subject DID:** the `SCRIPT_DID` from step 1.2
-      - **Claims:**
+      - **Fact:** `Script digest`
+      - **About:** the `SCRIPT_DID` from step 1.2
+      - **Deliver to wallet:** the same `SCRIPT_DID`
+      - **Script hash:** the `SCRIPT_DIGEST` you kept in Part 0 — including the `sha256:` prefix
+3. Click **Sign & Deliver**. It lands on the script asset, the identity it is about.
 
-        ```json
-        {
-          "scriptHash": "sha256:PASTE_YOUR_SCRIPT_DIGEST_HERE"
-        }
-        ```
+*What's happening in the background:* this pins the identity of the code. Every inference asset's delivery module reads it.
 
-        Use the `SCRIPT_DIGEST` you kept in Part 0 — including the `sha256:` prefix.
-
-3. Click **Sign & Issue**.
-
-*What's happening in the background:* this pins the identity of the code. Both policies read it — it is the one credential they share.
-
-### 2.3 Issue the **IntendedDataUseCredential**
+### 2.3 Sign the **Intended data use**
 
 1. **Sign Credential** again.
 2. Fill:
-      - **Credential Template:** `IntendedDataUseCredential`
-      - **Subject DID:** the same `SCRIPT_DID`
-      - **Claims:**
-
-        ```json
-        {
-          "useOnlyFor": {
-            "purposes": ["research"],
-            "diseases": ["MONDO:0005148"]
-          }
-        }
-        ```
-
-3. **Sign & Issue**.
+      - **Fact:** `Intended data use`
+      - **About:** the same `SCRIPT_DID`
+      - **Deliver to wallet:** the `SCRIPT_DID` again
+      - **Use only for → Purposes:** `research`
+      - **Use only for → Diseases:** `MONDO:0005148`
+3. **Sign & Deliver**.
 
 *What's happening in the background:* this attests **what the code is for**. Note the subject: the declaration is attached to the *script*, not to the person asking. When the data never moves, the thing whose purpose matters is the thing that runs.
 
-### 2.4 Issue the **AffiliationCredential**
+### 2.4 Sign the **Affiliation**
 
 1. **Sign Credential** again.
 2. Fill:
-      - **Credential Template:** `AffiliationCredential`
-      - **Subject DID:** the `WALLET_DID` from step 1.3 — this one is about the *person*, so it goes to their wallet
-      - **Claims:**
+      - **Fact:** `Affiliation`
+      - **About:** the `WALLET_DID` from step 1.3 — this one is about the *person*, so it goes to their wallet
+      - **Deliver to wallet:** the same `WALLET_DID`
+      - **Is member of:** `did:example:best_university`
+      - **Type of membership:** `faculty`
+3. **Sign & Deliver**.
 
-        ```json
-        {
-          "isMemberOf": "did:example:best_university",
-          "typeOfMembership": "faculty"
-        }
-        ```
+### 2.5 Create a system authority
 
-3. **Sign & Issue**.
+1. Go to **Authorities** → **+ Create Authority**.
+2. **Name:** `Session keys`. **Kind:** **System**. → **Create**.
+3. Back on the list you now have **two** new system authorities: `Session keys` and `Session keys (wallet keys)`.
 
-### 2.5 Add a session-key issuer
+*What's happening in the background:* the **wallet key authority** reads a wallet's ledger record and attests which verifying key that wallet is registered with — the Wallet key fact, which is what makes the wallet's own signature from step 1.4 checkable. The session-key authority beside it binds session keys for downloads; this tutorial does not need it. Neither has a "Sign Credential" button: the app calls on them when a requester's checklist needs one of their facts.
 
-1. Go to **Issuers** → **+ Create Issuer**.
-2. **Name:** `session keys`. **Issuer Type:** **Session Key**. → **Create**.
-3. Back on the list you now have **two** new cards: `session keys` (*External Key Authority*) and `session keys (wallet keys)` (*Wallet Key Authority*). **Copy DID** from each.
-
-> 📋 **Keep these as `BINDING_DID` and `WALLET_KEY_DID` in your notes.**
-
-*What's happening in the background:* creating a session-key issuer creates two objects, because two different facts have to be attested. The **wallet key authority** reads a wallet's ledger record and certifies which verifying key that wallet is registered with — that is the `WalletVerifyingKeyCredential`, and it is what makes the wallet's own signature from step 1.4 checkable. The **external key authority** then uses that credential to bind a fresh session key to the wallet and issue a `publicKeyCredential` for it, automatically, at request time. Neither has a "Sign Credential" button; there is nothing to do with them by hand.
-
-**Important**: none of these signed credentials unlocks anything on its own. A policy accepts them only if the claims fit **and** the credential was signed by an issuer object *that policy* trusts. Each hospital decides that for itself, next.
+**Important**: none of these signed credentials unlocks anything on its own. A policy accepts one only if the claims fit **and** it was signed by an authority *that asset's owner* accepts for that fact. Each hospital decides that for itself, next.
 
 ---
 
@@ -319,22 +280,15 @@ This is where credentials *about the requester* will live. Hospital A will never
 
 ### 3.2 Expose the dataset behind FL-DS
 
-1. Registering brings you back to **Assets**. Click **Open** on `hospital_a_cohort`, then **Expose** → the **Expose Asset** modal opens.
-2. Under **Policies**, check **FL-INFERENCE-DISEASE-SPECIFIC-RESEARCH**. (Use **View** to read the policy card and its Rego source.)
-3. The **Policy Data** box auto-fills with that policy's schema. Replace it with real values:
+1. Registering brings you back to **Assets**. Click **Open** on `hospital_a_cohort`. The **Expose** panel lists the policies that fit an inference guardian.
+2. **Policies:** check **FL-DS · Disease-specific inference**. (Use **View** to read the policy card and its rule.) The panel notes the delivery module every inference asset gets: *run the approved script, identified by its digest*.
+3. **Parameters → Allowed diseases:** `MONDO:0005148`
+4. **Accepted authorities:**
+      - **Intended data use:** check **Code review board**
+      - **Script digest:** check **Code review board**
+5. **Review** reads *Requesters will need: Intended data use (Code review board), Script digest (Code review board).* Click **Expose**.
 
-    ```json
-    {
-      "allowedDiseases": ["MONDO:0005148"]
-    }
-    ```
-
-4. Under **Trusted Issuers**, click **+ Add a trusted issuer** **once**:
-      - paste `ISSUER_DID` from step 2.1 into the DID field
-      - check **`ScriptHashCredential`** and **`IntendedDataUseCredential`**
-5. Click **Create Policy & Expose**.
-
-Hospital A is done. It asks nothing about who is requesting, so it never needs to trust the session-key issuers at all.
+Hospital A is done. It asks nothing about who is requesting, so it never needs to accept the wallet key authority at all.
 
 ---
 
@@ -354,33 +308,24 @@ Hospital A is done. It asks nothing about who is requesting, so it never needs t
 
 ### 4.2 Expose it behind **both** policies
 
-1. **Open** `hospital_b_cohort` and click **Expose**.
-2. Under **Policies**, check **both**:
-      - **FL-INFERENCE-DISEASE-SPECIFIC-RESEARCH**
-      - **FL-INFERENCE-INSTITUTION-SPECIFIC-RESTRICTION**
+1. **Open** `hospital_b_cohort`.
+2. **Policies:** check **both**:
+      - **FL-DS · Disease-specific inference**
+      - **FL-IS · Institution-specific inference**
+3. **Parameters:** each policy has its own form.
+      - **FL-DS → Allowed diseases:** `MONDO:0005148`
+      - **FL-IS → Allowed institutions:** `did:example:best_university`
+4. **Accepted authorities:**
+      - **Intended data use**, **Affiliation**, **Script digest:** check **Code review board**
+      - **Wallet key:** **Session keys (wallet keys)** is already checked — it is the only authority that establishes it
+      - **Script ownership** needs no authority: the row says it is signed by the requester's own wallet
+5. Click **Expose**.
 
-    Watch the **Policy Data** box as you check the second one: it now shows the **union** of the two schemas, because the asset has to supply data for both.
+Note what is *not* accepted anywhere: the requester's wallet. It never becomes an authority, and it does not need to be — FL-IS hands its key to the contract along with the ownership credential, and the check happens against that key directly.
 
-3. Replace **Policy Data** with:
+*What's happening in the background:* both policies and the delivery module are provisioned as modules of **one** policy agent contract, each with its own parameters. At request time the contract evaluates each one over the same presentation and combines what they return: the request is allowed only if **all** of them allow it, the credentials each of them relied on are verified once, and the one operation — named by the delivery module — becomes the capability.
 
-    ```json
-    {
-      "allowedDiseases": ["MONDO:0005148"],
-      "allowedInstitutions": ["did:example:best_university"]
-    }
-    ```
-
-4. Under **Trusted Issuers**, click **+ Add a trusted issuer** **three times**:
-      - **First box:** `ISSUER_DID` (step 2.1) — check **`ScriptHashCredential`**, **`IntendedDataUseCredential`** and **`AffiliationCredential`**
-      - **Second box:** `BINDING_DID` (step 2.5) — check **`publicKeyCredential`**
-      - **Third box:** `WALLET_KEY_DID` (step 2.5) — check **`WalletVerifyingKeyCredential`**
-5. Click **Create Policy & Expose**.
-
-Note what is *not* in that list: the requester's wallet. It never becomes a trusted issuer, and it does not need to be — FL-IS hands its key to the contract along with the ownership credential, and the check happens against that key directly.
-
-*What's happening in the background:* both policies are provisioned as subpolicies of **one** policy agent contract. At request time the contract evaluates each one over the same presentation and merges what they return: the request is allowed only if **both** allowed, the credentials each of them relied on are collected and verified once, and their two `do_inference` operations deep-merge into one — FL-DS's `script_digest` and FL-IS's `channel_key` end up as parameters of the same capability.
-
-The two hospitals have agreed about nothing except, coincidentally, the same disease code and the same issuer. Hospital B additionally demands to know who is asking.
+The two hospitals have agreed about nothing except, coincidentally, the same disease code and the same authority. Hospital B additionally demands to know who is asking.
 
 ---
 
@@ -395,14 +340,17 @@ The two hospitals have agreed about nothing except, coincidentally, the same dis
     If a site is missing, its FL client has not announced itself — check that the FL server was running when the guardian started.
 
 2. Both are selected by default. Leave them both checked and click **Run on selected sites**.
-3. The modal asks for **two** roles — the union of what the selected policies want:
+3. The modal asks for **two** roles — the union of what the selected sites' policies want:
       - **Script** → `cohort_summary_script` (under **Scripts**)
       - **User** → `researcher_wallet` (under **Wallets**)
+4. Below, each site gets its own checklist for those identities:
+      - **hospital_a_cohort — ready:** Intended data use and Script digest are **Held**.
+      - **hospital_b_cohort — ready:** the same, plus Affiliation and Script ownership **Held**, and Wallet key **Automatic**, from `Session keys (wallet keys)`.
 
-    Hospital A's FL-DS only reads the `Script` role and ignores the other; Hospital B's pair reads both.
+    Hospital A's modules read only the `Script` role and ignore the other; Hospital B's read both.
 
-4. Click **Request Federated Inference**.
-5. Watch the steps go by — first the match of each selected site to its FL client, then one step per site for the capability, one per site for the run — and then the result:
+5. Click **Request Federated Inference**.
+6. Watch the steps go by — first the match of each selected site to its FL client, then one step per site for the capability, one per site for the run — and then the result:
 
     ```json
     {
@@ -419,12 +367,12 @@ The two hospitals have agreed about nothing except, coincidentally, the same dis
 *What's happening in the background* (the whole handshake, end to end):
 
 1. The app reads the FL server's **DID → FL client mapping** again and checks that each selected site still has a client connected. You picked the sites off that mapping when the page loaded; a site whose client has gone since would be dropped here, before its policy is asked for a capability no one could run.
-2. The app resolves `SCRIPT_DID` through the asset registry to the script's public guardian and **fetches the code**, once, for the whole round.
-3. **Each hospital's policy agent is asked separately.** Hospital A's evaluates FL-DS: the two credentials presented from the script's identity were signed by an issuer *it* trusts, the declared disease overlaps *its* `allowedDiseases`, and both name the same script. Hospital B's evaluates FL-DS **and** FL-IS over the same presentation — and because FL-IS wants a `publicKeyCredential` the wallet does not have yet, the app first asks B's trusted external key authority for one, which gets a `WalletVerifyingKeyCredential` from the wallet key authority and then binds a fresh session key. Both land in the wallet. FL-IS then checks the affiliation, the session key, the wallet key and the self-signed ownership claim all name **one** wallet, and that the ownership claim and the digest name **one** script.
+2. The app resolves `SCRIPT_DID` through the asset registry to the script's public guardian, **fetches the code** once for the whole round, and computes its digest.
+3. **Each hospital's policy agent is asked separately**, with the digest in the request. First the app gets what that site's checklist marks automatic: for Hospital B, a Wallet key credential from the wallet key authority, which lands in the wallet. Hospital A's agent evaluates FL-DS and the delivery module: the two credentials presented from the script's identity were signed by an authority *it* accepts, the declared disease overlaps *its* allowed diseases, both are about the script being run, and the digest signed for it is the one in the request. Hospital B's evaluates the same **and** FL-IS: the affiliation and the wallet key are about the presenting wallet, and the ownership claim about the script was signed by that wallet's key.
 4. Each hospital issues its own **capability** for `do_inference`, carrying the **approved digest** and bound to its own guardian.
 5. The app submits **one round** to the FL server: the script, and the two capabilities, each tagged with the DID of the asset it was minted for. It never contacts either guardian itself. The FL server **matches each capability to the FL client its mapping says holds that DID** and addresses the job to that client alone.
 6. **Each FL client** claims the job addressed to it, and only that one, **hashes the script it received**, and sends that digest and the capability to its own guardian core, asking: *may I run this?*
-7. **Each guardian core** — which holds no data — compares the digest its capability authorized against the digest its client computed. They match, so each answers **yes**. Had anyone changed the script after the issuer signed its digest, the answer would be **no**, the client would report the job failed, and it would never open its data.
+7. **Each guardian core** — which holds no data — compares the digest its capability authorized against the digest its client computed. They match, so each answers **yes**. Had anyone changed the script after the authority signed its digest, the answer would be **no**, the client would report the job failed, and it would never open its data.
 8. On the yes, each client runs the script over the data **it** holds and reports **metrics** to the FL server, which combines them weighted by how much data each site ran over. That combination is the only place the two hospitals' numbers ever meet.
 
 Neither dataset left its FL client. Neither guardian ever held either one — they only said yes.
@@ -434,29 +382,27 @@ Neither dataset left its FL client. Neither guardian ever held either one — th
 ## End of Tutorial: What you just built
 
 ```text
-issuer object ──signs──► ScriptHashCredential       (digest)          ─┐
-              ──signs──► IntendedDataUseCredential  (diseases)         │ stored on
-   wallet     ──signs──► ScriptOwnershipCredential  (this is mine)    ─┘ the script asset
-                                                                       ── the "Script" role
-issuer object ──signs──► AffiliationCredential      (institution)     ─┐
-wallet key authority ──► WalletVerifyingKeyCredential (wallet's key)   │ stored in
-session key issuer   ──► publicKeyCredential        (fresh key)       ─┘ researcher_wallet
-                                                                       ── the "User" role
+Code review board ──signs──► Script digest        (digest)          ─┐
+                  ──signs──► Intended data use    (diseases)         │ stored on
+   wallet         ──signs──► Script ownership     (this is mine)    ─┘ the script asset
+                                                                     ── the "Script" role
+Code review board ──signs──► Affiliation          (institution)     ─┐ stored in
+wallet key authority ──────► Wallet key           (wallet's key)    ─┘ researcher_wallet
+                                                                     ── the "User" role
                                     │
                  the SAME presentation, judged independently
                                     │
             ┌───────────────────────┴───────────────────────┐
             ▼                                               ▼
    Hospital A's policy agent                    Hospital B's policy agent
-     FL-DS                                        FL-DS  AND  FL-IS
+     FL-DS + inference delivery                   FL-DS + FL-IS + inference delivery
      reads the Script role only                   reads both roles
-     its own trusted issuers                      its own trusted issuers
-     its own allowedDiseases                      allowedDiseases + allowedInstitutions
+     its own accepted authorities                 its own accepted authorities
+     its own allowed diseases                     allowed diseases + allowed institutions
             │                                               │
-            ▼                                    both must allow; operations merge
-     capability for A                                       ▼
-     { do_inference, script_digest }              capability for B
-            │                              { do_inference, script_digest, channel_key }
+            ▼                                               ▼
+     capability for A                               capability for B
+     { do_inference, script_digest }              { do_inference, script_digest }
             └───────────────────────┬───────────────────────┘
                                     │ submitted together, each tagged with its asset DID
                                     ▼
@@ -478,6 +424,6 @@ session key issuer   ──► publicKeyCredential        (fresh key)       ─�
 
 Neither **Dataset Owner** reviewed the requester by hand, neither **Guardian** evaluated a policy or held any data, neither **Policy** saw any data, the **FL server** understood none of it, and neither dataset moved. What crossed each boundary was a digest on the way in and a handful of numbers on the way out — and the only place the two hospitals' numbers met was in the aggregate.
 
-The wallet, meanwhile, is never an authority. It gets to assert something about itself only because someone else, independently, put its key on the record — which is the whole reason Hospital B can rely on a claim the requester made about themselves.
+The wallet, meanwhile, is never an authority. It gets to assert something about itself only because an authority, independently, put its key on the record — which is the whole reason Hospital B can rely on a claim the requester made about themselves.
 
 ---

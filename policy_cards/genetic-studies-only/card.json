@@ -1,0 +1,30 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000016",
+  "code": "GSO",
+  "name": "Genetic studies only",
+  "rule": "The requester's research is a genetic study.",
+  "guardianTypes": ["download", "inference"],
+  "template": "purpose-allowed",
+  "facts": {
+    "User": ["ResearchPurposeCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "allowedPurposes": {
+        "type": "array",
+        "title": "Allowed purposes",
+        "description": "Research purposes that qualify; the research must have at least one.",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      }
+    },
+    "required": ["allowedPurposes"]
+  },
+  "defaults": {
+    "allowedPurposes": ["GSO"]
+  }
+}

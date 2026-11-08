@@ -1,21 +1,24 @@
 # DUO_0000042 — GRU (General Research Use)
 
-**Rule type:** Permission (constraint) · **Outcomes:** allow / deny
+**Rule type:** Permission · **Outcomes:** allow / deny
 
-Access is available for general research once the requester accepts the data
-owner's terms. The requester presents an **AgreementCredential** (claim
-`agreementInfo.documentID`) accepting the required terms document, together with a
-**publicKeyCredential** (claim `key`) carrying their channel public key. Both
-credentials must be issued to the same subject. The data owner configures the
-`requiredDocumentID` in `policy_data`. Access is **allowed** when the accepted
-document matches and a channel key is present; otherwise it is **denied**. The
-matching agreement and the public key credential are emitted as
-`verification_tasks` so the contract verifies their signatures before the result
-is trusted.
+**Rule:** The requester accepted your terms.
 
-**Requirements** (`data.subpolicy.requirements`): `{ "User": ["AgreementCredential", "publicKeyCredential"] }`
-**Policy data:** `requiredDocumentID: <did>`
-**Context returned:** `{ "channel_key": "<requester public key>" }`
+The requester holds an `AgreementCredential` about themselves showing they
+accepted the terms document the owner requires (`requiredDocumentID`).
 
-> Source of truth for the executable logic is [`policy.rego`](policy.rego); this
-> file is the human-readable companion. The two are maintained in parallel.
+| Role | Fact | About | Read from it |
+|------|------|-------|--------------|
+| User | `AgreementCredential` | the requester | `agreementInfo.documentID` |
+
+**Parameters**
+
+- `requiredDocumentID` — DID of the terms document the requester must have
+  accepted.
+
+Each fact must be about the holder of its role, and from an authority this asset
+accepts for that type. The card names no operation: the delivery module of the
+asset's guardian does.
+
+> The executable rule is [`policy.rego`](policy.rego); this file is its
+> human-readable companion, and [`card.json`](card.json) is its manifest.

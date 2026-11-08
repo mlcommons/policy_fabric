@@ -8,7 +8,7 @@ package per site; a result is whatever metrics each site reports. Everything
 lives in memory, and nothing is retried or expired.
 
 ```bash
-./run.sh --image mlcommons/pdo_fl_server:v2 --interface 0.0.0.0 --port 7920
+./run.sh --image mlcommons/pdo_fl_server:v3 --interface 0.0.0.0 --port 7920
 ```
 
 It is containerized and long-lived, and it is **not** started by the webapp: a

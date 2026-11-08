@@ -94,10 +94,10 @@ trust assumption: the data holder's own FL framework asks its guardian, and obey
 | `pdo-inference-guardian-<port>-fl-client` | `start_fl_client.sh` | `--data-path`, read-only | joins the core's network namespace, so the core is `localhost:7900` |
 
 ```bash
-./build.sh --client-image mlcommons/pdo_base_client:v2 \
-           --image mlcommons/toy_inference_guardian:v2
+./build.sh --client-image mlcommons/pdo_base_client:v3 \
+           --image mlcommons/toy_inference_guardian:v3
 
-./run.sh --image mlcommons/toy_inference_guardian:v2 \
+./run.sh --image mlcommons/toy_inference_guardian:v3 \
          --interface 127.0.0.1 --port 7900 --sservice-port 7901 \
          --guardian-host localhost \
          --data-path /tmp/asset_data.txt \

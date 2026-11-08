@@ -1,19 +1,22 @@
 """Per-(user, wallet) session keys.
 
-A session key is the RSA key pair an external_key_authority generates and
-binds to a specific wallet (see ``pdo.authority.session_key`` /
-``cmd_bind_external_key``) when it issues that wallet a ``publicKeyCredential``.
-The guardian encrypts downloaded data to the credential's public key, and the
-user decrypts the result with the matching private key kept here.
+A session key is the RSA key pair a session-key authority binds to a wallet (see
+``pdo.authority.session_key`` / ``cmd_bind_external_key``) when it issues the
+wallet a ``publicKeyCredential``. The guardian encrypts downloaded data to the
+credential's public key, and the user decrypts the result with the matching
+private key kept here.
 
-Keys live under ``settings.SESSION_KEYS_DIR/<user_name>/<wallet_id>/`` as
-``session_rsa_private.pem`` / ``session_rsa_public.pem`` — the exact
-filenames ``pdo.authority.session_key.generate_rsa_keypair`` writes, since
-that module (not this one) is what actually generates them.
+A wallet can hold several -- one per authority that bound one -- so each key pair
+lives in its own folder, named by a fingerprint of its public key:
+``settings.SESSION_KEYS_DIR/<user_name>/<wallet_id>/<fingerprint>/``, holding
+``session_rsa_private.pem`` / ``session_rsa_public.pem`` as
+``pdo.authority.session_key.generate_rsa_keypair`` writes them.
 """
 
+import hashlib
 import os
 import re
+import shutil
 import tempfile
 
 from django.conf import settings
@@ -21,6 +24,7 @@ from django.conf import settings
 from .url_safe_id import encode_cid
 
 _PRIVATE_KEY_FILENAME = "session_rsa_private.pem"
+_PUBLIC_KEY_FILENAME = "session_rsa_public.pem"
 
 
 def _safe_user(user_name):
@@ -28,25 +32,49 @@ def _safe_user(user_name):
     return re.sub(r"[^A-Za-z0-9_.-]", "_", user_name or "") or "unknown"
 
 
-def keys_dir(user_name, wallet_id):
-    return os.path.join(
-        settings.SESSION_KEYS_DIR, _safe_user(user_name), encode_cid(wallet_id)
-    )
+def fingerprint(public_pem):
+    return hashlib.sha256(public_pem.strip().encode()).hexdigest()[:16]
 
 
-def _private_key_path(user_name, wallet_id):
-    return os.path.join(keys_dir(user_name, wallet_id), _PRIVATE_KEY_FILENAME)
+def wallet_dir(user_name, wallet_id):
+    return os.path.join(settings.SESSION_KEYS_DIR, _safe_user(user_name), encode_cid(wallet_id))
 
 
-def has_session_key(user_name, wallet_id):
-    """True once a session key has been bound to this wallet."""
-    return os.path.isfile(_private_key_path(user_name, wallet_id))
+def _private_key_path(user_name, wallet_id, public_pem):
+    return os.path.join(wallet_dir(user_name, wallet_id), fingerprint(public_pem), _PRIVATE_KEY_FILENAME)
 
 
-def decrypt_download(user_name, wallet_id, encrypted_path):
-    """Decrypt a downloaded (encrypted) file with the wallet's session
-    private key and return the plaintext as text.
-    """
+def has_private_key(user_name, wallet_id, public_pem):
+    """True when this machine holds the private half of a bound key."""
+    return os.path.isfile(_private_key_path(user_name, wallet_id, public_pem))
+
+
+def new_key_dir(user_name, wallet_id):
+    """A fresh folder for a key about to be generated and bound."""
+    parent = wallet_dir(user_name, wallet_id)
+    os.makedirs(parent, exist_ok=True)
+    return tempfile.mkdtemp(prefix="binding_", dir=parent)
+
+
+def keep(user_name, wallet_id, key_dir):
+    """File a freshly bound key pair under its fingerprint; returns its public key."""
+    with open(os.path.join(key_dir, _PUBLIC_KEY_FILENAME)) as f:
+        public_pem = f.read()
+    target = os.path.join(wallet_dir(user_name, wallet_id), fingerprint(public_pem))
+    if os.path.isdir(target):
+        shutil.rmtree(key_dir)
+    else:
+        os.rename(key_dir, target)
+    return public_pem
+
+
+def discard(key_dir):
+    shutil.rmtree(key_dir, ignore_errors=True)
+
+
+def decrypt_download(user_name, wallet_id, encrypted_path, channel_key):
+    """Decrypt a downloaded file with the private half of ``channel_key`` and
+    return the plaintext as text."""
     from session_keys_utils.read_data import read_data
 
     fd, decrypted_path = tempfile.mkstemp(
@@ -55,7 +83,7 @@ def decrypt_download(user_name, wallet_id, encrypted_path):
     os.close(fd)
     try:
         read_data(
-            encrypted_path, _private_key_path(user_name, wallet_id), decrypted_path
+            encrypted_path, _private_key_path(user_name, wallet_id, channel_key), decrypted_path
         )
         with open(decrypted_path, "rb") as f:
             return f.read().decode(errors="replace")

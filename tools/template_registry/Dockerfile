@@ -26,8 +26,9 @@ USER 1000:0
 
 # run.sh migrates, seeds the templates + dev admin user, then execs the dev
 # server. CMD supplies the bind flags and the container paths where the
-# credential/policy-card folders are mounted; override at runtime to change them.
+# credential and card folders are mounted; override at runtime to change them.
 ENTRYPOINT ["bash", "/app/run.sh"]
 CMD ["--interface", "0.0.0.0", "--port", "8000", \
      "--credentials-dir", "/templates/credentials", \
-     "--policy-cards-dir", "/templates/policy_cards"]
+     "--policy-cards-dir", "/templates/policy_cards", \
+     "--authority-cards-dir", "/templates/authority_cards"]

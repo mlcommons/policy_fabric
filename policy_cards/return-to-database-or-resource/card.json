@@ -1,0 +1,24 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000029",
+  "code": "RTN",
+  "name": "Return to database or resource",
+  "rule": "The requester accepted to return derived data and handles results securely.",
+  "guardianTypes": ["download", "inference"],
+  "template": "secure-results",
+  "facts": {
+    "User": ["AgreementCredential", "ComputeEnvironmentCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "requiredDocumentID": {
+        "type": "string",
+        "title": "Required terms",
+        "description": "DID of the terms document the requester must have accepted.",
+        "minLength": 1
+      }
+    },
+    "required": ["requiredDocumentID"]
+  }
+}

@@ -11,13 +11,16 @@
 //
 // The roles are asked for after the selection, not before, because each site's
 // policy declares its own — a round over two sites may need one role for one of
-// them and two for the other, and the form has to cover the union.
+// them and two for the other, and the form has to cover the union. Each site then
+// gets its own readiness checklist for the identities chosen.
 
 (function () {
     var sites = [];        // what the server last told us
     var serverUrl = '';    // the server those sites came from
     var roles = [];        // the union the selected sites asked for
     var scriptRole = '';   // the role whose identity is the script itself
+    var checking = 0;      // the latest checklist request; older answers are dropped
+    var needsProject = false;  // whether a selected site needs a fact about a project
 
     function el(id) { return document.getElementById(id); }
 
@@ -131,9 +134,10 @@
                 var script = select.querySelector('[data-scripts] option:not([disabled])');
                 if (script) { select.value = script.value; }
             }
+            select.addEventListener('change', refreshChecklists);
             label.setAttribute('for', id);
             label.textContent = entry.role;
-            hint.textContent = 'Presents: ' + (entry.credential_types || []).join(', ');
+            hint.textContent = 'Presents: ' + entry.facts.join(', ');
             container.appendChild(node);
         });
 
@@ -154,6 +158,65 @@
         return wallets;
     }
 
+    // ------------------------------------------------------------ checklists
+    function renderProjects(needed, projects) {
+        needsProject = needed;
+        var select = el('fl-project');
+        var current = select.value;
+        select.innerHTML = '';
+        projects.forEach(function (p) {
+            select.appendChild(new Option(p, p, false, p === current));
+        });
+        el('fl-project-none').classList.toggle('hidden', projects.length > 0);
+        el('fl-project-group').classList.toggle('hidden', !needed);
+    }
+
+    function renderChecklists(info) {
+        var box = el('fl-run-checklists');
+        box.innerHTML = '';
+        info.sites.forEach(function (site) {
+            var section = document.createElement('div');
+            section.className = 'site-checklist';
+            section.dataset.siteName = site.name;
+            section.dataset.ready = site.ready ? 'true' : 'false';
+            var head = document.createElement('h3');
+            head.textContent = site.name + (site.ready ? ' — ready' : ' — not ready, would refuse');
+            section.appendChild(head);
+            var body = document.createElement('div');
+            if (site.error) {
+                body.className = 'alert alert-error';
+                body.textContent = site.error;
+            } else {
+                window.checklist.render(body, site.rows);
+            }
+            section.appendChild(body);
+            box.appendChild(section);
+        });
+        renderProjects(info.needs_project, info.projects);
+    }
+
+    function refreshChecklists() {
+        var wallets = collectWallets();
+        var submit = el('fl-run-submit');
+        submit.disabled = true;
+        if (Object.keys(wallets).some(function (r) { return !wallets[r]; })) return;
+
+        var token = ++checking;
+        el('fl-run-checklists').innerHTML = '<p class="muted">Checking what you hold…</p>';
+        window.api.post('/api/federated/checklist/', { asset_dids: selectedDids(), wallets: wallets })
+            .then(function (info) {
+                if (token !== checking) return;
+                renderChecklists(info);
+                submit.disabled = !info.sites.some(function (s) { return s.ready; })
+                    || (info.needs_project && !info.projects.length);
+            })
+            .catch(function (e) {
+                if (token !== checking) return;
+                el('fl-run-checklists').innerHTML = '';
+                window.flash(e.message || String(e), 'error');
+            });
+    }
+
     function openRunModal() {
         var chosen = sites.filter(function (s) { return s.checked; });
         if (!chosen.length) { return; }
@@ -164,13 +227,15 @@
             + chosen.map(function (s) { return s.name; }).join(', ')
             + '. Each site is asked separately, by its own policy.';
         el('fl-run-roles').innerHTML = '';
+        el('fl-run-checklists').innerHTML = '';
+        renderProjects(false, []);
         el('fl-run-submit').disabled = true;
         el('fl-run-modal').classList.remove('hidden');
 
         window.api.post('/api/federated/roles/', { asset_dids: selectedDids() })
             .then(function (info) {
                 renderRoles(info);
-                el('fl-run-submit').disabled = false;
+                refreshChecklists();
             })
             .catch(function (e) {
                 window.flash(e.message || String(e), 'error');
@@ -279,11 +344,9 @@
 
         el('fl-run-form').addEventListener('submit', function (e) {
             e.preventDefault();
-            window.progress.run('/api/federated/run/stream/', {
-                server_url: serverUrl,
-                asset_dids: selectedDids(),
-                wallets: collectWallets(),
-            }, {
+            var payload = { server_url: serverUrl, asset_dids: selectedDids(), wallets: collectWallets() };
+            if (needsProject) payload.project = el('fl-project').value;
+            window.progress.run('/api/federated/run/stream/', payload, {
                 title: 'Running the federated round…',
                 onComplete: function (term) {
                     el('progress-modal').classList.add('hidden');

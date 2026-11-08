@@ -1,132 +1,148 @@
-# DUO policies (Rego) for the `rego_policy_agent` contract
+# Policy cards
 
-Each DUO is one Rego module plus a human-readable `README.md`. A data owner
-selects one or more DUOs when exposing an asset; the webapp creates a
-`rego_policy_agent` contract and provisions the selected modules into it with
-`set_rego_policy` (as `[ [ duo_id, rego_source ], ... ]`). The contract evaluates
-each selected module and combines the results.
+A policy card states what must be true to use an asset. It names the **facts** it
+needs -- standard credentials about the holder of a role -- and the rule over them.
+It does not say how a fact is established, whom to trust for it, or how the asset is
+delivered:
 
-Policies may be grouped in a subfolder; [`FL/`](FL/) holds the ones written for
-**inference**, where the data stays put and a script is run against it in place
-instead of being downloaded. Those use a second role, `Script`, for evidence about
-the code, and are documented in that folder's own README. Everything below concerns
-the download DUOs at this level.
+| Decision | Made by | Lives in |
+|----------|---------|----------|
+| What must be true to use my data | the data owner | a policy card and its parameters |
+| Whose word I accept, per fact | the data owner | the trusted issuers of the asset's policy agent |
+| How a fact is established | an authority's operator | an [authority](../authority_cards/) |
+| What is unlocked, and how | the platform, per guardian type | a [delivery module](delivery/) |
+
+A data owner selects one or more cards when exposing an asset. The webapp provisions
+them, plus the delivery module of the asset's guardian, into one `rego_policy_agent`
+as `[ [ module_id, rego_source ], ... ]`. The agent evaluates each module in its own
+engine; it allows only if every module allows.
 
 ## Folders
 
-Every DUO additionally requires a **publicKeyCredential** whose claim `key` is the
-requester's channel public key; the module returns that key as the merged context
-so the `rego_token` can hand it to the guardian. The tables below list the evidence
-each DUO needs *in addition* to that key.
+Every card folder holds a `card.json` manifest, a `README.md` shown to owners, a
+`policy_card.md` (the full Policy Card), and its rule: its own `policy.rego` with
+`policy_test.rego`, or a [rule template](templates/) named by the manifest.
 
-**Requester-attribute constraint** — one credential about the requester:
+**One fact about the requester, one claim on an allow-list:**
 
-| DUO             | Folder         | Additional evidence        |
-|-----------------|----------------|----------------------------|
-| DUO_0000022 GS  | [`geographical-restriction/`](geographical-restriction/)   | LocationCredential         |
-| DUO_0000028 IS  | [`institution-specific-restriction/`](institution-specific-restriction/)   | AffiliationCredential      |
-| DUO_0000026 US  | [`user-specific-restriction/`](user-specific-restriction/)   | UserPlatformCredential     |
+| Card | Folder | Fact |
+|------|--------|------|
+| DUO_0000022 GS  | [`geographical-restriction/`](geographical-restriction/) | LocationCredential |
+| DUO_0000028 IS  | [`institution-specific-restriction/`](institution-specific-restriction/) | AffiliationCredential |
+| DUO_0000026 US  | [`user-specific-restriction/`](user-specific-restriction/) | UserPlatformCredential |
 | DUO_0000045 NPU | [`not-for-profit-organisation-use-only/`](not-for-profit-organisation-use-only/) | LegalDesignationCredential |
 
-**Intended-use constraint** — a project `IntendedDataUseCredential` bound to the
-requester through `ProjectOwnershipCredential` + `TeamCredential`, plus an
-`AgreementCredential`; the DUOs differ only in the check on the intended use:
+**The requester's research purpose** (a `ResearchPurposeCredential`, which the
+[project research purpose](../authority_cards/project-research-purpose/) authority
+can issue from the requester's team, PI and project):
 
-| DUO              | Folder           | Check on the intended use                  |
-|------------------|------------------|--------------------------------------------|
-| DUO_0000007 DS   | [`disease-specific-research/`](disease-specific-research/)     | diseases within an allowed MONDO scope     |
-| DUO_0000006 HMB  | [`health-or-medical-or-biomedical-research/`](health-or-medical-or-biomedical-research/)   | health/medical/biomedical purpose, not POA |
-| DUO_0000016 GSO  | [`genetic-studies-only/`](genetic-studies-only/)   | genetic-studies purpose                    |
-| DUO_0000012 RS   | [`research-specific-restrictions/`](research-specific-restrictions/)     | purpose within an allowed research scope   |
-| DUO_0000011 POA  | [`population-origins-or-ancestry-research-only/`](population-origins-or-ancestry-research-only/)   | population-origins/ancestry purpose        |
-| DUO_0000015 NMDS | [`no-general-methods-research/`](no-general-methods-research/) | no methods-development purpose             |
-| DUO_0000046 NCU  | [`non-commercial-use-only/`](non-commercial-use-only/)   | no commercial purpose                      |
-| DUO_0000044 NPOA | [`population-origins-or-ancestry-research-prohibited/`](population-origins-or-ancestry-research-prohibited/) | no population-origins/ancestry purpose     |
-| DUO_0000027 PS   | [`project-specific-restriction/`](project-specific-restriction/)     | project on the owner's approved list       |
+| Card | Folder | Rule |
+|------|--------|------|
+| DUO_0000007 DS    | [`disease-specific-research/`](disease-specific-research/) | a disease within the owner's MONDO scope |
+| DUO_0000006 HMB   | [`health-or-medical-or-biomedical-research/`](health-or-medical-or-biomedical-research/) | an allowed purpose and no prohibited one |
+| DUO_0000016 GSO   | [`genetic-studies-only/`](genetic-studies-only/) | template `purpose-allowed` |
+| DUO_0000012 RS    | [`research-specific-restrictions/`](research-specific-restrictions/) | template `purpose-allowed` |
+| DUO_0000011 POA   | [`population-origins-or-ancestry-research-only/`](population-origins-or-ancestry-research-only/) | template `purpose-allowed` |
+| DUO_0000015 NMDS  | [`no-general-methods-research/`](no-general-methods-research/) | template `purpose-prohibited` |
+| DUO_0000046 NCU   | [`non-commercial-use-only/`](non-commercial-use-only/) | template `purpose-prohibited` |
+| DUO_0000044 NPOA  | [`population-origins-or-ancestry-research-prohibited/`](population-origins-or-ancestry-research-prohibited/) | template `purpose-prohibited` |
+| DUO_0000027 PS    | [`project-specific-restriction/`](project-specific-restriction/) | a project on the owner's list |
 
-**Accepted-terms constraint** — an `AgreementCredential` accepting the required
-terms document, plus (for MOR/RTN/TS) a `ComputeEnvironmentCredential`:
+**Obligations, ethics, and accepted terms:**
 
-| DUO             | Folder         | Additional evidence                                   |
-|-----------------|----------------|-------------------------------------------------------|
-| DUO_0000042 GRU | [`general-research-use/`](general-research-use/) | —                                                     |
-| DUO_0000024 MOR | [`publication-moratorium/`](publication-moratorium/) | ComputeEnvironmentCredential (secure handling)        |
-| DUO_0000029 RTN | [`return-to-database-or-resource/`](return-to-database-or-resource/) | ComputeEnvironmentCredential (secure handling)        |
-| DUO_0000025 TS  | [`time-limit-on-use/`](time-limit-on-use/)   | ComputeEnvironmentCredential (shutdown by a deadline) |
+| Card | Folder | Facts |
+|------|--------|-------|
+| DUO_0000020 COL    | [`collaboration-required/`](collaboration-required/) | ObligationAcceptanceCredential |
+| DUO_0000019 PUB    | [`publication-required/`](publication-required/) | ObligationAcceptanceCredential |
+| DUO_0000021 IRB    | [`ethics-approval-required/`](ethics-approval-required/) | EthicsApprovalCredential |
+| DUO_0000042 GRU    | [`general-research-use/`](general-research-use/) | AgreementCredential |
+| DUO_0000024 MOR    | [`publication-moratorium/`](publication-moratorium/) | Agreement + ComputeEnvironment (template `secure-results`) |
+| DUO_0000029 RTN    | [`return-to-database-or-resource/`](return-to-database-or-resource/) | Agreement + ComputeEnvironment (template `secure-results`) |
+| DUO_0000025 TS     | [`time-limit-on-use/`](time-limit-on-use/) | Agreement + ComputeEnvironment |
+| DUO_0000018 NPUNCU | [`not-for-profit-non-commercial-use-only/`](not-for-profit-non-commercial-use-only/) | LegalDesignation + ResearchPurpose |
 
-**Agreement-scope obligation** (`col`, `pub`) — `ProjectOwnershipCredential` +
-`AffiliationCredential` + `TeamCredential` + `ScopedAgreementCredential` +
-`AgreementCredential`, where the scoped agreement carries the `Collaboration`
-(DUO_0000020 COL) or `Publication` (DUO_0000019 PUB) obligation for the dataset.
+**Inference** -- [`FL/`](FL/) holds the cards that read facts about the script a
+requester brings, under a second role, `Script`.
 
-**Ethics approval** (`irb`, DUO_0000021) — `IntendedDataUseCredential` +
-`IRBApprovalCredential` + `ProjectOwnershipCredential` +
-`EthicsCommitteeAccreditationCredential` + `AffiliationCredential` +
-`TeamCredential`: the project is approved by a committee responsible for the
-requester's institution.
+The DUO cards read only facts about the requester, so they apply behind a download
+and an inference guardian alike; each manifest lists its `guardianTypes`.
 
-**Not-for-profit + non-commercial** (`npuncu`, DUO_0000018) —
-`LegalDesignationCredential` (non-profit legal form) + `IntendedDataUseCredential`
-(no commercial purpose).
+## The module contract
 
-## The contract <-> Rego contract
+Every module -- card, template, delivery module or authority -- is `package
+subpolicy` with two rules; the module that describes the credential to issue
+declares a third.
 
-Every module is package `subpolicy` and exposes the two rules the
-`rego_policy_agent` evaluates, each in its own regorus engine (lowest peak
-memory; also why the identical package/rule names never collide).
+**`data.subpolicy.requirements`**, evaluated with no input, so it must be static:
+the roles and credential types the module reads, e.g. `{ "User":
+["LocationCredential"] }`. A card's `facts` must equal it.
 
-**`data.subpolicy.requirements`** — evaluated by `set_rego_policy` with **no
-input**, so it must be static. The roles and credential types this module needs:
+**`data.subpolicy.issues`**, static too, only in a delivery module or an
+authority's rule: the type of credential the policy agent issues, e.g.
+`"policy_decision"`. The agent reads it when the policy is set and refuses a
+policy where no module, or more than one, declares it. Cards leave it out.
 
-```json
-{ "User": ["LocationCredential", "publicKeyCredential"] }
-```
-
-**`data.subpolicy.result`** — evaluated by `issue_policy_credential` over the
-input the contract builds:
+**`data.subpolicy.result`**, evaluated over:
 
 ```json
 {
   "presentations": {
     "<role>": [
-      { "type": "<CredentialType>", "issuer": "<did>", "subject": "<did>",
-        "claims": { ... }, "index": <int> }
+      { "type": "<CredentialType>", "issuer": "<did>", "signer": "<did>",
+        "trusted": true, "subject": "<did>", "claims": { ... }, "index": 0 }
     ]
   },
+  "holders": { "<role>": "<did of the role's presentation holder>" },
+  "request": { "project": "<did>" },
   "trusted_issuers": { ... },
-  "policy_data": { ... }
+  "policy_data": { "<this module's parameters>" }
 }
 ```
 
-and produces:
+and returning:
 
 ```json
-{
-  "decision": true,
-  "verification_tasks": [ { "index": <int> } ],
-  "operation": { "name": "do_download", "parameters": { "channel_key": "<requester public key>" } }
-}
+{ "decision": true, "verification_tasks": [ { "index": 0 } ], "vc_supplied_verification_tasks": [] }
 ```
 
-- Presentations arrive as `{ role: VerifiablePresentation }`; the contract
-  flattens each role's credentials into the array above and assigns each a global
-  `index`. A `verification_task` references that index so the contract verifies
-  the exact VC's signature against the registered trusted issuer.
-- `decision` is a boolean. When several DUOs are selected the contract allows
-  only if **every** module allowed, verifies the union of the flagged
-  credentials (a failed signature forces a deny), and merges the operations.
-- `operation` is `{ "name": <operation>, "parameters": { ... } }`; it is merged
-  across modules and becomes the claims of the issued `policy_decision`
-  credential. The `rego_token` parses it to build the guardian capability: `name`
-  is the guardian operation to invoke (`do_download`) and `parameters` (the
-  `channel_key`) are forwarded to it.
+- A fact counts only if it is about the holder of its role (`subject ==
+  holders[role]`) and `trusted`: its issuer is its signer, and the policy agent
+  trusts that signer for its type. A holder may carry several credentials of a
+  type; flagging only trusted ones keeps a copy from an authority the owner does not
+  accept from failing the request.
+- `request` carries what the requester declares -- the project, the channel key,
+  the script digest. A module requires the values it reads: a project-bound card
+  denies unless its fact is about `request.project`, so every card on an asset
+  agrees on the project without seeing the others.
+- `policy_data` is `policy_data[module_id]`: each module reads only its own
+  parameters, so two cards never share one `allowedPurposes`. The owner sets an
+  entry for every module, `{}` for one with no parameters.
+- `verification_tasks` flag credentials by global `index` for the contract to
+  verify against their trusted issuer; `vc_supplied_verification_tasks` against a
+  key the module supplies (see FL-IS). A failed signature denies.
+- Cards describe no credential. The delivery module does, when it allows: the
+  `policy_decision` the agent issues, `credential: {subject, claims: {name,
+  parameters}}`, naming the guardian operation. A policy where no module describes
+  it is denied, and the agent refuses a credential from a module that does not
+  declare `issues`. A module that adds a credential to its result defines one
+  result for allow and one for deny rather than placeholder defaults.
+
+Rego engine note: the policy agent runs regorus. Keep comprehensions out of the
+value of a rule that has a body (`x := {... [c | ...] ...} if cond`); compute them
+as rules of their own.
 
 ## Tests
 
 ```bash
-./run_tests.sh        # runs `opa test` on each DUO folder independently
+./run_tests.sh   # opa test per folder, then tests/test_policy_cards.py
 ```
 
-Each folder is tested on its own because all modules share package `subpolicy`;
-compiling them together would be a redefinition conflict (which is exactly why
-the contract isolates them per engine).
+Each folder is tested on its own (`opa test <folder> tests/testlib.rego`), since
+every module is `package subpolicy`. [`tests/`](tests/) then checks, across cards:
+manifests against [`card.schema.json`](card.schema.json) and against each rule's
+requirements; that only delivery modules declare `issues`; every fact against the
+credential vocabulary, about its role's
+holder; parameter schemas and presets; that regorus agrees with opa on every
+module; and cards combined on one asset, merged by a copy of the policy agent's
+combinators. It needs `opa`, `regorus` (or `$OPA` and `$REGORUS`) and the
+`jsonschema` Python package.

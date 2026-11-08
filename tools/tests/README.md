@@ -9,6 +9,11 @@ FL-DS and FL-IS together.
 **Done means:** the run prints `PASSED: 20 steps`, and there is one `run.mp4` of
 the browser doing it.
 
+The same runner drives the ethics approval tutorial,
+[`docs/docs/tutorial_irb.md`](../../docs/docs/tutorial_irb.md), with `-t irb`:
+one policy, one fact, and two authorities that establish it in different ways.
+It also ends in `PASSED: 20 steps` and a video.
+
 ## Parameters
 
 `fix_problems` — given to you by whoever asked for the run.
@@ -53,13 +58,16 @@ These must exist:
 | file | what this recipe uses it for |
 | --- | --- |
 | `tools/tests/run_webui_inference_test.sh` | brings the stack up and runs the test |
-| `tools/tests/webui_inference_test.py` | the clicking |
+| `tools/tests/webui_inference_test.py` | the clicking (`webui_irb_test.py` for `-t irb`) |
+| `tools/tests/webui.py` | the harness and the page helpers both tests share |
 | `tools/tests/recorder.py` | the display and the video |
 | `tools/make_tutorial_files.sh` | writes the two cohorts and the script |
 | `tools/start_fl_server.sh` | the job board every site connects to |
 | `tools/start_webapp.sh` | the webapp, on this machine |
 | `policy_cards/FL/inference-disease-specific-research/` | the first policy tested |
 | `policy_cards/FL/inference-institution-specific-restriction/` | the second one |
+| `policy_cards/delivery/inference/` | the module every inference asset gets |
+| `policy_cards/ethics-approval-required/`, `authority_cards/accredited-committee-check/` | the `-t irb` run |
 
 And the images the stack runs must be present locally or pullable — the tags the
 `tools/docker_*.sh` scripts name (`mlcommons/pdo_base_client`,
@@ -84,6 +92,7 @@ up. It tears the stack down afterwards; pass `-k` to leave it running.
 | `-n` | skip setup entirely and drive whatever is already running |
 | `-H` | run headed on your own screen; records nothing |
 | `-a DIR` | artifacts directory (default `/tmp/pdo_webui_artifacts`) |
+| `-t TUTORIAL` | `inference` (default) or `irb` |
 
 It does all of this by itself: generates the user keys, starts the ledger and
 enclave services, starts both registries, writes the tutorial files, starts the
@@ -93,25 +102,28 @@ browser through the tutorial, once, in order:
 1. the **script owner** publishes the script behind a public guardian, reads its
    DID, creates a wallet, and has that wallet sign a `ScriptOwnershipCredential`
    over the script with its own contract key;
-2. the **trusted issuer** creates a manual issuer object and signs a
+2. the **trusted issuer** creates a hand-signing authority that signs a
    `ScriptHashCredential` and an `IntendedDataUseCredential` about the script and
-   an `AffiliationCredential` into the wallet, then creates a session-key issuer
-   (which brings a wallet key authority with it);
-3. **Hospital A** registers its cohort behind an inference guardian and attaches
-   **FL-DS** alone;
-4. **Hospital B** registers its own cohort behind its own guardian and attaches
-   **FL-DS and FL-IS together** — two subpolicies of one policy agent, both of
-   which must allow, with three trusted issuers between them;
+   an `AffiliationCredential` into the wallet, then a system authority (which
+   brings a wallet key authority with it);
+3. **Hospital A** registers its cohort behind an inference guardian and exposes
+   it under **FL-DS** alone, accepting the hand-signing authority from the
+   directory;
+4. **Hospital B** registers its own cohort behind its own guardian and exposes it
+   under **FL-DS and FL-IS together** — modules of one policy agent, all of which
+   must allow — accepting the wallet key authority as well;
 5. the **script owner** opens **Federated**, sees both sites connected to the FL
-   server, each by the FL client beside its guardian, selects both, and runs
-   **one round** across them.
+   server, each by the FL client beside its guardian, selects both, checks each
+   site's readiness checklist, and runs **one round** across them.
 
-Three checks carry the weight, and all are about the thing being real rather
+Four checks carry the weight, and all are about the thing being real rather
 than the clicks working:
 
 * the Use modal must ask for exactly `Script` **and** `User` — the union of what
   the two sites declared, not what either wants alone. Hospital A's FL-DS never
   asks about the requester; Hospital B's pair does;
+* each site's checklist must say what the requester holds and what is obtained
+  on the way — at Hospital B, the wallet key is automatic;
 * the round's aggregate `total_samples` must equal the two cohorts' real byte
   sizes added together (295 + 427 = 722). It only adds up if each guardian said
   yes and each FL client then ran over the file it actually holds;
@@ -151,7 +163,9 @@ ffmpeg -hide_banner -i /tmp/pdo_webui_artifacts/run.mp4 2>&1 | grep -E 'Duration
 The 4x copy is made for you by the same script; `run.mp4` is the authoritative
 one.
 
-Failure screenshots (`<step>.png`, `<step>.html`) only appear when a step fails.
+Failure screenshots (`<step>.png`, `<step>.html`) and the enclave services' logs
+(`enclave_logs/`, where a contract says why it refused) only appear when a step
+fails.
 If they are there, the run did not pass, whatever else it printed — the setup
 clears the previous run's, so what you find is always this run's.
 
@@ -176,6 +190,8 @@ Things that have actually gone wrong here:
 | `step 'contract' failed: ... Replication task failed for request number N` | not this codebase. Look just above it in `/tmp/pdo_webapp.log` for `store_blocks ... Read timed out` — a PDO storage service (ports 72xx) did not answer within its 10s timeout while the new contract's state was being replicated, and the creation was abandoned. It happens under load; re-run on a quiet machine rather than retrying the step |
 | a round hangs at "Waiting for ... to report" | that site's FL client crashed, or is polling a different FL server — `docker logs pdo-inference-guardian-<port>-fl-client` |
 | a site reports `not allowed to run: the guardian said no (HTTP 422: operation failed)` | the digest the FL client computed does not match the one the capability authorizes — the script changed after its `ScriptHashCredential` was signed. The core logs both digests (`denied: ...`) in `/pdo_install/opt/pdo/logs/` inside `pdo-inference-guardian-<port>` |
+| a site is refused with `Not ready: ...` | its checklist was not ready: the message names each missing fact and whom to ask |
+| `policy evaluation denied, a module denied the request` | a module's rule did not hold for what was presented — compare the facts the wallet holds with the cards' parameters |
 | a site reports `not allowed to run: the guardian said no (HTTP 400: ...)` | the guardian refused the capability itself before comparing anything — typically one minted for a different guardian |
 | `Not recording: Xvfb is not installed` | see the requirements table above |
 

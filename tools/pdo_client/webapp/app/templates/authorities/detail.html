@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}{{ authority.name }} — Authority — PDO Client{% endblock %}
+
+{% block content %}
+<div class="container"
+     data-authority-cid-url="{{ authority.cid_url }}"
+     data-authority-kind="{{ authority.kind }}">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ authority.name }}</h1>
+        </div>
+        <div class="card-actions">
+            <button type="button" class="btn btn-sm" data-modal-open="update-name-modal">Edit Name</button>
+            {% if authority.kind == "hand-signing" %}
+            <button type="button" class="btn btn-sm btn-primary"
+                    data-modal-open="sign-credential-modal">Sign Credential</button>
+            {% endif %}
+            <a href="/authorities/" class="btn">Back to Authorities</a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <div class="card">
+        <h2>Authority Info</h2>
+        <table class="data-table" style="margin-top:0.75rem">
+            <tbody>
+                <tr><td><strong>Name</strong></td><td>{{ authority.name }}</td></tr>
+                <tr><td><strong>Kind</strong></td>
+                    <td><span class="badge badge-kind badge-kind-{{ authority.kind }}">{{ authority.kind_label }}</span></td></tr>
+                <tr><td><strong>DID</strong></td>
+                    <td>
+                        <span class="did-display">{{ authority.did }}</span>
+                        <button type="button" class="btn btn-sm" data-copy="{{ authority.did }}">Copy</button>
+                    </td></tr>
+                <tr><td><strong>Establishes</strong></td><td>{{ authority.fact_names|join:", "|default:"—" }}</td></tr>
+                {% if authority.checks %}
+                <tr><td><strong>Checks</strong></td><td>{{ authority.checks }}</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if authority.kind == "rule-based" and rule %}
+    <div class="card">
+        <h2>Rule</h2>
+        <p class="muted">Issues <strong>{{ issued_name }}</strong> to the wallet that presents what the
+            rule reads. The rule is locked, so accepting this authority means accepting this rule.</p>
+        <pre class="code-viewer"><code class="rego-code" id="authority-rule">{{ rule.rego_module }}</code></pre>
+    </div>
+
+    <div class="card" id="trust-panel">
+        <h2>Accepted authorities for its inputs</h2>
+        <p class="muted">The rule only counts inputs signed by an authority it accepts.</p>
+        {% include "_trust_table.html" %}
+    </div>
+
+    <div class="card">
+        <h2>Issue to a wallet</h2>
+        <form id="issue-form" class="form-row" style="align-items:flex-end">
+            <div class="form-group" style="margin-bottom:0">
+                <label for="issue-wallet">Wallet</label>
+                <select id="issue-wallet" name="wallet_id" required>
+                    {% for w in wallets %}
+                    <option value="{{ w.contract_id }}">{{ w.name }}</option>
+                    {% empty %}
+                    <option value="">No wallets — create one first</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% if needs_project %}
+            <div class="form-group" style="margin-bottom:0">
+                <label for="issue-project">Project</label>
+                <input type="text" id="issue-project" name="project" placeholder="did:pdo:…" required>
+                <small>The fact this authority issues is about a project: name it.</small>
+            </div>
+            {% endif %}
+            <div class="form-actions" style="margin-top:0">
+                <button type="submit" class="btn btn-primary" {% if not wallets %}disabled{% endif %}>Issue</button>
+            </div>
+        </form>
+    </div>
+    {% elif authority.kind == "system" %}
+    <div class="card">
+        <p class="muted" style="margin:0">Issues automatically, when a requester's checklist needs
+            one of its facts.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div id="update-name-modal" class="modal-backdrop hidden">
+    <form class="modal" style="max-width:400px" id="update-name-form">
+        <div class="modal-header">
+            <span class="modal-title">Edit Name</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="update-name-modal">&times;</button>
+        </div>
+        <div class="form-group">
+            <label for="update-name-input">Name</label>
+            <input type="text" id="update-name-input" name="name"
+                   value="{{ authority.name }}" required>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn"
+                    data-modal-close="update-name-modal">Cancel</button>
+        </div>
+    </form>
+</div>
+
+{% if authority.kind == "hand-signing" %}
+<div id="sign-credential-modal" class="modal-backdrop hidden">
+    <form class="modal" id="sign-credential-form" style="max-width:600px">
+        <div class="modal-header">
+            <span class="modal-title">Sign Credential</span>
+            <button type="button" class="modal-close"
+                    data-modal-close="sign-credential-modal">&times;</button>
+        </div>
+        <div class="form-group">
+            <label for="sign-fact">Fact</label>
+            <select id="sign-fact" name="template_type" required>
+                {% for t in sign_templates %}
+                <option value="{{ t.type }}">{{ t.name }}</option>
+                {% empty %}
+                <option value="">This authority attests no facts</option>
+                {% endfor %}
+            </select>
+            <small id="sign-fact-meaning"></small>
+        </div>
+        <div class="form-group">
+            <label for="sign-subject-did">About</label>
+            <input type="text" id="sign-subject-did" name="subject_did" required
+                   placeholder="did:pdo:…">
+            <small id="sign-subject-hint"></small>
+        </div>
+        <div class="form-group">
+            <label for="sign-holder-did">Deliver to wallet</label>
+            <input type="text" id="sign-holder-did" name="holder_did" list="own-wallets" required
+                   placeholder="did:pdo:… of the wallet that will hold it">
+            <datalist id="own-wallets">
+                {% for w in wallets %}
+                <option value="{{ w.did }}">{{ w.name }}</option>
+                {% endfor %}
+            </datalist>
+            <small>A wallet can hold copies of credentials about others, such as a team
+                member holding the credentials about their PI.</small>
+        </div>
+        <fieldset class="schema-fieldset">
+            <legend>Claims</legend>
+            <div id="sign-claims"></div>
+        </fieldset>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Sign &amp; Deliver</button>
+            <button type="button" class="btn"
+                    data-modal-close="sign-credential-modal">Cancel</button>
+        </div>
+    </form>
+</div>
+{{ sign_templates|json_script:"sign-templates-data" }}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/render.js"></script>
+<script src="/static/js/schema_form.js"></script>
+<script src="/static/js/trust_table.js"></script>
+<script src="/static/js/authority_detail.js"></script>
+{% endblock %}

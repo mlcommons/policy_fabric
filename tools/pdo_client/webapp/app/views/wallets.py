@@ -4,7 +4,8 @@ import logging
 from django.http import Http404
 from django.shortcuts import render
 
-from .. import ledger_client, naming, pdo_runner, registry_client
+from .. import ledger_client, naming, pdo_runner, registry_client, schemas
+from ..credentials import contract_id_of
 from ..did_utils import make_did, parse_did
 from ..models import AppConfig
 from ..url_safe_id import decode_cid, encode_cid
@@ -28,6 +29,30 @@ def _require_user_wallet(user_name, contract_id):
     """Raise 404 unless ``contract_id`` is one of this user's wallets."""
     if contract_id not in _user_wallet_ids(user_name):
         raise Http404(f"wallet not found: {contract_id}")
+
+
+def _credential_rows(held, wallet_did, templates):
+    """What a wallet holds, decoded: the fact, whom it is about, who signed it."""
+    directory = {contract_id_of(a["did"]): a["name"] for a in registry_client.list_authorities()}
+    local = naming.get_names([h.signer_did for h in held])
+    rows = []
+    for h in sorted(held, key=lambda h: (h.type, h.digest)):
+        # by the directory's name, else the local one, else the bare DID
+        if h.signer in directory:
+            issuer = directory[h.signer]
+        elif local[h.signer_did] != naming.UNKNOWN:
+            issuer = local[h.signer_did]
+        else:
+            issuer = h.signer_did
+        rows.append({
+            "type": h.type,
+            "name": templates[h.type]["display_name"],
+            "about": "this wallet" if h.is_about(wallet_did) else h.subject,
+            "issuer": issuer,
+            "claims": json.dumps(h.claims, indent=2),
+            "vc": json.dumps(h.vc, indent=2),
+        })
+    return rows
 
 
 def _wallet_card(contract_id, name=None):
@@ -81,33 +106,32 @@ class WalletDetailView(BaseView):
         _require_user_wallet(user_name, contract_id)
         wallet = _wallet_card(contract_id)
 
-        vcs, vcs_error = {}, None
+        credentials, error = [], None
+        templates = {}
         try:
-            vcs = pdo_runner.wallet_list_vcs(contract_id, user_name)
+            templates = registry_client.credential_templates_by_type()
+            held = pdo_runner.wallet_credentials(contract_id, user_name)
+            credentials = _credential_rows(held, wallet["did"], templates)
         except Exception as e:
-            logger.exception("Failed to list wallet VCs")
-            vcs_error = str(e)
+            logger.exception("Failed to list the wallet's credentials")
+            error = str(e)
 
-        # A wallet can vouch for something itself (see WalletSignCredentialEndpoint),
-        # and the templates are what say which claims that assertion may carry.
-        templates, templates_error = [], None
-        try:
-            templates = registry_client.list_credential_templates()
-            for t in templates:
-                t["claims_schema_json"] = json.dumps(t.get("claims_schema") or {})
-        except Exception as e:
-            logger.exception("Failed to fetch credential templates")
-            templates_error = str(e)
+        # A wallet signs only the facts a requester asserts about themselves
+        # (see WalletSignCredentialEndpoint).
+        own_claims = [
+            {"type": t, "name": v["display_name"], "meaning": v["meaning"], "schema": v["json_schema"]}
+            for t, v in sorted(templates.items())
+            if v["self_asserted"]
+        ]
 
         return render(
             request,
             "wallets/detail.html",
             {
                 "wallet": wallet,
-                "vcs": vcs,
-                "vcs_error": vcs_error,
-                "templates": templates,
-                "templates_error": templates_error,
+                "credentials": credentials,
+                "error": error,
+                "own_claims": own_claims,
             },
         )
 
@@ -155,9 +179,18 @@ class WalletSignCredentialEndpoint(JsonView):
         _require_user_wallet(user_name, contract_id)
 
         template_type, subject_did = require(data, "template_type", "subject_did")
-        claims = data.get("claims") or {}
+        claims = data.get("claims")
         if not isinstance(claims, dict):
             raise ValidationError("'claims' must be a JSON object")
+        templates = registry_client.credential_templates_by_type()
+        if template_type not in templates:
+            raise ValidationError(f"unknown fact: {template_type}")
+        template = templates[template_type]
+        if not template["self_asserted"]:
+            raise ValidationError(f"{template_type} is established by an authority, not by the wallet itself.")
+        problems = schemas.errors(claims, template["json_schema"])
+        if problems:
+            raise ValidationError("The claims do not fit the fact: " + "; ".join(problems))
 
         subject_contract_id, _ = parse_did(subject_did)
         credential = {

@@ -1,0 +1,23 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000019",
+  "code": "PUB",
+  "name": "Publication required",
+  "rule": "The requester's institution accepted to publish results from this dataset.",
+  "guardianTypes": ["download", "inference"],
+  "facts": {
+    "User": ["ObligationAcceptanceCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "datasetID": {
+        "type": "string",
+        "title": "Dataset",
+        "description": "DID of this dataset, as the obligation names it.",
+        "minLength": 1
+      }
+    },
+    "required": ["datasetID"]
+  }
+}

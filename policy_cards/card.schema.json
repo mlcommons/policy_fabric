@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "card.schema.json",
+  "title": "Card manifest",
+  "description": "What a policy, delivery or authority card needs and offers, read by the template registry and the webapp. Every card folder holds one as card.json.",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "enum": ["policy", "delivery", "authority"],
+      "description": "A policy decides, a delivery module describes the policy decision naming the guardian operation, an authority issues a credential."
+    },
+    "id": {
+      "type": "string",
+      "description": "Stable identifier, such as the DUO term."
+    },
+    "code": {
+      "type": "string",
+      "description": "Short label shown beside the name."
+    },
+    "name": {"type": "string"},
+    "rule": {
+      "type": "string",
+      "description": "The rule in one line, as the owner reads it."
+    },
+    "guardianTypes": {
+      "type": "array",
+      "items": {"enum": ["download", "inference"]},
+      "minItems": 1,
+      "description": "The guardians a policy or delivery module can be attached to."
+    },
+    "template": {
+      "type": "string",
+      "description": "A rule template under policy_cards/templates/ whose policy.rego this card runs. Without it the card's own policy.rego runs."
+    },
+    "facts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "string"},
+        "minItems": 1
+      },
+      "description": "The credential types the module requires, per role. Must equal the module's requirements rule."
+    },
+    "parameters": {
+      "type": "object",
+      "description": "JSON Schema of the policy data the module reads; it generates the parameter form."
+    },
+    "defaults": {
+      "type": "object",
+      "description": "Parameter values the form starts from."
+    },
+    "operation": {
+      "type": "string",
+      "description": "The guardian operation a delivery module's decision names."
+    },
+    "issues": {
+      "type": "string",
+      "description": "The credential type an authority issues."
+    },
+    "presenters": {
+      "type": "string",
+      "description": "Who presents an authority's inputs, and where its output lands."
+    }
+  },
+  "required": ["kind", "name", "rule", "facts", "parameters"],
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "policy"}}},
+      "then": {"required": ["id", "code", "guardianTypes"]}
+    },
+    {
+      "if": {"properties": {"kind": {"const": "delivery"}}},
+      "then": {"required": ["guardianTypes", "operation"]}
+    },
+    {
+      "if": {"properties": {"kind": {"const": "authority"}}},
+      "then": {"required": ["id", "issues", "presenters"]}
+    }
+  ],
+  "additionalProperties": false
+}

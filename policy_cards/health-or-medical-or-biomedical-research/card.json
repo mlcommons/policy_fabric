@@ -1,0 +1,38 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000006",
+  "code": "HMB",
+  "name": "Health, medical or biomedical research",
+  "rule": "The requester's research has a health, medical or biomedical purpose, and none you prohibit.",
+  "guardianTypes": ["download", "inference"],
+  "facts": {
+    "User": ["ResearchPurposeCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "allowedPurposes": {
+        "type": "array",
+        "title": "Allowed purposes",
+        "description": "Research purposes that qualify; the research must have at least one.",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      },
+      "prohibitedPurposes": {
+        "type": "array",
+        "title": "Prohibited purposes",
+        "description": "Research purposes that disqualify; the research must have none.",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": ["allowedPurposes"]
+  },
+  "defaults": {
+    "allowedPurposes": ["HMB"],
+    "prohibitedPurposes": ["POA"]
+  }
+}

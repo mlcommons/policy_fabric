@@ -1,0 +1,15 @@
+{
+  "kind": "authority",
+  "id": "authority:accredited-committee-check",
+  "name": "Accredited-committee check",
+  "rule": "The member's project is approved by an ethics committee accredited for their PI's institution.",
+  "issues": "EthicsApprovalCredential",
+  "presenters": "The member presents the whole chain from their own wallet: their TeamCredential, and copies of the credentials about their PI, project and the approving committee that the issuing offices delivered to it. The ethics approval lands in the member's wallet.",
+  "facts": {
+    "User": ["TeamCredential", "ProjectOwnershipCredential", "AffiliationCredential", "IRBApprovalCredential", "EthicsCommitteeAccreditationCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {}
+  }
+}

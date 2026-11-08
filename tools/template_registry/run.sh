@@ -3,6 +3,7 @@ INTERFACE=""
 PORT=""
 CREDENTIALS_DIR=""
 POLICY_CARDS_DIR=""
+AUTHORITY_CARDS_DIR=""
 
 usage() {
     cat <<EOF
@@ -16,6 +17,7 @@ Options:
   -p, --port PORT             Port for the dev server (required)
   -c, --credentials-dir DIR   Folder of credential JSON Schemas (required)
   -d, --policy-cards-dir DIR  Folder of policy-card subfolders (required)
+  -a, --authority-cards-dir DIR  Folder of authority-card subfolders (required)
   -h, --help                  Show this help and exit
 EOF
 }
@@ -26,6 +28,7 @@ while [ $# -gt 0 ]; do
         -p|--port)            PORT="$2"; shift 2 ;;
         -c|--credentials-dir) CREDENTIALS_DIR="$2"; shift 2 ;;
         -d|--policy-cards-dir) POLICY_CARDS_DIR="$2"; shift 2 ;;
+        -a|--authority-cards-dir) AUTHORITY_CARDS_DIR="$2"; shift 2 ;;
         -h|--help)            usage; exit 0 ;;
         *)                    echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
@@ -36,9 +39,10 @@ done
 [ -n "$PORT" ]             || { echo "Missing required option: -p/--port" >&2; usage >&2; exit 1; }
 [ -n "$CREDENTIALS_DIR" ]  || { echo "Missing required option: -c/--credentials-dir" >&2; usage >&2; exit 1; }
 [ -n "$POLICY_CARDS_DIR" ] || { echo "Missing required option: -d/--policy-cards-dir" >&2; usage >&2; exit 1; }
+[ -n "$AUTHORITY_CARDS_DIR" ] || { echo "Missing required option: -a/--authority-cards-dir" >&2; usage >&2; exit 1; }
 
 # seed_templates reads these from the environment.
-export CREDENTIALS_DIR POLICY_CARDS_DIR
+export CREDENTIALS_DIR POLICY_CARDS_DIR AUTHORITY_CARDS_DIR
 
 python $SCRIPT_DIR/manage.py migrate
 # Seed the policy/credential templates from the folders given above.

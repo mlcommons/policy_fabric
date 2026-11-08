@@ -1,65 +1,37 @@
-# Unit tests for DUO_0000042 (GRU).  Run with:  opa test gru/ -v
 package subpolicy_test
 
 import data.subpolicy
+import data.testlib
+import rego.v1
 
-base_input := {
-	"policy_data": {"requiredDocumentID": "did:example:terms-1"},
-	"presentations": {"User": [
-		{
-			"type": "AgreementCredential",
-			"issuer": "did:example:platform",
-			"subject": "did:example:user-1",
-			"claims": {"agreementInfo": {"documentID": "did:example:terms-1", "documentVersion": "1.0"}},
-			"index": 0,
-		},
-		{
-			"type": "publicKeyCredential",
-			"issuer": "did:example:platform",
-			"subject": "did:example:user-1",
-			"claims": {"key": "PUBKEY"},
-			"index": 1,
-		},
-	]},
+agreement(document) := testlib.credential(
+	"AgreementCredential",
+	testlib.requester,
+	{"agreementInfo": {"documentID": document, "documentVersion": "1"}},
+)
+
+data_ := {"requiredDocumentID": "did:example:terms-1"}
+
+test_requirements if {
+	subpolicy.requirements == {"User": ["AgreementCredential"]}
 }
 
-test_requirements_are_user_role_with_credential_types if {
-	subpolicy.requirements == {"User": ["AgreementCredential", "publicKeyCredential"]}
+test_allows_the_required_terms if {
+	r := subpolicy.result with input as testlib.requester_input([agreement("did:example:terms-1")], data_, {})
+	r.decision
+	r.verification_tasks == [{"index": 0}]
 }
 
-test_allow_when_required_terms_accepted if {
-	subpolicy.result.decision == true with input as base_input
+test_denies_other_terms if {
+	not subpolicy.result.decision with input as testlib.requester_input([agreement("did:example:terms-2")], data_, {})
 }
 
-test_operation_carries_name_and_channel_key if {
-	subpolicy.result.operation == {"name": "do_download", "parameters": {"channel_key": "PUBKEY"}} with input as base_input
+test_denies_terms_accepted_by_someone_else if {
+	c := testlib.about_someone_else(agreement("did:example:terms-1"))
+	not subpolicy.result.decision with input as testlib.requester_input([c], data_, {})
 }
 
-test_tasks_flag_agreement_and_public_key if {
-	tasks := subpolicy.result.verification_tasks with input as base_input
-	count(tasks) == 2
-}
-
-test_deny_when_required_terms_not_accepted if {
-	other := json.patch(base_input, [{
-		"op": "replace",
-		"path": "/presentations/User/0/claims/agreementInfo/documentID",
-		"value": "did:example:terms-other",
-	}])
-	subpolicy.result.decision == false with input as other
-}
-
-test_deny_when_no_public_key_credential if {
-	nokey := json.patch(base_input, [{"op": "remove", "path": "/presentations/User/1"}])
-	subpolicy.result.decision == false with input as nokey
-}
-
-test_deny_when_subjects_differ if {
-	# the public key credential is for a different subject than the agreement
-	mismatched := json.patch(base_input, [{
-		"op": "replace",
-		"path": "/presentations/User/1/subject",
-		"value": "did:example:someone-else",
-	}])
-	subpolicy.result.decision == false with input as mismatched
+test_ignores_an_untrusted_agreement if {
+	c := testlib.untrusted(agreement("did:example:terms-1"))
+	not subpolicy.result.decision with input as testlib.requester_input([c], data_, {})
 }

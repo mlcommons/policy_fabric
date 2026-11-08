@@ -1,31 +1,30 @@
-# FL-DS — Disease Specific Research (inference)
+# FL-DS — Disease-Specific Research, for inference
 
 **Rule type:** Permission (constraint) · **Outcomes:** allow / deny
 
-The inference counterpart of [DUO_0000007 DS](../../disease-specific-research/).
-When the data never moves, the thing that must declare its purpose is the code that
-will run against it, so both credentials this policy reads are about the script.
+**Rule:** The script declares a use within your disease scope.
 
-The script presents an **IntendedDataUseCredential** (claim `useOnlyFor.diseases`)
-whose disease scope intersects the owner's allowed MONDO codes, and a
-**ScriptHashCredential** (claim `scriptHash`) stating its content digest. Both must
-name the **same script** as their subject — a declared use attached to one script
-says nothing about another, and without that tie an in-scope declaration could be
-paired with an unrelated digest.
+The data stays put and a script runs against it, so this card asks what the code
+is for rather than who is asking. The script asset holds an
+`IntendedDataUseCredential` about itself, from an authority this site accepts,
+and at least one of its `useOnlyFor.diseases` must be in the owner's
+`allowedDiseases`.
 
-Access is **allowed** when one script both declares an in-scope disease and states
-its digest; otherwise it is **denied**.
+Which script runs is fixed by the inference delivery module, which authorizes
+the digest of the same script asset; both read facts about the one `Script`
+holder.
 
-**Requirements** (`data.subpolicy.requirements`):
+| Role | Fact | About | Read from it |
+|------|------|-------|--------------|
+| Script | `IntendedDataUseCredential` | the script | `useOnlyFor.diseases` |
 
-```json
-{
-  "Script": ["IntendedDataUseCredential", "ScriptHashCredential"]
-}
-```
+**Parameters**
 
-**Policy data:** `allowedDiseases: [..]`
-**Context returned:** `{ "script_digest": "<approved script digest>" }`
+- `allowedDiseases` — MONDO codes of the diseases research may study.
 
-> Source of truth for the executable logic is [`policy.rego`](policy.rego); this
-> file is the human-readable companion. The two are maintained in parallel.
+Each fact must be about the holder of its role, and from an authority this asset
+accepts for that type. The card names no operation: the delivery module of the
+asset's guardian does.
+
+> The executable rule is [`policy.rego`](policy.rego); this file is its
+> human-readable companion, and [`card.json`](card.json) is its manifest.

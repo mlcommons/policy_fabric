@@ -1,0 +1,31 @@
+# A client image whose contract families come from a local pdo-contracts
+# checkout, layered on a released client image: for running contract changes in
+# the whole stack before they are pushed and pinned in docker_build_all.sh. See
+# build_local.sh. The released image keeps its contracts build tree, so only the
+# families copied in are rebuilt.
+ARG BASE_IMAGE=mlcommons/pdo_base_client:v2
+FROM ${BASE_IMAGE}
+
+ARG CONTRACT_FAMILIES
+
+USER 0
+
+COPY contracts/ /tmp/contracts/
+RUN for family in ${CONTRACT_FAMILIES}; do \
+        rm -rf ${PDO_CONTRACTS_ROOT}/${family} && \
+        mv /tmp/contracts/${family} ${PDO_CONTRACTS_ROOT}/${family}; \
+    done && \
+    rm -rf /tmp/contracts && \
+    bash -c "source /setup/activate_env.sh && make -C ${PDO_CONTRACTS_ROOT} install"
+
+COPY webapp/requirements.txt /tmp/webapp-requirements.txt
+RUN ${PDO_INSTALL_ROOT}/bin/pip install -r /tmp/webapp-requirements.txt
+
+COPY setup/ /setup/
+COPY scripts/ /scripts/
+COPY webapp/ /webapp/
+
+RUN chgrp -R 0 ${PDO_INSTALL_ROOT}/opt/pdo ${PDO_CONTRACTS_ROOT}/rego-contract/test /scripts /webapp && \
+    chmod -R g=u ${PDO_INSTALL_ROOT}/opt/pdo ${PDO_CONTRACTS_ROOT}/rego-contract/test /scripts /webapp
+
+USER 1000:0

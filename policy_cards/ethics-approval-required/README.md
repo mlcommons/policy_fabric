@@ -2,25 +2,29 @@
 
 **Rule type:** Obligation (duty) · **Outcomes:** allow / deny
 
-Access requires the project to hold ethics approval from a committee responsible
-for the requester's institution. The requester presents the chain that ties them
-to a project and institution — a **TeamCredential** (claim `MemberOfTeamOf`)
-placing them on a PI's team, a **ProjectOwnershipCredential** (claim `Owns`)
-showing that PI owns a project, and an **AffiliationCredential** (claim
-`isMemberOf`) showing that PI belongs to an institution — together with an
-**IRBApprovalCredential** (claim `isApprovedByEthicsCommittee`) showing the project
-is approved by an ethics committee, an **EthicsCommitteeAccreditationCredential**
-(claim `ResponsibleFor`) showing that committee is responsible for the PI's
-institution, and the project's **IntendedDataUseCredential** declaring its intended
-use. A **publicKeyCredential** (claim `key`) carries the requester's channel public
-key. Access is **allowed** when the chain resolves to a single requester;
-otherwise it is **denied**. The decision is structural and needs no `policy_data`.
-The credentials the decision relies on are emitted as `verification_tasks` so the
-contract verifies their signatures before the result is trusted.
+**Rule:** The requester's research has ethics approval.
 
-**Requirements** (`data.subpolicy.requirements`): `{ "User": ["IntendedDataUseCredential", "IRBApprovalCredential", "ProjectOwnershipCredential", "EthicsCommitteeAccreditationCredential", "AffiliationCredential", "TeamCredential", "publicKeyCredential"] }`
-**Policy data:** none (structural decision)
-**Context returned:** `{ "channel_key": "<requester public key>" }`
+The requester holds an `EthicsApprovalCredential` about themselves, from an
+authority this asset accepts for that fact. The fact must be about the project
+the request names, which keeps this card consistent with every other
+project-bound card on the same asset.
 
-> Source of truth for the executable logic is [`policy.rego`](policy.rego); this
-> file is the human-readable companion. The two are maintained in parallel.
+How the approval was established is the authority's business, not this card's:
+an IRB office can hand-sign it after its own review, and the
+*accredited-committee check* authority card issues it from the project's
+approval by a committee accredited for the PI's institution. The owner picks
+which of them to accept; this card reads the fact the same way whoever issued
+it.
+
+| Role | Fact | About | Read from it |
+|------|------|-------|--------------|
+| User | `EthicsApprovalCredential` | the requester | `project` |
+
+**Parameters:** none; the rule is structural.
+
+Each fact must be about the holder of its role, and from an authority this asset
+accepts for that type. The card names no operation: the delivery module of the
+asset's guardian does.
+
+> The executable rule is [`policy.rego`](policy.rego); this file is its
+> human-readable companion, and [`card.json`](card.json) is its manifest.

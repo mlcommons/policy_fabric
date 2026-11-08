@@ -34,12 +34,13 @@ The next section introduces the main components described in the Policy Fabric b
 
 ### Policy Fabric Core Concepts
 
-The four main elements of Policy Fabric are:
+The five main elements of Policy Fabric are:
 
 - **Policy Engine**: The backend where policy objects are executed. More details can be found in the [Policy engine](#policy-engine) section below.
 - **Asset Guardian**: A software component that gates a protected asset or operation. It is where the point of enforcement happens. More details can be found in the [Asset Guardians](#asset-guardians) section below.
 - **Policy Object**: A machine-readable policy-as-code executable, executed by the Policy Engine, that issues a capability package when given a valid set of credentials that fulfill its encoded rules. More details can be found in the [Policy Objects](#policy-objects) section below.
 - **Credential**: A piece of information, cryptographically signed by an entity, representing certain claims about its holder. More details can be found in the [Credentials](#credentials) section below.
+- **Authority**: Whoever establishes a fact a policy reads — by hand, by a rule over other facts, or from the system itself. More details can be found in the [Authorities](#authorities) section below.
 
 ### Policy engine
 
@@ -105,7 +106,7 @@ Therefore, below is the flow of a policy evaluation:
 
 - The policy object is loaded in the policy engine as an executable code
 - The user's credentials are taken as input to the policy executable
-- The policy executable will check the validity of the credentials; i.e., it will check if the credentials were signed (asserted) by certain trusted authorities.
+- The policy executable will check the validity of the credentials; i.e., it will check if the credentials were signed (asserted) by authorities the asset owner accepts.
 - The policy executable will check for necessary claims in the credentials
 - Finally, if the credentials fulfill the policy logic, a capability package will be signed and issued by the policy object.
 - The capability package will be presented to the asset guardian. The guardian will verify the package and execute the operation it authorizes.
@@ -118,13 +119,16 @@ Therefore, below is the flow of a policy evaluation:
 
 A Credential in Policy Fabric is a verifiable attestation produced by an evidence source — an external service, a piece of hardware, or a traditional authority such as a human-resources department. Concrete examples include a data steward's cryptographic signature, a payment receipt from a trusted service, an attestation token from a trusted execution environment (TEE), and institutional credentials. Credentials are modeled on the [W3C Verifiable Credentials Data](https://www.w3.org/TR/vc-data-model-2.0/) Model, giving each one a clear issuer, subject, and claims structure.
 
-We define a set of credential types in Policy Fabric. Each type's claims structure can be described by Json Schema. Here is an example showing the AffiliationCredential claims schema:
+We define a set of credential types in Policy Fabric. Each type's claims structure is described by a JSON Schema, which also says what the fact means, how people read its name, and what kind of thing its subject is (a wallet, a script, a project, ...). Here is the AffiliationCredential schema:
 
 ```json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "AffiliationCredential",
   "title": "AffiliationCredential",
+  "displayName": "Affiliation",
+  "meaning": "The holder is a member of an organization.",
+  "subjectKinds": ["wallet"],
   "description": "The assignee is a member of an organization; issuer claims the subject is a member of the organization.",
   "type": "object",
   "properties": {
@@ -141,6 +145,54 @@ We define a set of credential types in Policy Fabric. Each type's claims structu
 }
 ```
 
+### Authorities
+
+A policy names the **facts** it needs — *the requester has ethics approval for this project*. An **authority** establishes those facts. The asset owner chooses, fact by fact, which authorities to accept. Authorities come in three kinds, and a policy cannot tell them apart:
+
+| Kind | How it establishes a fact | Example |
+| --- | --- | --- |
+| Hand-signing | A person or office signs after its own review | A university's IRB office signs an ethics approval |
+| Rule-based | A locked Rego rule issues the fact from other facts, signed by authorities it accepts | An accredited-committee check issues an ethics approval when the requester's team, project, IRB approval and the committee's accreditation line up |
+| System | Ledger or cryptographic facts | A session-key authority binds a fresh key to a wallet whose ledger key signs for it |
+
+A fact is a standard credential about whoever presents it: the requester's wallet, or the script being run. Facts about anyone else — a PI, a project, a committee — are inputs to authorities, never read by policies. A policy is therefore a few lines. Here is the whole rule of the ethics-approval card:
+
+```rego
+requirements := {"User": ["EthicsApprovalCredential"]}
+
+approvals := [c |
+	some c in input.presentations.User
+	c.type == "EthicsApprovalCredential"
+	c.trusted
+	c.subject == input.holders.User
+	c.claims.project == input.request.project
+]
+```
+
+`c.trusted` is set by the contract when the credential was signed by its own issuer and that issuer is accepted for the type. `input.holders` names the identity presented for each role, and `input.request` carries what the requester declares, such as the project the use is for. A card requires every value it reads: an ethics approval counts only for the project the request names, so every card on an asset judges the same project.
+
+A **rule-based authority** is configured exactly like a policy, because it is one: the same `rego_policy_agent` contract, issuing a fact instead of a policy decision. It starts from an *authority card* (see `authority_cards/`), its rule is locked once set, so accepting it means accepting one auditable rule, and its operator chooses the authorities it accepts for its inputs.
+
+#### What each person decides
+
+- **Owners** expose an asset by picking policy cards for its guardian, filling each card's parameter form, and accepting authorities for each fact the cards read. A fact only one system authority establishes, such as the session key, is accepted for them; a trust list accepts several in one click. After exposing, they can withdraw or add trust at any time.
+- **Operators** create authorities. A hand-signing authority declares the facts it attests and signs from a form generated from each fact's schema, delivering the credential to the wallet that should hold it. A rule-based one is created from an authority card.
+- **Requesters** see a readiness checklist before they submit, one row per fact:
+
+| Status | Meaning |
+| --- | --- |
+| Held | In the wallet, signed by an authority this asset accepts |
+| Automatic | An accepted system or rule-based authority can issue it from what the wallet holds, on the way |
+| Ask | None can issue it on the way, but a hand-signing authority is accepted; the checklist names whom to ask |
+| Held, not accepted here | Signed by an authority this asset does not accept |
+| Unreachable | No accepted authority can issue it |
+
+A few facts are asserted by the requester themselves (`"selfAsserted": true` in the schema), such as a wallet's claim that it owns a script. No authority vouches for them; the policy checks the signature against the wallet's key, which an authority did attest.
+
+#### How the modules combine
+
+Each card the owner picks is one Rego module, and each guardian type adds a **delivery module** that describes the decision the policy agent issues: its claims name the operation the capability authorizes — `do_download` to the requester's session key, or `do_inference` for the digest of the script being run. Every module must allow, and exactly one module, the delivery module, must describe the decision. Each module reads only its own parameters, under its own id in the policy data.
+
 ## Repository Contents
 
 ### Repository Structure
@@ -149,7 +201,8 @@ The repository contains the policy cards, the credentials, and tools to run the 
 
 ```
 policy-fabric/
-├── policy_cards/        # Policy Card instances
+├── policy_cards/        # Policy Card instances, rule templates and delivery modules
+├── authority_cards/     # Rule-based authority cards
 ├── credentials/         # Credential type definitions (the evidence vocabulary)
 ├── tools/               # Related to tools to run tutorials or install policy client
 └── docs/                # This documentation, rendered output, and guides
@@ -164,10 +217,11 @@ policy-fabric/
 
 ### Hands-on Tutorials
 
-Two full, step-by-step walkthroughs in the web UI, showing the same architecture gating two different operations:
+Three full, step-by-step walkthroughs in the web UI:
 
 - [Download](tutorial.md) — the data leaves, encrypted to a requester the policy checked. Start here.
 - [Inference](tutorial_inference.md) — the data stays put and approved code comes to it, at **two hospitals at once**. One hospital gates on what the code is for; the other gates on that *and* on who is running it, holding them to a claim their own wallet signed. Each site decides for itself, on the same request, in a single federated round.
+- [Ethics approval](tutorial_irb.md) — one fact, two authorities: an IRB office that signs by hand, and a rule that checks the committee chain. The owner accepts both, and the requester's checklist says which way they qualify.
 
 ## Research and Citation
 

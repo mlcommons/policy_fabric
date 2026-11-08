@@ -2,25 +2,25 @@
 
 **Rule type:** Obligation (duty) · **Outcomes:** allow / deny
 
-Access requires an executed publication agreement that binds the requester's
-institution to the governed dataset. The requester presents the chain that ties
-them to a project and institution — a **TeamCredential** (claim `MemberOfTeamOf`)
-placing them on a PI's team, a **ProjectOwnershipCredential** (claim `Owns`)
-showing that PI owns a project, and an **AffiliationCredential** (claim
-`isMemberOf`) showing that PI belongs to an institution — together with a
-**ScopedAgreementCredential** (claim `agreementInfo.scope`) naming a terms
-document scoped to that project with the `Publication` obligation for the governed
-dataset, and an **AgreementCredential** (claim `agreementInfo.documentID`) showing
-the institution agreed to that document. A **publicKeyCredential** (claim `key`)
-carries the requester's channel public key. The data owner configures the governed
-`datasetID` in `policy_data`. Access is **allowed** when the chain resolves to a
-single requester; otherwise it is **denied**. The credentials the decision relies
-on are emitted as `verification_tasks` so the contract verifies their signatures
-before the result is trusted.
+**Rule:** The requester's institution accepted to publish results from this dataset.
 
-**Requirements** (`data.subpolicy.requirements`): `{ "User": ["ProjectOwnershipCredential", "AffiliationCredential", "TeamCredential", "ScopedAgreementCredential", "AgreementCredential", "publicKeyCredential"] }`
-**Policy data:** `datasetID: <did>`
-**Context returned:** `{ "channel_key": "<requester public key>" }`
+The requester holds an `ObligationAcceptanceCredential` about themselves: their
+institution accepted the `Publication` obligation for their project and for this
+dataset (`datasetID`). The fact must be about the project the request names,
+which keeps this card consistent with every other project-bound card on the same
+asset.
 
-> Source of truth for the executable logic is [`policy.rego`](policy.rego); this
-> file is the human-readable companion. The two are maintained in parallel.
+| Role | Fact | About | Read from it |
+|------|------|-------|--------------|
+| User | `ObligationAcceptanceCredential` | the requester | `project`, `scopes` (`obligation`, `dataset`) |
+
+**Parameters**
+
+- `datasetID` — DID of this dataset, as the obligation names it.
+
+Each fact must be about the holder of its role, and from an authority this asset
+accepts for that type. The card names no operation: the delivery module of the
+asset's guardian does.
+
+> The executable rule is [`policy.rego`](policy.rego); this file is its
+> human-readable companion, and [`card.json`](card.json) is its manifest.

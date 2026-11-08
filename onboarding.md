@@ -76,8 +76,8 @@ Do not try to read it all. The webapp touches four families; follow them from
 | Family | Read | Why |
 | --- | --- | --- |
 | `rego-contract/` | `pdo/rego/decentralized/rego_token.py`, `pdo/rego/plugins/rego_token.py` | `create_capability` vs `do_operation` — the first mints a capability and hands it back, the second redeems it inline. The federated flow needs the first, because someone else contacts the guardian |
-| `rego-contract/` | `pdo/rego/decentralized/rego_policy_agent.py` | `set_rego_policy`, `get_requirements`, `issue_policy_credential`, `register_trusted_issuer` |
-| `identity-contract/` | `pdo/identity/decentralized/{identity,signature_authority}.py` | wallets are `identity.identity`; asset identities and manual issuers are `signature_authority`. `sign_with_contract_key` is what lets a wallet vouch for something in its own name |
+| `rego-contract/` | `pdo/rego/decentralized/rego_policy_agent.py` | one contract for an asset's policy and a rule-based authority: `set_rego_policy` (the modules, once; one declares the issued type), `get_requirements`, `issue_policy_credential` (with the requester's `request`), `register_trusted_issuer` / `unregister_trusted_issuer` |
+| `identity-contract/` | `pdo/identity/decentralized/{identity,signature_authority}.py` | wallets are `identity.identity`, holding several credentials per type, keyed by digest; asset identities and hand-signing authorities are `signature_authority`. `sign_with_contract_key` is what lets a wallet vouch for something in its own name |
 | `authority-contract/` | `pdo/authority/decentralized/external_key_authority.py` | `bind_external_key`, and the wallet key authority created alongside it |
 | `common-contract/` | `pdo/contracts/guardian/wsgi/{info,process_capability}.py` | the two endpoints every guardian serves. `process_capability` decrypts the operation out of the capability and dispatches to a handler |
 
@@ -100,7 +100,9 @@ a no (`422 operation failed`) — the same answer as
 Nothing in `policy_fabric` modifies `pdo-contracts`. The revision it is built from
 is pinned at the top of `tools/docker_build_all.sh` — and the ledger, the enclave
 services and the client must all come from that same revision, or every contract
-creation fails.
+creation fails. To run contract changes before they are pushed, build the client
+image from your checkout with `tools/pdo_client/build_local.sh`, on top of a
+released image, and extract `/pdo_install` from it as in section 4.
 
 ---
 
@@ -189,7 +191,7 @@ source. You do not need to: the client image already contains one, at the same
 absolute paths a host install would use.
 
 ```bash
-CID=$(docker create --entrypoint bash mlcommons/pdo_base_client:v2)
+CID=$(docker create --entrypoint bash mlcommons/pdo_base_client:v3)
 sudo rm -rf /pdo_install /pdo-contracts
 sudo docker cp "$CID:/pdo_install"   /pdo_install
 sudo docker cp "$CID:/pdo-contracts" /pdo-contracts
@@ -226,6 +228,8 @@ both registries, the FL server container and the webapp, then drives
 ```bash
 cd <workspace>/policy_fabric
 PYTHON=<workspace>/venv/bin/python bash tools/tests/run_webui_inference_test.sh
+# the ethics approval tutorial instead
+PYTHON=<workspace>/venv/bin/python bash tools/tests/run_webui_inference_test.sh -t irb
 ```
 
 About twenty minutes. `-k` leaves the stack up, `-p PORT` moves the webapp, `-n`
@@ -237,7 +241,7 @@ test itself).
 | Thing | Check |
 | --- | --- |
 | Docker, ~20GB under `/var/lib/docker` | `df -h /var/lib/docker` |
-| the images at `:v2` | `docker images \| grep mlcommons` — build with `tools/docker_build_all.sh` (comment out the `docker push` lines at the bottom first) |
+| the images at `:v3` | `docker images \| grep mlcommons` — build with `tools/docker_build_all.sh` (comment out the `docker push` lines at the bottom first) |
 | a bare-metal PDO client | section 4 |
 | Google Chrome | `google-chrome --version`; selenium fetches its own driver |
 | `Xvfb` | `which Xvfb` — **without it the run passes with no video**, which is not a pass for the purpose you were given |
@@ -303,8 +307,10 @@ Tear down with `bash tools/stop_all.sh && bash tools/docker_stop_all.sh`.
 | where a service's launch command runs (here vs. handed to the host) | `webapp/app/service_launcher.py` — shared by guardians and the FL server |
 | the federated page or the round | `webapp/app/views/federated.py`, `templates/federated/list.html`, `static/js/federated.js` |
 | the FL server's API | `tools/fl_server/server.py` **and** `webapp/app/fl_client.py` **and** `guardians/inference/fl_framework/client.py` — three ends of one protocol |
-| a policy | `policy_cards/<name>/policy.rego` + `policy_test.rego`; `opa test <dir> -v` |
-| what the tutorial says | `docs/docs/tutorial_inference.md` **and** `tools/tests/webui_inference_test.py`, which is its automation. They drift apart silently; change both |
+| a policy | `policy_cards/<name>/policy.rego` + `policy_test.rego` + `card.json`; `policy_cards/run_tests.sh` |
+| a rule-based authority | `authority_cards/<name>/`; `authority_cards/run_tests.sh` |
+| the Expose panel, the trust panel, the checklist | `webapp/app/views/assets.py`, `webapp/app/{trust,checklist,readiness}.py`, `static/js/asset_dashboard.js`; `webapp/run_tests.sh` |
+| what a tutorial says | `docs/docs/tutorial_*.md` **and** `tools/tests/webui_*_test.py`, which automate them. They drift apart silently; change both |
 
 ### Things that have bitten people here
 

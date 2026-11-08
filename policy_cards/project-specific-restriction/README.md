@@ -1,23 +1,25 @@
-# DUO_0000027 — PS (Project Specific Restriction)
+# DUO_0000027 — PS (Project-Specific Restriction)
 
 **Rule type:** Permission (constraint) · **Outcomes:** allow / deny
 
-Access is limited to projects on the data owner's approved list. The requester
-presents the project's **IntendedDataUseCredential** (whose subject is the project
-identifier) together with the chain that binds them to that project — a
-**ProjectOwnershipCredential** (claim `Owns`) showing a PI owns the project and a
-**TeamCredential** (claim `MemberOfTeamOf`) placing the requester on that PI's
-team — plus an **AgreementCredential** (accepted terms) and a
-**publicKeyCredential** (claim `key`) carrying their channel public key. The data
-owner configures the set of `approvedProjects` in `policy_data`. Access is
-**allowed** when the project identified by the intended-use credential is in that
-set and the chain resolves to a single requester; otherwise it is **denied**. The
-credentials the decision relies on are emitted as `verification_tasks` so the
-contract verifies their signatures before the result is trusted.
+**Rule:** The requester works on a project you approved.
 
-**Requirements** (`data.subpolicy.requirements`): `{ "User": ["IntendedDataUseCredential", "ProjectOwnershipCredential", "TeamCredential", "AgreementCredential", "publicKeyCredential"] }`
-**Policy data:** `approvedProjects: [..]`
-**Context returned:** `{ "channel_key": "<requester public key>" }`
+The requester holds a `ResearchPurposeCredential` about themselves naming a
+`project` on the owner's `approvedProjects` list. The fact must be about the
+project the request names, which keeps this card consistent with every other
+project-bound card on the same asset.
 
-> Source of truth for the executable logic is [`policy.rego`](policy.rego); this
-> file is the human-readable companion. The two are maintained in parallel.
+| Role | Fact | About | Read from it |
+|------|------|-------|--------------|
+| User | `ResearchPurposeCredential` | the requester | `project` |
+
+**Parameters**
+
+- `approvedProjects` — DIDs of the projects the data may be used for.
+
+Each fact must be about the holder of its role, and from an authority this asset
+accepts for that type. The card names no operation: the delivery module of the
+asset's guardian does.
+
+> The executable rule is [`policy.rego`](policy.rego); this file is its
+> human-readable companion, and [`card.json`](card.json) is its manifest.

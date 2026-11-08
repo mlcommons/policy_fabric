@@ -30,9 +30,9 @@ _op_lock = threading.Lock()
 
 # Contract-class strings as registered on the ledger (see
 # pdo-contracts/private-data-objects/client/pdo/client/commands/contract.py:269,
-# which passes ``contract_class`` as the family). The rego_policy_agent reuses
-# the policy_agent create command, and rego_token is minted as a token_object,
-# so those are the classes they register under.
+# which passes ``contract_class`` as the family). rego_policy_agent reuses the
+# identity family's policy_agent create command, and rego_token is minted as
+# a token_object, so those are the classes they register under.
 FAMILY_IDENTITY = "identity"
 FAMILY_SIGNATURE_AUTHORITY = "signature_authority"
 FAMILY_EXTERNAL_KEY_AUTHORITY = "external_key_authority"
@@ -131,6 +131,17 @@ def list_wallet_key_authority_ids(user_name):
         e["contract_id"]
         for e in get_user_contracts(user_name)
         if e["contract_family"] == FAMILY_WALLET_KEY_AUTHORITY
+    ]
+
+
+def list_policy_agent_ids(user_name):
+    """Contract IDs owned by ``user_name`` whose family is policy_agent: the
+    policies of the assets they exposed, and the rule-based authorities they
+    operate. The directory of authorities says which are authorities."""
+    return [
+        e["contract_id"]
+        for e in get_user_contracts(user_name)
+        if e["contract_family"] == FAMILY_POLICY_AGENT
     ]
 
 

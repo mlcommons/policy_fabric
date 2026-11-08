@@ -2,23 +2,28 @@
 
 **Rule type:** Obligation (duty) · **Outcomes:** allow / deny
 
-Access carries a publication moratorium — results may not be published until the
-embargo in the accepted terms lifts. The requester presents an
-**AgreementCredential** (claim `agreementInfo.documentID`) accepting the required
-terms document and a **publicKeyCredential** (claim `key`) issued to the same
-subject, and the work must run on a compute environment attested by a
-**ComputeEnvironmentCredential** (claim
-`hasComputeProfile.profile.SecureHandlingOfResults`) to handle results securely,
-which is what lets the moratorium be honoured. The data owner configures the
-`requiredDocumentID` in `policy_data`. Access is **allowed** when the accepted
-document matches, a channel key is present, and a secure compute environment is
-attested; otherwise it is **denied**. The credentials the decision relies on are
-emitted as `verification_tasks` so the contract verifies their signatures before
-the result is trusted.
+**Rule:** The requester accepted your moratorium terms and handles results securely.
 
-**Requirements** (`data.subpolicy.requirements`): `{ "User": ["AgreementCredential", "ComputeEnvironmentCredential", "publicKeyCredential"] }`
-**Policy data:** `requiredDocumentID: <did>`
-**Context returned:** `{ "channel_key": "<requester public key>" }`
+The requester holds an `AgreementCredential` about themselves for the owner's
+moratorium terms (`requiredDocumentID`), and a `ComputeEnvironmentCredential`
+about themselves whose profile handles results securely, so nothing is published
+before the moratorium ends.
 
-> Source of truth for the executable logic is [`policy.rego`](policy.rego); this
-> file is the human-readable companion. The two are maintained in parallel.
+| Role | Fact | About | Read from it |
+|------|------|-------|--------------|
+| User | `AgreementCredential` | the requester | `agreementInfo.documentID` |
+| User | `ComputeEnvironmentCredential` | the requester | `hasComputeProfile.profile.SecureHandlingOfResults` |
+
+**Parameters**
+
+- `requiredDocumentID` — DID of the terms document the requester must have
+  accepted.
+
+Each fact must be about the holder of its role, and from an authority this asset
+accepts for that type. The card names no operation: the delivery module of the
+asset's guardian does.
+
+> The executable rule is the
+> [`secure-results`](../templates/secure-results/policy.rego) rule template;
+> this file is its human-readable companion, and [`card.json`](card.json) is its
+> manifest.

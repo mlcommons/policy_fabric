@@ -1,0 +1,44 @@
+<!-- Accepted authorities, fact by fact; wired by window.trustTable.wire. -->
+<table class="data-table trust-table">
+    <thead><tr><th>Fact</th><th>Accepted</th><th>Add</th></tr></thead>
+    <tbody>
+        {% for row in trust_rows %}
+        <tr data-fact="{{ row.type }}">
+            <td><strong>{{ row.name }}</strong><div class="did-display">{{ row.type }}</div></td>
+            <td>
+                {% for a in row.accepted %}
+                <div class="trust-entry" data-authority="{{ a.name }}">
+                    <span>{{ a.name }}</span>
+                    <span class="badge badge-kind badge-kind-{{ a.kind }}">{{ a.kind_label }}</span>
+                    <button type="button" class="btn btn-sm" data-action="withdraw"
+                            data-contract-id="{{ a.contract_id }}" data-fact="{{ row.type }}">Remove</button>
+                </div>
+                {% empty %}
+                <span class="muted">None accepted yet.</span>
+                {% endfor %}
+            </td>
+            <td>
+                <div class="trust-add">
+                    <select data-accept-select>
+                        <option value="">Choose an authority…</option>
+                        {% for o in row.options %}
+                        <option value="{{ o.did }}">{{ o.name }} · {{ o.kind_label }}</option>
+                        {% endfor %}
+                        <option value="paste">Paste a DID…</option>
+                    </select>
+                    <input type="text" class="hidden" data-accept-did placeholder="did:pdo:…">
+                    <button type="button" class="btn btn-sm" data-action="accept"
+                            data-fact="{{ row.type }}">Accept</button>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        {% for name in self_asserted %}
+        <tr>
+            <td><strong>{{ name }}</strong></td>
+            <td colspan="2" class="muted">Signed by the requester's own wallet and checked
+                against its key; no authority vouches for it.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

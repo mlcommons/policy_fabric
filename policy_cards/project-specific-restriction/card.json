@@ -1,0 +1,26 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000027",
+  "code": "PS",
+  "name": "Project-specific restriction",
+  "rule": "The requester works on a project you approved.",
+  "guardianTypes": ["download", "inference"],
+  "facts": {
+    "User": ["ResearchPurposeCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "approvedProjects": {
+        "type": "array",
+        "title": "Approved projects",
+        "description": "DIDs of the projects the data may be used for.",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      }
+    },
+    "required": ["approvedProjects"]
+  }
+}

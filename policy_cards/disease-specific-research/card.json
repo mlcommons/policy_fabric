@@ -1,0 +1,26 @@
+{
+  "kind": "policy",
+  "id": "DUO:0000007",
+  "code": "DS",
+  "name": "Disease-specific research",
+  "rule": "The requester's research studies a disease within your scope.",
+  "guardianTypes": ["download", "inference"],
+  "facts": {
+    "User": ["ResearchPurposeCredential"]
+  },
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "allowedDiseases": {
+        "type": "array",
+        "title": "Allowed diseases",
+        "description": "MONDO codes of the diseases research may study.",
+        "items": {
+          "type": "string"
+        },
+        "minItems": 1
+      }
+    },
+    "required": ["allowedDiseases"]
+  }
+}

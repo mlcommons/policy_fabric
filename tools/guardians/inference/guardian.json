@@ -5,7 +5,7 @@
   "order": 30,
   "image": {
     "env": "INFERENCE_GUARDIAN_IMAGE",
-    "default": "mlcommons/toy_inference_guardian:v2"
+    "default": "mlcommons/toy_inference_guardian:v3"
   },
   "options": {
     "--image": "image",
