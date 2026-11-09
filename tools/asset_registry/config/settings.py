@@ -1,10 +1,21 @@
+import os
 from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "django-insecure-asset-registry-key-change-in-production"
-DEBUG = True
-ALLOWED_HOSTS = ["*"]
+# Require an operator-managed key; never share a signing key between installations.
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
+if not SECRET_KEY:
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set")
+DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() == "true"
+ALLOWED_HOSTS = [
+    host.strip() for host in os.environ.get(
+        "DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]"
+    ).split(",") if host.strip()
+]
+
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -50,3 +61,6 @@ DATABASES = {
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Empty disables all API writes; use a distinct random token for each registry.
+REGISTRY_WRITE_TOKEN = os.environ.get("REGISTRY_WRITE_TOKEN", "")

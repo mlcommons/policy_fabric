@@ -1,3 +1,4 @@
+set -eu
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 INTERFACE=""
 PORT=""
@@ -28,9 +29,6 @@ done
 [ -n "$INTERFACE" ] || { echo "Missing required option: -n/--interface" >&2; usage >&2; exit 1; }
 [ -n "$PORT" ]      || { echo "Missing required option: -p/--port" >&2; usage >&2; exit 1; }
 
-python $SCRIPT_DIR/manage.py migrate
-# Dev-only admin user for the Django admin dashboard at /admin/.
-DJANGO_SUPERUSER_USERNAME=admin DJANGO_SUPERUSER_PASSWORD=admin \
-DJANGO_SUPERUSER_EMAIL=admin@example.com \
-python $SCRIPT_DIR/manage.py createsuperuser --noinput
+python "$SCRIPT_DIR/manage.py" migrate
+# Create an administrator explicitly with manage.py createsuperuser if needed.
 exec python -u "$SCRIPT_DIR/manage.py" runserver "$INTERFACE:$PORT"

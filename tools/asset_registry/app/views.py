@@ -3,6 +3,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from .authorization import authorize_registry_write
 from .models import Asset
 
 
@@ -15,7 +16,9 @@ def _asset_to_dict(asset):
     }
 
 
+# Authorization is a bearer header, never an ambient browser cookie.
 @csrf_exempt
+@authorize_registry_write
 def assets_list_create(request):
     if request.method == "GET":
         assets = list(Asset.objects.all().order_by("pk"))
@@ -45,7 +48,9 @@ def assets_list_create(request):
     return JsonResponse({"error": "Method not allowed"}, status=405)
 
 
+# Authorization is a bearer header, never an ambient browser cookie.
 @csrf_exempt
+@authorize_registry_write
 def asset_detail(request, pk):
     try:
         asset = Asset.objects.get(pk=pk)
@@ -81,7 +86,6 @@ def asset_detail(request, pk):
     return JsonResponse({"error": "Method not allowed"}, status=405)
 
 
-@csrf_exempt
 @require_http_methods(["GET"])
 def asset_by_did(request):
     did = request.GET.get("did", "").strip()

@@ -20,9 +20,17 @@ def _require_env(name):
         raise ImproperlyConfigured(f"Required environment variable {name} is not set")
 
 
-SECRET_KEY = "django-insecure-client-app-key-change-in-production"
-DEBUG = True
-ALLOWED_HOSTS = ["*"]
+# Require an operator-managed key; never share a signing key between installations.
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
+if not SECRET_KEY:
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set")
+DEBUG = os.environ.get("DJANGO_DEBUG", "false").lower() == "true"
+ALLOWED_HOSTS = [
+    host.strip() for host in os.environ.get(
+        "DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]"
+    ).split(",") if host.strip()
+]
+
 
 # The single signing context every manual issuer is set up with at creation
 # time. The webapp no longer exposes signing-context management in the UI —
@@ -200,3 +208,5 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
+
+ASSET_REGISTRY_WRITE_TOKEN = os.environ.get("ASSET_REGISTRY_WRITE_TOKEN", "")

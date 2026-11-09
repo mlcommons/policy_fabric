@@ -3,6 +3,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from .authorization import authorize_registry_write
 from .models import PolicyTemplate, CredentialTemplate
 
 
@@ -24,7 +25,9 @@ def _credential_to_dict(tpl):
     }
 
 
+# Authorization is a bearer header, never an ambient browser cookie.
 @csrf_exempt
+@authorize_registry_write
 def policies_list_create(request):
     if request.method == "GET":
         templates = list(PolicyTemplate.objects.all().order_by("pk"))
@@ -56,7 +59,6 @@ def policies_list_create(request):
     return JsonResponse({"error": "Method not allowed"}, status=405)
 
 
-@csrf_exempt
 @require_http_methods(["GET"])
 def policy_detail(request, pk):
     try:
@@ -67,7 +69,9 @@ def policy_detail(request, pk):
     return JsonResponse(_policy_to_dict(tpl))
 
 
+# Authorization is a bearer header, never an ambient browser cookie.
 @csrf_exempt
+@authorize_registry_write
 def credentials_list_create(request):
     if request.method == "GET":
         templates = list(CredentialTemplate.objects.all().order_by("pk"))
@@ -101,7 +105,6 @@ def credentials_list_create(request):
     return JsonResponse({"error": "Method not allowed"}, status=405)
 
 
-@csrf_exempt
 @require_http_methods(["GET"])
 def credential_detail(request, pk):
     try:
