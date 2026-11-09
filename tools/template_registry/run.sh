@@ -1,3 +1,4 @@
+set -eu
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 INTERFACE=""
 PORT=""
@@ -40,11 +41,8 @@ done
 # seed_templates reads these from the environment.
 export CREDENTIALS_DIR POLICY_CARDS_DIR
 
-python $SCRIPT_DIR/manage.py migrate
+python "$SCRIPT_DIR/manage.py" migrate
 # Seed the policy/credential templates from the folders given above.
-python $SCRIPT_DIR/manage.py seed_templates
-# Dev-only admin user for the Django admin dashboard at /admin/.
-DJANGO_SUPERUSER_USERNAME=admin DJANGO_SUPERUSER_PASSWORD=admin \
-DJANGO_SUPERUSER_EMAIL=admin@example.com \
-python $SCRIPT_DIR/manage.py createsuperuser --noinput
+python "$SCRIPT_DIR/manage.py" seed_templates
+# Create an administrator explicitly with manage.py createsuperuser if needed.
 exec python -u "$SCRIPT_DIR/manage.py" runserver "$INTERFACE:$PORT"

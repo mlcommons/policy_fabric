@@ -37,4 +37,6 @@ done
 docker rm -f asset_registry_container >/dev/null 2>&1 || true
 
 docker run --rm --user "$(id -u):0" --name asset_registry_container \
+    -e DJANGO_SECRET_KEY -e DJANGO_DEBUG -e DJANGO_ALLOWED_HOSTS \
+    -e REGISTRY_WRITE_TOKEN \
     -p $INTERFACE:$PORT:8000 $ASSET_REGISTRY_IMAGE

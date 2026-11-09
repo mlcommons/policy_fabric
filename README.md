@@ -29,3 +29,6 @@ This is a reference implementation, not a production governance system. It ships
 ## License
 
 Copyright MLCommons. All rights reserved. Licensing to be determined. See [LICENSE](LICENSE).
+
+Registry and web client deployments require explicit security configuration; see
+[service configuration](tools/SECURITY_CONFIGURATION.md).
