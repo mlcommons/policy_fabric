@@ -17,7 +17,7 @@
 #   -n          do not rebuild the environment; drive whatever is already up
 #   -H          run headed (needs a DISPLAY); records nothing
 #   -a DIR      artifacts directory (default /tmp/pdo_webui_artifacts)
-#   -t TUTORIAL inference (default) or irb: runs webui_<TUTORIAL>_test.py
+#   -t TUTORIAL inference (default), irb or download: runs webui_<TUTORIAL>_test.py
 
 set -eEuo pipefail
 

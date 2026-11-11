@@ -10,9 +10,13 @@ FL-DS and FL-IS together.
 the browser doing it.
 
 The same runner drives the ethics approval tutorial,
-[`docs/docs/tutorial_irb.md`](../../docs/docs/tutorial_irb.md), with `-t irb`:
-one policy, one fact, and two authorities that establish it in different ways.
-It also ends in `PASSED: 20 steps` and a video.
+[`docs/docs/tutorial_irb.md`](../../docs/docs/tutorial_irb.md), with `-t irb`: one
+card whose graph joins a chain of credentials about four subjects, and a credential
+that may stand in for part of it. With `-t download` it drives the download
+tutorial, [`docs/docs/tutorial.md`](../../docs/docs/tutorial.md): two cards composed
+into one graph, the graphs drawn on the dashboard, a card's popup and the Policies
+page, and a node's parameters changed after the fact. Each ends in `PASSED` and a
+video.
 
 ## Parameters
 
@@ -58,16 +62,17 @@ These must exist:
 | file | what this recipe uses it for |
 | --- | --- |
 | `tools/tests/run_webui_inference_test.sh` | brings the stack up and runs the test |
-| `tools/tests/webui_inference_test.py` | the clicking (`webui_irb_test.py` for `-t irb`) |
-| `tools/tests/webui.py` | the harness and the page helpers both tests share |
+| `tools/tests/webui_inference_test.py` | the clicking (`webui_irb_test.py` for `-t irb`, `webui_download_test.py` for `-t download`) |
+| `tools/tests/webui.py` | the harness and the page helpers the tests share |
 | `tools/tests/recorder.py` | the display and the video |
 | `tools/make_tutorial_files.sh` | writes the two cohorts and the script |
 | `tools/start_fl_server.sh` | the job board every site connects to |
 | `tools/start_webapp.sh` | the webapp, on this machine |
 | `policy_cards/FL/inference-disease-specific-research/` | the first policy tested |
 | `policy_cards/FL/inference-institution-specific-restriction/` | the second one |
-| `policy_cards/delivery/inference/` | the module every inference asset gets |
-| `policy_cards/ethics-approval-required/`, `authority_cards/accredited-committee-check/` | the `-t irb` run |
+| `policy_components/` | the components the cards' graphs are made of |
+| `policy_cards/ethics-approval-required/` | the `-t irb` run |
+| `policy_cards/geographical-restriction/`, `policy_cards/institution-specific-restriction/` | the `-t download` run |
 
 And the images the stack runs must be present locally or pullable — the tags the
 `tools/docker_*.sh` scripts name (`mlcommons/pdo_base_client`,
@@ -92,7 +97,7 @@ up. It tears the stack down afterwards; pass `-k` to leave it running.
 | `-n` | skip setup entirely and drive whatever is already running |
 | `-H` | run headed on your own screen; records nothing |
 | `-a DIR` | artifacts directory (default `/tmp/pdo_webui_artifacts`) |
-| `-t TUTORIAL` | `inference` (default) or `irb` |
+| `-t TUTORIAL` | `inference` (default), `irb` or `download`: the tutorial of that name |
 
 It does all of this by itself: generates the user keys, starts the ledger and
 enclave services, starts both registries, writes the tutorial files, starts the
@@ -110,8 +115,8 @@ browser through the tutorial, once, in order:
    it under **FL-DS** alone, accepting the hand-signing authority from the
    directory;
 4. **Hospital B** registers its own cohort behind its own guardian and exposes it
-   under **FL-DS and FL-IS together** — modules of one policy agent, all of which
-   must allow — accepting the wallet key authority as well;
+   under **FL-DS and FL-IS together** — their graphs composed into one, which
+   grants only when both cards do — accepting the wallet key authority as well;
 5. the **script owner** opens **Federated**, sees both sites connected to the FL
    server, each by the FL client beside its guardian, selects both, checks each
    site's readiness checklist, and runs **one round** across them.
@@ -190,8 +195,8 @@ Things that have actually gone wrong here:
 | `step 'contract' failed: ... Replication task failed for request number N` | not this codebase. Look just above it in `/tmp/pdo_webapp.log` for `store_blocks ... Read timed out` — a PDO storage service (ports 72xx) did not answer within its 10s timeout while the new contract's state was being replicated, and the creation was abandoned. It happens under load; re-run on a quiet machine rather than retrying the step |
 | a round hangs at "Waiting for ... to report" | that site's FL client crashed, or is polling a different FL server — `docker logs pdo-inference-guardian-<port>-fl-client` |
 | a site reports `not allowed to run: the guardian said no (HTTP 422: operation failed)` | the digest the FL client computed does not match the one the capability authorizes — the script changed after its `ScriptHashCredential` was signed. The core logs both digests (`denied: ...`) in `/pdo_install/opt/pdo/logs/` inside `pdo-inference-guardian-<port>` |
-| a site is refused with `Not ready: ...` | its checklist was not ready: the message names each missing fact and whom to ask |
-| `policy evaluation denied, a module denied the request` | a module's rule did not hold for what was presented — compare the facts the wallet holds with the cards' parameters |
+| a site is refused with `Not ready: ...` | its checklist was not ready: the message names each missing credential and whom to ask |
+| `policy evaluation denied, the root issued no capability` | a component's check did not hold for what was presented — compare the credentials the wallet holds with the nodes' parameters |
 | a site reports `not allowed to run: the guardian said no (HTTP 400: ...)` | the guardian refused the capability itself before comparing anything — typically one minted for a different guardian |
 | `Not recording: Xvfb is not installed` | see the requirements table above |
 

@@ -64,7 +64,8 @@ Read these, in order. They are short and each one is the entry point to a layer.
 6. `tools/fl_server/server.py` — no PDO in it at all. Read `ClientRegistry` and
    `RoundStore`.
 7. `policy_cards/FL/README.md`, then one policy: `policy_cards/FL/
-   inference-disease-specific-research/policy.rego`.
+   inference-disease-specific-research/graph.json`, and the component it names,
+   `policy_components/disease_specific_research_for_inference/component.rego`.
 8. `docs/docs/tutorial_inference.md` — the whole thing as a story, and the
    document the browser test is an automation of.
 
@@ -76,7 +77,7 @@ Do not try to read it all. The webapp touches four families; follow them from
 | Family | Read | Why |
 | --- | --- | --- |
 | `rego-contract/` | `pdo/rego/decentralized/rego_token.py`, `pdo/rego/plugins/rego_token.py` | `create_capability` vs `do_operation` — the first mints a capability and hands it back, the second redeems it inline. The federated flow needs the first, because someone else contacts the guardian |
-| `rego-contract/` | `pdo/rego/decentralized/rego_policy_agent.py` | one contract for an asset's policy and a rule-based authority: `set_rego_policy` (the modules, once; one declares the issued type), `get_requirements`, `issue_policy_credential` (with the requester's `request`), `register_trusted_issuer` / `unregister_trusted_issuer` |
+| `rego-contract/` | `pdo/rego/decentralized/rego_policy_agent.py` | the contract of an asset's policy: `set_policy_graph` (the graph and its components, once), `get_requirement_alternatives`, `set_node_policy_data`, `issue_policy_credential` (with the requester's `request`), `register_trusted_issuer` / `unregister_trusted_issuer`. The graph mode is specified in `rego-contract/docs/policy_graph.md` |
 | `identity-contract/` | `pdo/identity/decentralized/{identity,signature_authority}.py` | wallets are `identity.identity`, holding several credentials per type, keyed by digest; asset identities and hand-signing authorities are `signature_authority`. `sign_with_contract_key` is what lets a wallet vouch for something in its own name |
 | `authority-contract/` | `pdo/authority/decentralized/external_key_authority.py` | `bind_external_key`, and the wallet key authority created alongside it |
 | `common-contract/` | `pdo/contracts/guardian/wsgi/{info,process_capability}.py` | the two endpoints every guardian serves. `process_capability` decrypts the operation out of the capability and dispatches to a handler |
@@ -307,8 +308,8 @@ Tear down with `bash tools/stop_all.sh && bash tools/docker_stop_all.sh`.
 | where a service's launch command runs (here vs. handed to the host) | `webapp/app/service_launcher.py` — shared by guardians and the FL server |
 | the federated page or the round | `webapp/app/views/federated.py`, `templates/federated/list.html`, `static/js/federated.js` |
 | the FL server's API | `tools/fl_server/server.py` **and** `webapp/app/fl_client.py` **and** `guardians/inference/fl_framework/client.py` — three ends of one protocol |
-| a policy | `policy_cards/<name>/policy.rego` + `policy_test.rego` + `card.json`; `policy_cards/run_tests.sh` |
-| a rule-based authority | `authority_cards/<name>/`; `authority_cards/run_tests.sh` |
+| a policy | `policy_cards/<name>/graph.json` + `graph_vectors.json` + `card.json` (draw it in the docs site's Policy Composer); `policy_components/run_tests.sh` |
+| a policy component | `policy_components/<id>/component.rego` + `component_test.rego` + `component.json`; `policy_components/run_tests.sh` |
 | the Expose panel, the trust panel, the checklist | `webapp/app/views/assets.py`, `webapp/app/{trust,checklist,readiness}.py`, `static/js/asset_dashboard.js`; `webapp/run_tests.sh` |
 | what a tutorial says | `docs/docs/tutorial_*.md` **and** `tools/tests/webui_*_test.py`, which automate them. They drift apart silently; change both |
 
