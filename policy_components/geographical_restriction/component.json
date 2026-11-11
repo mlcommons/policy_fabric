@@ -1,0 +1,29 @@
+{
+  "name": "GeographicalRestriction",
+  "group": "card",
+  "summary": "The card component of Geographical Restriction (DUO_0000022). It reads LocationCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "location": {
+      "type": "LocationCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "locatedAt.country"
+      ]
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "allowedCountries": {
+      "type": "array of strings",
+      "description": "Country values the owner allows. A LocationCredential qualifies if claims.locatedAt.country is in this list (exact string match)."
+    }
+  },
+  "card": "geographical-restriction",
+  "duo": "DUO_0000022",
+  "changes_from_today": []
+}

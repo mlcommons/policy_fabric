@@ -1,0 +1,47 @@
+{
+  "name": "HealthOrMedicalOrBiomedicalResearch",
+  "group": "card",
+  "summary": "The card component of Health or Medical or Biomedical Research (DUO_0000006). It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "projectMembership": {
+      "type": "ProjectMembershipCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "project"
+      ]
+    },
+    "intendedDataUse": {
+      "type": "IntendedDataUseCredential",
+      "about": "project",
+      "role": "User",
+      "claims": [
+        "useOnlyFor.purposes"
+      ]
+    },
+    "agreement": {
+      "type": "AgreementCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": []
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "allowedPurposes": {
+      "type": "array of strings",
+      "description": "Purpose terms the owner allows (meant to be health/medical/biomedical purposes). An IntendedDataUseCredential needs at least one useOnlyFor.purposes entry in this list."
+    },
+    "prohibitedPurposes": {
+      "type": "array of strings",
+      "description": "Purpose terms that disqualify an IntendedDataUseCredential (meant to be population-origins/ancestry purposes). An IDU with any useOnlyFor.purposes entry in this list is dropped."
+    }
+  },
+  "card": "health-or-medical-or-biomedical-research",
+  "duo": "DUO_0000006",
+  "changes_from_today": []
+}

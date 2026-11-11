@@ -1,0 +1,29 @@
+{
+  "name": "InstitutionSpecificRestriction",
+  "group": "card",
+  "summary": "The card component of Institution Specific Restriction (DUO_0000028). It reads AffiliationCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "affiliation": {
+      "type": "AffiliationCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "isMemberOf"
+      ]
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "allowedInstitutions": {
+      "type": "array of strings",
+      "description": "Institution DIDs the owner allows. An AffiliationCredential qualifies if claims.isMemberOf is in this list."
+    }
+  },
+  "card": "institution-specific-restriction",
+  "duo": "DUO_0000028",
+  "changes_from_today": []
+}

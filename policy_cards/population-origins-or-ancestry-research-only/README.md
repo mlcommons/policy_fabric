@@ -4,26 +4,35 @@
 
 **Rule:** The requester's research studies population origins or ancestry.
 
-The requester holds a `ResearchPurposeCredential` about themselves whose
-`purposes` include one of the owner's `allowedPurposes`, which this card presets
-to the population-origins/ancestry term. The fact must be about the project the
-request names, which keeps this card consistent with every other project-bound
-card on the same asset.
+It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
 
-| Role | Fact | About | Read from it |
-|------|------|-------|--------------|
-| User | `ResearchPurposeCredential` | the requester | `purposes`, `project` |
+The card is a graph of policy components. Each takes credentials, from the requester's presentation or
+from the components before it, and outputs a credential of its own; the last, Grant download, issues
+`do_download`, encrypted to the requester's session key (the key in their `publicKeyCredential`).
 
-**Parameters**
+| Policy Component | What it checks |
+|---|---|
+| ProjectMembership | The requester is on the team of a PI who owns a project. Checks that the ProjectOwnershipCredential is about the PI the TeamCredential names (MemberOfTeamOf); outputs the project, for the requester. |
+| PopulationOriginsOrAncestryResearchOnly | It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes. |
+| Grant download | The end of every download card. Issues do_download to the holder of the key when the card granted that same person: the publicKeyCredential and the DownloadGrantCredential must be about the same subject. The channel key is the key in the publicKeyCredential. |
 
-- `allowedPurposes` — Research purposes that qualify; the research must have at
-  least one. Preset: `["POA"]`.
+**Presented credentials**, each from an authority the asset's owner accepts for its type:
 
-Each fact must be about the holder of its role, and from an authority this asset
-accepts for that type. The card names no operation: the delivery module of the
-asset's guardian does.
+| Role | Credential | About | Claims read |
+|---|---|---|---|
+| User | Project ownership (`ProjectOwnershipCredential`) | the PI | `Owns` |
+| User | Team membership (`TeamCredential`) | the requester | `MemberOfTeamOf` |
+| User | Accepted terms (`AgreementCredential`) | the requester | none |
+| User | Intended data use (`IntendedDataUseCredential`) | the project | `useOnlyFor.purposes` |
+| User | Session key (`publicKeyCredential`) | the requester | `key` |
 
-> The executable rule is the
-> [`purpose-allowed`](../templates/purpose-allowed/policy.rego) rule template;
-> this file is its human-readable companion, and [`card.json`](card.json) is its
-> manifest.
+A credential the graph also accepts presented, from an authority the owner accepts for it, stands in for the components that would produce it:
+
+- Project membership (`ProjectMembershipCredential`) about the requester, in place of ProjectMembership's.
+
+**Parameters:**
+
+- **PopulationOriginsOrAncestryResearchOnly · `allowedPurposes`** (array of strings): Purpose terms, as they appear in IntendedDataUseCredential.useOnlyFor.purposes, that make an IDU usable: at least one of its purposes must be in this list. If the key is missing, no IDU qualifies and access is denied.
+
+> The card is [`graph.json`](graph.json), decided as [`graph_vectors.json`](graph_vectors.json) says; its
+> components are in [`policy_components/`](../../policy_components/), and [`card.json`](card.json) names it.

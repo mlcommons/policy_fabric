@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "name": "Disease Specific Research for inference",
+  "root": "grant_inference",
+  "nodes": {
+    "disease_specific_research_for_inference": {
+      "component": "disease_specific_research_for_inference",
+      "inputs": {
+        "intendedDataUse": {
+          "from": "presented"
+        },
+        "scriptHash": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "grant_inference": {
+      "component": "grant_inference",
+      "inputs": {
+        "grant": {
+          "from": "node",
+          "node": "disease_specific_research_for_inference",
+          "accept_presented": false
+        }
+      },
+      "policy_data": {}
+    }
+  },
+  "trusted_issuers": {
+    "IntendedDataUseCredential": [],
+    "ScriptHashCredential": []
+  }
+}

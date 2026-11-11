@@ -1,0 +1,43 @@
+{
+  "name": "ResearchSpecificRestrictions",
+  "group": "card",
+  "summary": "The card component of Research Specific Restrictions (DUO_0000012). It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "projectMembership": {
+      "type": "ProjectMembershipCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "project"
+      ]
+    },
+    "intendedDataUse": {
+      "type": "IntendedDataUseCredential",
+      "about": "project",
+      "role": "User",
+      "claims": [
+        "useOnlyFor.purposes"
+      ]
+    },
+    "agreement": {
+      "type": "AgreementCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": []
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "allowedPurposes": {
+      "type": "array of strings",
+      "description": "Allowed research purposes. An IntendedDataUseCredential qualifies if any entry of claims.useOnlyFor.purposes is in this list."
+    }
+  },
+  "card": "research-specific-restrictions",
+  "duo": "DUO_0000012",
+  "changes_from_today": []
+}

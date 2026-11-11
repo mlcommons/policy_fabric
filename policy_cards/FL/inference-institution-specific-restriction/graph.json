@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "name": "Institution Specific Restriction for inference",
+  "root": "grant_inference",
+  "nodes": {
+    "institution_specific_restriction_for_inference": {
+      "component": "institution_specific_restriction_for_inference",
+      "inputs": {
+        "affiliation": {
+          "from": "presented"
+        },
+        "walletVerifyingKey": {
+          "from": "presented"
+        },
+        "scriptOwnership": {
+          "from": "presented"
+        },
+        "scriptHash": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "grant_inference": {
+      "component": "grant_inference",
+      "inputs": {
+        "grant": {
+          "from": "node",
+          "node": "institution_specific_restriction_for_inference",
+          "accept_presented": false
+        }
+      },
+      "policy_data": {}
+    }
+  },
+  "trusted_issuers": {
+    "AffiliationCredential": [],
+    "ScriptHashCredential": [],
+    "WalletVerifyingKeyCredential": []
+  }
+}

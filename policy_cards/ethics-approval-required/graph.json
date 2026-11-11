@@ -1,0 +1,89 @@
+{
+  "version": 2,
+  "name": "Ethics Approval Required",
+  "root": "grant_download",
+  "nodes": {
+    "project_membership": {
+      "component": "project_membership",
+      "inputs": {
+        "team": {
+          "from": "presented"
+        },
+        "ownership": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "institutional_irb_approval": {
+      "component": "institutional_irb_approval",
+      "inputs": {
+        "accreditation": {
+          "from": "presented"
+        },
+        "irb": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "irb_clearance": {
+      "component": "irb_clearance",
+      "inputs": {
+        "approval": {
+          "from": "node",
+          "node": "institutional_irb_approval",
+          "accept_presented": false
+        },
+        "affiliation": {
+          "from": "presented"
+        },
+        "membership": {
+          "from": "node",
+          "node": "project_membership",
+          "accept_presented": true
+        }
+      },
+      "policy_data": {}
+    },
+    "ethics_approval_required": {
+      "component": "ethics_approval_required",
+      "inputs": {
+        "clearance": {
+          "from": "node",
+          "node": "irb_clearance",
+          "accept_presented": true
+        },
+        "use": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "grant_download": {
+      "component": "grant_download",
+      "inputs": {
+        "key": {
+          "from": "presented"
+        },
+        "grant": {
+          "from": "node",
+          "node": "ethics_approval_required",
+          "accept_presented": false
+        }
+      },
+      "policy_data": {}
+    }
+  },
+  "trusted_issuers": {
+    "AffiliationCredential": [],
+    "EthicsCommitteeAccreditationCredential": [],
+    "IRBApprovalCredential": [],
+    "IRBClearanceCredential": [],
+    "IntendedDataUseCredential": [],
+    "ProjectMembershipCredential": [],
+    "ProjectOwnershipCredential": [],
+    "TeamCredential": [],
+    "publicKeyCredential": []
+  }
+}

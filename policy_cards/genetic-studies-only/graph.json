@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "name": "Genetic Studies Only",
+  "root": "grant_download",
+  "nodes": {
+    "project_membership": {
+      "component": "project_membership",
+      "inputs": {
+        "team": {
+          "from": "presented"
+        },
+        "ownership": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "genetic_studies_only": {
+      "component": "genetic_studies_only",
+      "inputs": {
+        "projectMembership": {
+          "from": "node",
+          "node": "project_membership",
+          "accept_presented": true
+        },
+        "intendedDataUse": {
+          "from": "presented"
+        },
+        "agreement": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "grant_download": {
+      "component": "grant_download",
+      "inputs": {
+        "key": {
+          "from": "presented"
+        },
+        "grant": {
+          "from": "node",
+          "node": "genetic_studies_only",
+          "accept_presented": false
+        }
+      },
+      "policy_data": {}
+    }
+  },
+  "trusted_issuers": {
+    "AgreementCredential": [],
+    "IntendedDataUseCredential": [],
+    "ProjectMembershipCredential": [],
+    "ProjectOwnershipCredential": [],
+    "TeamCredential": [],
+    "publicKeyCredential": []
+  }
+}

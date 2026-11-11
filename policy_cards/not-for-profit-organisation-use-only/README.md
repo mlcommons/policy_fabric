@@ -4,22 +4,27 @@
 
 **Rule:** The requester acts for a not-for-profit organisation.
 
-The requester holds a `LegalDesignationCredential` about themselves, from an
-authority this asset accepts for that fact, whose `hasLegalForm` is one of the
-not-for-profit ISO 20275 legal forms the owner lists.
+It reads LegalDesignationCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
 
-| Role | Fact | About | Read from it |
-|------|------|-------|--------------|
-| User | `LegalDesignationCredential` | the requester | `hasLegalForm` |
+The card is a graph of policy components. Each takes credentials, from the requester's presentation or
+from the components before it, and outputs a credential of its own; the last, Grant download, issues
+`do_download`, encrypted to the requester's session key (the key in their `publicKeyCredential`).
 
-**Parameters**
+| Policy Component | What it checks |
+|---|---|
+| NotForProfitOrganisationUseOnly | It reads LegalDesignationCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes. |
+| Grant download | The end of every download card. Issues do_download to the holder of the key when the card granted that same person: the publicKeyCredential and the DownloadGrantCredential must be about the same subject. The channel key is the key in the publicKeyCredential. |
 
-- `nonprofitLegalForms` — ISO 20275 ELF codes of the legal forms that count as
-  not-for-profit. Preset: `["V2VJ", "8ES1"]`.
+**Presented credentials**, each from an authority the asset's owner accepts for its type:
 
-Each fact must be about the holder of its role, and from an authority this asset
-accepts for that type. The card names no operation: the delivery module of the
-asset's guardian does.
+| Role | Credential | About | Claims read |
+|---|---|---|---|
+| User | Legal designation (`LegalDesignationCredential`) | the requester | `hasLegalForm` |
+| User | Session key (`publicKeyCredential`) | the requester | `key` |
 
-> The executable rule is [`policy.rego`](policy.rego); this file is its
-> human-readable companion, and [`card.json`](card.json) is its manifest.
+**Parameters:**
+
+- **NotForProfitOrganisationUseOnly · `nonprofitLegalForms`** (array of strings): ISO 20275 ELF codes the data owner treats as not-for-profit; a LegalDesignationCredential qualifies if its hasLegalForm is in this list. If the key is missing, nothing qualifies and access is denied.
+
+> The card is [`graph.json`](graph.json), decided as [`graph_vectors.json`](graph_vectors.json) says; its
+> components are in [`policy_components/`](../../policy_components/), and [`card.json`](card.json) names it.

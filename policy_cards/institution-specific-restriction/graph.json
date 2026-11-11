@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "name": "Institution Specific Restriction",
+  "root": "grant_download",
+  "nodes": {
+    "institution_specific_restriction": {
+      "component": "institution_specific_restriction",
+      "inputs": {
+        "affiliation": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "grant_download": {
+      "component": "grant_download",
+      "inputs": {
+        "key": {
+          "from": "presented"
+        },
+        "grant": {
+          "from": "node",
+          "node": "institution_specific_restriction",
+          "accept_presented": false
+        }
+      },
+      "policy_data": {}
+    }
+  },
+  "trusted_issuers": {
+    "AffiliationCredential": [],
+    "publicKeyCredential": []
+  }
+}

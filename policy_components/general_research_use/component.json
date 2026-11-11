@@ -1,0 +1,29 @@
+{
+  "name": "GeneralResearchUse",
+  "group": "card",
+  "summary": "The card component of General Research Use (DUO_0000042). It reads AgreementCredential, compares it with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "agreement": {
+      "type": "AgreementCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "agreementInfo.documentID"
+      ]
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "requiredDocumentID": {
+      "type": "string",
+      "description": "DID of the terms document the requester must accept. An AgreementCredential qualifies only if claims.agreementInfo.documentID equals it."
+    }
+  },
+  "card": "general-research-use",
+  "duo": "DUO_0000042",
+  "changes_from_today": []
+}

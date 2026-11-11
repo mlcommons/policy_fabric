@@ -1,0 +1,41 @@
+{
+  "name": "TimeLimitOnUse",
+  "group": "card",
+  "summary": "The card component of Time Limit on Use (DUO_0000025). It reads AgreementCredential and ComputeEnvironmentCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "agreement": {
+      "type": "AgreementCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "agreementInfo.documentID"
+      ]
+    },
+    "computeEnvironment": {
+      "type": "ComputeEnvironmentCredential",
+      "about": "compute",
+      "role": "User",
+      "claims": [
+        "hasComputeProfile.profile.shutsDownAt"
+      ]
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "requiredDocumentID": {
+      "type": "string",
+      "description": "DID of the terms document the requester must accept. An AgreementCredential qualifies if claims.agreementInfo.documentID equals it."
+    },
+    "notAfter": {
+      "type": "string (ISO-8601 datetime)",
+      "description": "Deadline. A ComputeEnvironmentCredential qualifies if hasComputeProfile.profile.shutsDownAt <= notAfter, compared as strings. It is never compared with the current time."
+    }
+  },
+  "card": "time-limit-on-use",
+  "duo": "DUO_0000025",
+  "changes_from_today": []
+}

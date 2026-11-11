@@ -1,0 +1,227 @@
+{
+  "registry": {
+    "TeamCredential": ["did:example:registry"],
+    "ProjectOwnershipCredential": ["did:example:registry"],
+    "AffiliationCredential": ["did:example:registry"],
+    "EthicsCommitteeAccreditationCredential": ["did:example:registry"],
+    "IRBApprovalCredential": ["did:example:dac"],
+    "IntendedDataUseCredential": ["did:example:dac"],
+    "publicKeyCredential": ["did:example:platform"],
+    "ProjectMembershipCredential": ["did:example:research-office"],
+    "IRBClearanceCredential": ["did:example:research-office"]
+  },
+  "request": {"channel_key": "PUBKEY-USER-1"},
+  "policy_data": {
+    "project_membership": {},
+    "institutional_irb_approval": {},
+    "irb_clearance": {},
+    "ethics_approval_required": {},
+    "grant_download": {}
+  },
+  "credentials": {
+    "team": {"type": "TeamCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
+             "subject": "did:example:user-1", "claims": {"MemberOfTeamOf": "did:example:pi-1"}},
+    "team_of_another_pi": {"type": "TeamCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
+                           "subject": "did:example:user-1", "claims": {"MemberOfTeamOf": "did:example:pi-2"}},
+    "ownership": {"type": "ProjectOwnershipCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
+                  "subject": "did:example:pi-1", "claims": {"Owns": "did:example:project-1"}},
+    "accreditation": {"type": "EthicsCommitteeAccreditationCredential", "issuer": "did:example:registry",
+                      "signer": "did:example:registry", "subject": "did:example:committee-1",
+                      "claims": {"ResponsibleFor": "did:example:institution-1"}},
+    "irb": {"type": "IRBApprovalCredential", "issuer": "did:example:dac", "signer": "did:example:dac",
+            "subject": "did:example:project-1",
+            "claims": {"isApprovedByEthicsCommittee": "did:example:committee-1", "purposes": ["HMB", "DS"]}},
+    "affiliation": {"type": "AffiliationCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
+                    "subject": "did:example:user-1",
+                    "claims": {"isMemberOf": "did:example:institution-1", "typeOfMembership": "staff"}},
+    "pi_affiliation": {"type": "AffiliationCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
+                       "subject": "did:example:pi-1",
+                       "claims": {"isMemberOf": "did:example:institution-1", "typeOfMembership": "faculty"}},
+    "use": {"type": "IntendedDataUseCredential", "issuer": "did:example:dac", "signer": "did:example:dac",
+            "subject": "did:example:project-1",
+            "claims": {"useOnlyFor": {"purposes": ["HMB"], "diseases": ["MONDO:0005015"]}}},
+    "key": {"type": "publicKeyCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
+            "subject": "did:example:user-1", "claims": {"key": "PUBKEY-USER-1"}},
+    "membership": {"type": "ProjectMembershipCredential", "issuer": "did:example:research-office",
+                   "signer": "did:example:research-office", "subject": "did:example:user-1",
+                   "claims": {"project": "did:example:project-1"}},
+    "clearance": {"type": "IRBClearanceCredential", "issuer": "did:example:research-office",
+                  "signer": "did:example:research-office", "subject": "did:example:user-1",
+                  "claims": {"project": "did:example:project-1", "purposes": ["HMB"]}}
+  },
+  "vectors": [
+    {
+      "name": "allow: the whole chain, with the requester's affiliation",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"],
+                 "verified": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]}
+    },
+    {
+      "name": "deny: only the PI's affiliation, which today's card reads",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "pi_affiliation", "use", "key"]},
+      "change": {},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the committee is not responsible for the requester's institution",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {"accreditation": {"claims": {"ResponsibleFor": "did:example:institution-2"}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the requester belongs to another institution",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {"affiliation": {"claims": {"isMemberOf": "did:example:institution-2"}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the IRB approved another project",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {"irb": {"subject": "did:example:project-2"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the intended use is another project's",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {"use": {"subject": "did:example:project-2"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the requester is not on the team of the PI who owns the project",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {"team": {"claims": {"MemberOfTeamOf": "did:example:pi-2"}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: an unaccredited committee approved the project",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {"irb": {"claims": {"isApprovedByEthicsCommittee": "did:example:committee-2"}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: a purpose the IRB did not approve",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["HMB", "POA"]}}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: an intended use that names no purpose",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {"use": {"claims": {"useOnlyFor": {"purposes": []}}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the key of someone else",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {"key": {"subject": "did:example:user-2"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: a key other than the one the request names",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {"key": {"claims": {"key": "PUBKEY-OTHER"}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: no TeamCredential",
+      "present": {"User": ["ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "project_membership", "input": "team"}]}
+    },
+    {
+      "name": "deny: no ProjectOwnershipCredential",
+      "present": {"User": ["team", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "project_membership", "input": "ownership"}]}
+    },
+    {
+      "name": "deny: no EthicsCommitteeAccreditationCredential",
+      "present": {"User": ["team", "ownership", "irb", "affiliation", "use", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "institutional_irb_approval", "input": "accreditation"}]}
+    },
+    {
+      "name": "deny: no IRBApprovalCredential",
+      "present": {"User": ["team", "ownership", "accreditation", "affiliation", "use", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "institutional_irb_approval", "input": "irb"}]}
+    },
+    {
+      "name": "deny: no AffiliationCredential",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "use", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "irb_clearance", "input": "affiliation"}]}
+    },
+    {
+      "name": "deny: no IntendedDataUseCredential",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "ethics_approval_required", "input": "use"}]}
+    },
+    {
+      "name": "deny: no publicKeyCredential",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+    },
+    {
+      "name": "allow: two TeamCredentials, only one on the owning PI's team, cites that one",
+      "present": {"User": ["team_of_another_pi", "team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"],
+                 "verified": ["team_of_another_pi", "team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]}
+    },
+    {
+      "name": "deny: an IRBApprovalCredential whose issuer is not its signer",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {"irb": {"signer": "did:example:registry"}},
+      "expect": {"decision": false, "missing": [{"node": "institutional_irb_approval", "input": "irb"}]}
+    },
+    {
+      "name": "deny: an IRBApprovalCredential from an issuer the contract does not trust",
+      "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {"irb": {"issuer": "did:example:hospital-irb", "signer": "did:example:hospital-irb"}},
+      "expect": {"decision": false, "missing": [{"node": "institutional_irb_approval", "input": "irb"}]}
+    },
+    {
+      "name": "allow: a trusted IRBClearanceCredential stands in for the approval, accreditation, affiliation, team and ownership",
+      "present": {"User": ["clearance", "use", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["clearance", "use", "key"], "verified": ["clearance", "use", "key"]}
+    },
+    {
+      "name": "deny: an IRBClearanceCredential from an untrusted issuer, and nothing else",
+      "present": {"User": ["clearance", "use", "key"]},
+      "change": {"clearance": {"issuer": "did:example:hospital-irb", "signer": "did:example:hospital-irb"}},
+      "expect": {"decision": false, "missing": [
+        {"node": "institutional_irb_approval", "input": "accreditation"},
+        {"node": "institutional_irb_approval", "input": "irb"},
+        {"node": "irb_clearance", "input": "affiliation"},
+        {"node": "project_membership", "input": "ownership"},
+        {"node": "project_membership", "input": "team"}
+      ]}
+    },
+    {
+      "name": "allow: a trusted ProjectMembershipCredential stands in for the team and ownership",
+      "present": {"User": ["membership", "accreditation", "irb", "affiliation", "use", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["membership", "accreditation", "irb", "affiliation", "use", "key"],
+                 "verified": ["membership", "accreditation", "irb", "affiliation", "use", "key"]}
+    },
+    {
+      "name": "deny: a clearance for purposes that do not cover the intended use",
+      "present": {"User": ["clearance", "use", "key"]},
+      "change": {"clearance": {"claims": {"purposes": ["DS"]}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    }
+  ]
+}

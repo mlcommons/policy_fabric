@@ -1,0 +1,119 @@
+{
+  "registry": {
+    "TeamCredential": ["did:example:registry"],
+    "ProjectOwnershipCredential": ["did:example:registry"],
+    "IntendedDataUseCredential": ["did:example:dac"],
+    "AgreementCredential": ["did:example:platform"],
+    "publicKeyCredential": ["did:example:platform"],
+    "ProjectMembershipCredential": ["did:example:research-office"]
+  },
+  "request": {"channel_key": "PUBKEY-USER-1"},
+  "policy_data": {
+    "project_membership": {},
+    "disease_specific_research": {"allowedDiseases": ["MONDO:0005148", "MONDO:0005015"]},
+    "grant_download": {}
+  },
+  "credentials": {
+    "team": {"type": "TeamCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
+             "subject": "did:example:user-1", "claims": {"MemberOfTeamOf": "did:example:pi-1"}},
+    "ownership": {"type": "ProjectOwnershipCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
+                  "subject": "did:example:pi-1", "claims": {"Owns": "did:example:project-1"}},
+    "use": {"type": "IntendedDataUseCredential", "issuer": "did:example:dac", "signer": "did:example:dac",
+            "subject": "did:example:project-1",
+            "claims": {"useOnlyFor": {"purposes": ["HMB"], "diseases": ["MONDO:0005148"]}}},
+    "agreement": {"type": "AgreementCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
+                  "subject": "did:example:user-1",
+                  "claims": {"agreementInfo": {"documentID": "did:example:terms", "documentVersion": "1.0"}}},
+    "key": {"type": "publicKeyCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
+            "subject": "did:example:user-1", "claims": {"key": "PUBKEY-USER-1"}},
+    "membership": {"type": "ProjectMembershipCredential", "issuer": "did:example:research-office",
+                   "signer": "did:example:research-office", "subject": "did:example:user-1",
+                   "claims": {"project": "did:example:project-1"}}
+  },
+  "vectors": [
+    {
+      "name": "allow: the project intends a disease the owner allows",
+      "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["team", "ownership", "use", "agreement", "key"],
+                 "verified": ["team", "ownership", "use", "agreement", "key"]}
+    },
+    {
+      "name": "deny: a disease the owner does not allow",
+      "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
+      "change": {"use": {"claims": {"useOnlyFor": {"diseases": ["MONDO:9999999"]}}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the intended use of another project",
+      "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
+      "change": {"use": {"subject": "did:example:project-2"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the requester is not on the team of the PI who owns the project",
+      "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
+      "change": {"team": {"claims": {"MemberOfTeamOf": "did:example:pi-2"}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the agreement of someone else",
+      "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
+      "change": {"agreement": {"subject": "did:example:user-2"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the key of someone else",
+      "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
+      "change": {"key": {"subject": "did:example:user-2"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: no TeamCredential",
+      "present": {"User": ["ownership", "use", "agreement", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "project_membership", "input": "team"}]}
+    },
+    {
+      "name": "deny: no ProjectOwnershipCredential",
+      "present": {"User": ["team", "use", "agreement", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "project_membership", "input": "ownership"}]}
+    },
+    {
+      "name": "deny: no IntendedDataUseCredential",
+      "present": {"User": ["team", "ownership", "agreement", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "disease_specific_research", "input": "intendedDataUse"}]}
+    },
+    {
+      "name": "deny: no AgreementCredential",
+      "present": {"User": ["team", "ownership", "use", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "disease_specific_research", "input": "agreement"}]}
+    },
+    {
+      "name": "deny: no publicKeyCredential",
+      "present": {"User": ["team", "ownership", "use", "agreement"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+    },
+    {
+      "name": "deny: an IntendedDataUseCredential from an issuer the contract does not trust",
+      "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
+      "change": {"use": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
+      "expect": {"decision": false, "missing": [{"node": "disease_specific_research", "input": "intendedDataUse"}]}
+    },
+    {
+      "name": "allow: a trusted ProjectMembershipCredential stands in for the team and ownership",
+      "present": {"User": ["membership", "use", "agreement", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["membership", "use", "agreement", "key"],
+                 "verified": ["membership", "use", "agreement", "key"]}
+    }
+  ]
+}

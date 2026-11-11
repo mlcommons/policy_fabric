@@ -1,0 +1,81 @@
+{
+  "registry": {
+    "UserPlatformCredential": ["did:example:platform"],
+    "publicKeyCredential": ["did:example:platform"]
+  },
+  "request": {"channel_key": "PUBKEY-USER-1"},
+  "policy_data": {
+    "user_specific_restriction": {
+      "approvedUsers": ["did:example:user-1"],
+      "allowedAccountTypes": ["institutional"],
+      "requiredProfileStatuses": ["verified"]
+    },
+    "grant_download": {}
+  },
+  "credentials": {
+    "account": {"type": "UserPlatformCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
+                "subject": "did:example:user-1",
+                "claims": {"userId": "did:example:user-1", "accountType": "individual", "profileStatus": "pending", "isUser": true}},
+    "key": {"type": "publicKeyCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
+            "subject": "did:example:user-1", "claims": {"key": "PUBKEY-USER-1"}}
+  },
+  "vectors": [
+    {
+      "name": "allow: the requester is an approved user",
+      "present": {"User": ["account", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["account", "key"],
+                 "verified": ["account", "key"]}
+    },
+    {
+      "name": "allow: not an approved user, but of an allowed account type",
+      "present": {"User": ["account", "key"]},
+      "change": {"account": {"claims": {"userId": "did:example:user-unknown", "accountType": "institutional"}}},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["account", "key"],
+                 "verified": ["account", "key"]}
+    },
+    {
+      "name": "allow: not an approved user, but of a profile status the owner accepts",
+      "present": {"User": ["account", "key"]},
+      "change": {"account": {"claims": {"userId": "did:example:user-unknown", "profileStatus": "verified"}}},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["account", "key"],
+                 "verified": ["account", "key"]}
+    },
+    {
+      "name": "deny: not an approved user, nor of an allowed account type or accepted profile status",
+      "present": {"User": ["account", "key"]},
+      "change": {"account": {"claims": {"userId": "did:example:user-unknown"}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the key of someone else",
+      "present": {"User": ["account", "key"]},
+      "change": {"key": {"subject": "did:example:user-2"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: no UserPlatformCredential",
+      "present": {"User": ["key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "user_specific_restriction", "input": "userPlatform"}]}
+    },
+    {
+      "name": "deny: no publicKeyCredential",
+      "present": {"User": ["account"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+    },
+    {
+      "name": "deny: a UserPlatformCredential from an issuer the contract does not trust",
+      "present": {"User": ["account", "key"]},
+      "change": {"account": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
+      "expect": {"decision": false, "missing": [{"node": "user_specific_restriction", "input": "userPlatform"}]}
+    }
+  ]
+}

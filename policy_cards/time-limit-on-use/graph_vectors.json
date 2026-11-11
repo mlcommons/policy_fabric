@@ -1,0 +1,84 @@
+{
+  "registry": {
+    "AgreementCredential": ["did:example:platform"],
+    "ComputeEnvironmentCredential": ["did:example:compute-provider"],
+    "publicKeyCredential": ["did:example:platform"]
+  },
+  "request": {"channel_key": "PUBKEY-USER-1"},
+  "policy_data": {
+    "time_limit_on_use": {"requiredDocumentID": "did:example:terms-1", "notAfter": "2027-12-31T23:59:59Z"},
+    "grant_download": {}
+  },
+  "credentials": {
+    "agreement": {"type": "AgreementCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
+                  "subject": "did:example:user-1",
+                  "claims": {"agreementInfo": {"documentID": "did:example:terms-1", "documentVersion": "1.0"}}},
+    "compute": {"type": "ComputeEnvironmentCredential", "issuer": "did:example:compute-provider",
+                "signer": "did:example:compute-provider", "subject": "did:example:node-1",
+                "claims": {"hasComputeProfile": {"profile": {"SecureHandlingOfResults": true, "shutsDownAt": "2027-06-01T00:00:00Z"}}}},
+    "key": {"type": "publicKeyCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
+            "subject": "did:example:user-1", "claims": {"key": "PUBKEY-USER-1"}}
+  },
+  "vectors": [
+    {
+      "name": "allow: the requester accepted the terms and the compute environment shuts down before the deadline",
+      "present": {"User": ["agreement", "compute", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["agreement", "compute", "key"],
+                 "verified": ["agreement", "compute", "key"]}
+    },
+    {
+      "name": "allow: a compute environment that shuts down at the deadline",
+      "present": {"User": ["agreement", "compute", "key"]},
+      "change": {"compute": {"claims": {"hasComputeProfile": {"profile": {"shutsDownAt": "2027-12-31T23:59:59Z"}}}}},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["agreement", "compute", "key"],
+                 "verified": ["agreement", "compute", "key"]}
+    },
+    {
+      "name": "deny: a compute environment that shuts down after the deadline",
+      "present": {"User": ["agreement", "compute", "key"]},
+      "change": {"compute": {"claims": {"hasComputeProfile": {"profile": {"shutsDownAt": "2028-06-01T00:00:00Z"}}}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: an agreement to another terms document",
+      "present": {"User": ["agreement", "compute", "key"]},
+      "change": {"agreement": {"claims": {"agreementInfo": {"documentID": "did:example:terms-other"}}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the key of someone else",
+      "present": {"User": ["agreement", "compute", "key"]},
+      "change": {"key": {"subject": "did:example:user-2"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: no AgreementCredential",
+      "present": {"User": ["compute", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "time_limit_on_use", "input": "agreement"}]}
+    },
+    {
+      "name": "deny: no ComputeEnvironmentCredential",
+      "present": {"User": ["agreement", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "time_limit_on_use", "input": "computeEnvironment"}]}
+    },
+    {
+      "name": "deny: no publicKeyCredential",
+      "present": {"User": ["agreement", "compute"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+    },
+    {
+      "name": "deny: a ComputeEnvironmentCredential from an issuer the contract does not trust",
+      "present": {"User": ["agreement", "compute", "key"]},
+      "change": {"compute": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
+      "expect": {"decision": false, "missing": [{"node": "time_limit_on_use", "input": "computeEnvironment"}]}
+    }
+  ]
+}

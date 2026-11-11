@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "name": "Geographical Restriction",
+  "root": "grant_download",
+  "nodes": {
+    "geographical_restriction": {
+      "component": "geographical_restriction",
+      "inputs": {
+        "location": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "grant_download": {
+      "component": "grant_download",
+      "inputs": {
+        "key": {
+          "from": "presented"
+        },
+        "grant": {
+          "from": "node",
+          "node": "geographical_restriction",
+          "accept_presented": false
+        }
+      },
+      "policy_data": {}
+    }
+  },
+  "trusted_issuers": {
+    "LocationCredential": [],
+    "publicKeyCredential": []
+  }
+}

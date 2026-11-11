@@ -1,0 +1,43 @@
+{
+  "name": "PopulationOriginsOrAncestryResearchProhibited",
+  "group": "card",
+  "summary": "The card component of Population Origins or Ancestry Research Prohibited (DUO_0000044). It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "projectMembership": {
+      "type": "ProjectMembershipCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "project"
+      ]
+    },
+    "intendedDataUse": {
+      "type": "IntendedDataUseCredential",
+      "about": "project",
+      "role": "User",
+      "claims": [
+        "useOnlyFor.purposes"
+      ]
+    },
+    "agreement": {
+      "type": "AgreementCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": []
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "prohibitedPurposes": {
+      "type": "array of strings",
+      "description": "Purpose terms, as they appear in IntendedDataUseCredential.useOnlyFor.purposes, that disqualify an IDU: an IDU is usable only if none of its purposes is in this list."
+    }
+  },
+  "card": "population-origins-or-ancestry-research-prohibited",
+  "duo": "DUO_0000044",
+  "changes_from_today": []
+}

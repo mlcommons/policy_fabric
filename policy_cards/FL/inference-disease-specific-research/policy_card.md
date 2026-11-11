@@ -7,7 +7,7 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 1  Identification
 
 - **id:** `card.fl.inference-0000007-ds`
-- **version:** 2.0.0
+- **version:** 3.0.0
 - **status:** draft
 - **title:** Disease-specific inference (FL-DS)
 - **description:** Permit an inference run only for a script that declares a use
@@ -28,18 +28,14 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 |---------|------------|-----------|----------|--------------------------------------------------------|
 | 1.0.0   | 2026-08-20 | MLCommons | draft    | Initial card, adapting DUO_0000007 DS to inference runs. |
 | 2.0.0   | 2026-10-02 | MLCommons | draft    | Reads one fact per holder; evidence chains and delivery moved out. |
+| 3.0.0   | 2026-11-10 | MLCommons | released | A graph of policy components: the chain is joined in the policy, and a joined credential an owner accepts may be presented instead. |
 
 ## 4  Summary & Intent
 
-The data stays put and a script runs against it, so this card asks what the code
-is for rather than who is asking. The script asset holds an
-`IntendedDataUseCredential` about itself, from an authority this site accepts,
-and at least one of its `useOnlyFor.diseases` must be in the owner's
-`allowedDiseases`.
+It reads IntendedDataUseCredential and ScriptHashCredential, compares them with its policy data, and outputs the InferenceGrantCredential that Grant inference takes.
 
-Which script runs is fixed by the inference delivery module, which authorizes
-the digest of the same script asset; both read facts about the one `Script`
-holder.
+The card is a graph of policy components: each takes credentials, presented or produced by the
+components before it, and outputs one of its own, until Grant inference issues the capability.
 
 - **Governance objective:** restrict inference to code declared for the diseases
   the data is consented for.
@@ -48,54 +44,40 @@ holder.
 
 ```text
 Permission: use the target dataset through its guardian
-  Assignee:  the requester (the holder of each role's presentation)
-  Conditions (all must hold):
-    - an IntendedDataUseCredential about the script lists a disease ∈ allowedDiseases
-    - each credential is from an authority the owner accepts for its type
-  On grant:  the operation the guardian's delivery module names
+  Assignee:  the requester
+  Conditions (all must hold), as the graph's components check them:
+    - DiseaseSpecificResearchForInference: It reads IntendedDataUseCredential and ScriptHashCredential, compares them with its policy data, and outputs the InferenceGrantCredential that Grant inference takes.
+    - Grant inference: every card granted the script the request names, with that digest
+    - each presented credential is from an authority the owner accepts for its type
+  On grant:  do_inference for the digest of the script the request names
   Otherwise: deny
 ```
 
 ## 6  Associated Credentials (Evidence Requirements)
 
-Every type resolves to a schema in [`../../../credentials/`](../../../credentials/).
+Every type resolves to a schema in [`credentials/`](../../../credentials/).
 
-| Role | Credential type | About | Claims consumed |
-|------|-----------------|-------|-----------------|
-| Script | `IntendedDataUseCredential` | the script | `useOnlyFor.diseases` |
-
-Each credential must be about the holder of its role: facts about third parties
--- a PI, a project, a committee -- are inputs to authorities, never to this
-card.
+| Role | Credential | About | Claims read |
+|---|---|---|---|
+| Script | Intended data use (`IntendedDataUseCredential`) | the script | `useOnlyFor.diseases` |
+| Script | Script digest (`ScriptHashCredential`) | the script | `scriptHash` |
 
 ## 7  Reference Values Schema
 
-The values the data owner configures, as a JSON Schema in
-[`card.json`](card.json) (`parameters`), which also generates the owner's form:
-
-```json
-{
-  "allowedDiseases": ["string"]
-}
-```
-
-- `allowedDiseases` — MONDO codes of the diseases research may study.
+- **DiseaseSpecificResearchForInference · `allowedDiseases`** (array of strings): Allowed MONDO disease codes. An IntendedDataUseCredential qualifies if any entry of claims.useOnlyFor.diseases is in this list.
 
 ## 8  Capability Granted
 
-None of its own. A card decides; it does not deliver. The asset's guardian type
-picks one delivery module, which describes the policy decision: `do_download`
-with the requester's channel key for a download guardian, `do_inference` with
-the approved script's digest for an inference guardian. The policy agent issues
-the decision only if every card on the asset allows, and the asset's token turns
-it into the capability.
+`do_inference` for the digest of the script the request names, issued by Grant inference. With several cards on one
+asset, their graphs compose into one under that component, which issues the capability only when
+every card granted it.
 
 ## 9  Codified Representation
 
-The rule is codified in Rego as [`policy.rego`](policy.rego), with unit tests in
-[`policy_test.rego`](policy_test.rego). It reads `input.presentations`,
-`input.holders`, `input.request` and this card's own `input.policy_data`, and
-returns the decision and the credentials to verify.
+The card is [`graph.json`](graph.json), a graph of the components in
+[`policy_components/`](../../../policy_components/), each a Rego module with its
+own unit tests. [`graph_vectors.json`](graph_vectors.json) states the decisions the graph must reach; the
+contract, the reference implementation in pdo-contracts (`pdo.rego.graph`) and the card tests run them.
 
 ## 10  Legal & Disclaimers
 

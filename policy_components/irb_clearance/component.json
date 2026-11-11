@@ -1,0 +1,42 @@
+{
+  "name": "IRBClearance",
+  "group": "shared",
+  "summary": "The requester belongs to the institution whose accredited IRB approved the requester's project. Checks that the AffiliationCredential is the requester's, that its isMemberOf is the approval's institution, and that the approved project is the requester's project; outputs, for the requester, the project and the approved purposes.",
+  "inputs": {
+    "approval": {
+      "type": "InstitutionalIRBApprovalCredential",
+      "about": "project",
+      "role": "User",
+      "claims": [
+        "institution",
+        "purposes"
+      ]
+    },
+    "affiliation": {
+      "type": "AffiliationCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "isMemberOf"
+      ]
+    },
+    "membership": {
+      "type": "ProjectMembershipCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "project"
+      ]
+    }
+  },
+  "output": {
+    "type": "IRBClearanceCredential",
+    "about": "requester",
+    "claims": [
+      "project",
+      "purposes"
+    ]
+  },
+  "policy_data": {},
+  "changes_from_today": []
+}
