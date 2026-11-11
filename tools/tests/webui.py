@@ -439,15 +439,6 @@ def create_hand_signing_authority(runner, name, *, facts, checks):
     return _create_authority(runner, name, "hand-signing", choose)
 
 
-def create_rule_based_authority(runner, name, *, card):
-    """A rule-based authority made from an authority card."""
-
-    def choose():
-        click(runner.driver, f"#create-authority-modal [data-template='{card}'] input")
-
-    return _create_authority(runner, name, "rule-based", choose)
-
-
 def create_system_authority(runner, name):
     """A session-key authority, with the wallet key authority it comes with."""
     return _create_authority(runner, name, "system", lambda: None)
@@ -486,55 +477,33 @@ def sign_as_wallet(runner, *, fact, about, claims):
     _sign(runner, fact, about, claims, lambda: None)
 
 
-def accept_authority(runner, fact, authority):
-    """On an open trust panel, accept an authority for one fact, by its name."""
-    driver = runner.driver
-    row = f"#trust-panel tr[data-fact={fact}]"
-    chosen = driver.execute_script(
-        """
-        var select = document.querySelector(arguments[0] + ' [data-accept-select]');
-        if (!select) { return false; }
-        for (var i = 0; i < select.options.length; i++) {
-            if (select.options[i].textContent.indexOf(arguments[1] + ' ·') === 0) {
-                select.value = select.options[i].value;
-                select.dispatchEvent(new Event('change', {bubbles: true}));
-                return true;
-            }
-        }
-        return false;
-        """,
-        row,
-        authority,
-    )
-    if not chosen:
-        raise StepFailed(f"{authority!r} is not offered for {fact}")
-    click(driver, f"{row} [data-action=accept]")
-    wait(driver, SHORT_WAIT * 4).until(
-        lambda d: d.find_elements(By.CSS_SELECTOR, f"{row} .trust-entry[data-authority='{authority}']")
-    )
-    print(f"      {fact}: accepted {authority}", flush=True)
-
-
 # ---------------------------------------------------------------------- expose
 READ_REVIEW = "return (document.getElementById('expose-review') || {}).textContent || '';"
 
 
 def expose(runner, *, asset, cards, parameters, authorities):
-    """Expose an owned asset from its dashboard's Expose panel.
+    """Expose an owned asset from its dashboard's Expose panel, with the graph its
+    cards compose into.
 
-    ``cards`` are policy template names; ``parameters`` maps a card to the values
-    of its parameter form; ``authorities`` maps each fact to the names of the
-    authorities to accept for it. A fact preselected by the page is checked
-    against the list rather than clicked again. Returns the review line.
+    ``cards`` are policy template names; ``parameters`` maps a node of the composed
+    graph to the values of its parameter form; ``authorities`` maps a credential type
+    to the names of the authorities to accept for it (a type left out gets none, and a
+    type the page preselects is checked against the list rather than clicked again).
+    Returns the review line.
     """
     open_own_asset(runner, asset)
     driver = runner.driver
     visible(driver, "#expose-panel")
     for card in cards:
         click(driver, f"#expose-cards .option-item[data-card='{card}'] input")
-    for card, values in parameters.items():
-        fill_schema_form(driver, f"#expose-parameters fieldset[data-parameters='{card}'] > div", values)
-
+    # the panel composes the graph on the server, then draws its parameters and types
+    wait(driver, SHORT_WAIT * 2).until(lambda d: d.find_elements(By.CSS_SELECTOR, "#expose-graph .pcw"))
+    for fact in authorities:
+        wait(driver, SHORT_WAIT).until(
+            lambda d: d.find_elements(By.CSS_SELECTOR, f"#expose-authorities .fact-row[data-fact={fact}]")
+        )
+    for node, values in parameters.items():
+        fill_schema_form(driver, f"#expose-parameters fieldset[data-parameters='{node}'] > div", values)
     for fact, names in authorities.items():
         for name in names:
             box = driver.find_elements(
@@ -545,6 +514,8 @@ def expose(runner, *, asset, cards, parameters, authorities):
             if not box:
                 raise StepFailed(f"the panel does not offer {name!r} for {fact}")
             if not box[0].is_selected():
+                # a graph's list of types is long; keep the box clear of the sticky navbar
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", box[0])
                 box[0].click()
 
     review = driver.execute_script(READ_REVIEW)

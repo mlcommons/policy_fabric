@@ -24,7 +24,7 @@ In this tutorial the **Dataset Owner** attaches the following **two policies** t
 ### What you'll do in this tutorial
 
 1. The **Trusted Issuer** creates two **authorities**. The first is a *hand-signing* authority, a registry office that attests where people are and which institution they belong to; it signs two credentials for the Dataset User — one saying the user resides in the US, one saying they belong to `did:example:best_university`. The second is a *system* authority for session keys: it issues the **Dataset User** a session key the moment they actually request the data, so the data can be sent back to them securely. **Important**: the signed credentials alone don't unlock access to the dataset. The policy protecting the dataset unlocks it only if the credentials contain suitable claims AND are signed by an authority the Dataset Owner accepts.
-2. The **Dataset Owner** publishes the dataset — starts a **Guardian** that holds it, picks the two policies, and, for each fact the policies read, chooses which authority to accept.
+2. The **Dataset Owner** publishes the dataset — starts a **Guardian** that holds it, picks the two policies, whose graphs of policy components compose into one, and, for each credential the graph reads, chooses which authority to accept.
 3. The **Dataset User** requests the dataset. A checklist first shows what they hold and what will be obtained on the way. The session key is obtained automatically, the policies are checked by the Policy Engine, and the file comes back encrypted for their session key and is decrypted for them on screen.
 
 ---
@@ -44,14 +44,13 @@ Everything runs against a single client identity at a time. This means you chang
 !!! note "Useful terminologies"
 
     - **Wallet** — your personal container for credentials. It has a unique id (a **DID**) like `did:pdo:…`.
-    - **Fact** — what a policy needs to know about the requester, such as their *location* or *affiliation*. A fact arrives as a signed **credential**.
-    - **Authority** — whoever establishes a fact. You create one on the **Authorities** page. There are three kinds:
+    - **Credential** — a signed statement about someone or something, such as the requester's *location* or *affiliation*.
+    - **Authority** — whoever issues a credential. You create one on the **Authorities** page. There are two kinds:
         - **Hand-signing** — a person or office signs a credential after its own review, by clicking **Sign Credential**.
-        - **Rule-based** — a locked rule issues the fact from other facts (see the [ethics approval tutorial](tutorial_irb.md)).
-        - **System** — establishes facts the system itself can check, such as a session key bound to a wallet. Nobody signs anything by hand: the app calls on it when a requester needs one.
+        - **System** — issues credentials the system itself can check, such as a session key bound to a wallet. Nobody signs anything by hand: the app calls on it when a requester needs one.
     - **Session key** — an RSA key pair the app generates for the user, through a session-key authority, the first time it's needed for a download. Data is encrypted to the **public** half; only the matching **private** half (kept locally) can open it.
     - **Guardian** — a service that holds the actual data file and hands it out (encrypted) only once a request has been approved.
-    - **Policy** — the owner's rules, enforced automatically. When a user asks for the data, the policy checks their credentials and, if they qualify, approves the download.
+    - **Policy** — the owner's rules, enforced automatically: a graph of small **policy components** that pass credentials to each other. When a user asks for the data, the policy checks their credentials and, if they qualify, approves the download.
 
 ---
 
@@ -98,10 +97,10 @@ You'll create two authorities here: a **hand-signing** one, which signs two cred
 
 1. Go to **Authorities** (navbar) → **+ Create Authority**.
 2. **Name:** `University registry`. **Kind:** **Hand-signing**.
-3. Under **Facts it attests**, check **Location** and **Affiliation**.
+3. Under **Credentials it signs**, check **Location** and **Affiliation**.
 4. **What it checks:** `Checks enrolment records before signing.` → **Create**.
 
-*What's happening:* a **wallet** stores credentials; an **authority** holds signing keys, so anything it signs can be traced back to it and checked. Creating it also lists it in the **directory**, with the facts it attests, so that a Dataset Owner can find it by name and accept it — nobody has to pass DIDs around.
+*What's happening:* a **wallet** stores credentials; an **authority** holds signing keys, so anything it signs can be traced back to it and checked. Creating it also lists it in the **directory**, with the credentials it signs, so that a Dataset Owner can find it by name and accept it — nobody has to pass DIDs around.
 
 ### 2.2 Create a session-key authority
 
@@ -114,19 +113,19 @@ You'll create two authorities here: a **hand-signing** one, which signs two cred
 
 1. Open `University registry` and click **Sign Credential**.
 2. Fill the modal:
-   - **Fact:** `Location`
+   - **Credential:** `Location`
    - **About:** the `USER_DID` from your notes (step 1.1)
    - **Deliver to wallet:** the same `USER_DID` — the credential goes to the wallet it is about
    - **Claims:** Street `1 Main`, Zip code `00000`, State `MA`, Country `US`
 3. Click **Sign & Deliver** — the credential is signed and stored in the Dataset User's wallet.
 
-*What's happening in the background:* the claims form is generated from the fact's JSON Schema, and the claims are checked against it before anything is signed. You, as the registry office, signed a verifiable statement saying that `data_user` (identified by their DID) is located in the US.
+*What's happening in the background:* the claims form is generated from the credential's JSON Schema, and the claims are checked against it before anything is signed. You, as the registry office, signed a verifiable statement saying that `data_user` (identified by their DID) is located in the US.
 
 ### 2.4 Issue the **Affiliation** credential
 
 1. On `University registry` → **Sign Credential**.
 2. Fill:
-   - **Fact:** `Affiliation`
+   - **Credential:** `Affiliation`
    - **About:** the `USER_DID` from your notes
    - **Deliver to wallet:** the same `USER_DID`
    - **Claims:** Is member of `did:example:best_university`, Type of membership `member`
@@ -158,21 +157,21 @@ For the tutorial's sake, the dataset is a single small file. **It is already cre
 
 ### 3.2 Expose the asset
 
-Still on `data1`, the **Expose** panel lists the policies that fit this asset's guardian.
+Still on `data1`, the **Expose** panel lists the policies that fit this asset's guardian. Each is a **policy card**: a graph of small **policy components** that pass credentials to each other. (Use **View** to see a card's graph, its description and the Rego of its own component.)
 
-1. **Policies:** check **GS · Geographical restriction** and **IS · Institution-specific restriction**. (Use **View** to read a policy card and its rule.) The panel also notes the delivery module every download asset gets: it releases the data encrypted to the requester's **session key**.
-2. **Parameters:** each policy gets its own form.
-      - **GS → Allowed countries:** `US`
-      - **IS → Allowed institutions:** `did:example:best_university`
-3. **Accepted authorities:** one row per fact the policies read.
+1. **Policies:** check **GS · Geographical restriction** and **IS · Institution-specific restriction**. Their graphs compose into one, drawn under the list: **GeographicalRestriction** reads the requester's location, **InstitutionSpecificRestriction** their affiliation, and both feed **Grant download**, which releases the data encrypted to the requester's **session key**.
+2. **Parameters:** each component that takes any gets its own form.
+      - **GeographicalRestriction → Allowed countries:** `US`
+      - **InstitutionSpecificRestriction → Allowed institutions:** `did:example:best_university`
+3. **Accepted authorities:** one row per credential the graph reads.
       - **Location:** check **University registry**.
       - **Affiliation:** check **University registry**.
-      - **Session key:** **Session keys** is already checked — it is the only authority in the directory that establishes it.
-4. **Review** reads: *Requesters will need: Location (University registry), Affiliation (University registry), Session key (automatic).* Click **Expose**.
+      - **Session key:** **Session keys** is already checked — it is the only authority in the directory that issues it.
+4. **Review** reads: *Requesters will present one of: Affiliation + Location + Session key.* Click **Expose**.
 
-*What's happening:* this creates the asset's **policy**: the two policies and the delivery module, each with its own parameters, and the authorities it accepts **for each fact**. The geographic rule checks a location in an allowed country, the institution rule checks membership in an allowed institution, and both read facts about the **same wallet** that presents them. A credential signed by an authority you did not accept counts for nothing here, and if you had allowed a different country, the policy would deny `data_user`, whose credential says `US`.
+*What's happening:* this creates the asset's **policy**: the composed graph, each component's parameters, and the authorities it accepts **for each credential type**. GeographicalRestriction checks a location in an allowed country, InstitutionSpecificRestriction checks membership in an allowed institution, and Grant download grants only when both granted the holder of the same session key. A credential signed by an authority you did not accept counts for nothing here, and if you had allowed a different country, the policy would deny `data_user`, whose credential says `US`.
 
-The asset is now fully published: dataset behind a guardian, gated by a policy that accepts both authorities. Its page now lists the policies, the accepted authorities by name and kind — with **Remove** to withdraw trust and **Accept** to add more — and each policy's parameters.
+The asset is now fully published: dataset behind a guardian, gated by a policy that accepts both authorities. Its page now draws the graph, lists the ways requesters can meet it and the accepted authorities by name and kind — with **Remove** to withdraw trust and **Accept** to add more — and a form for each component's parameters.
 
 ---
 
@@ -195,10 +194,10 @@ Finally, the **Dataset User** requests to download the dataset.
 
 *What's happening in the background* (the whole handshake, end to end):
 
-1. The checklist is built from public data only: the policy's requirements, the authorities it accepts, the directory, and your wallet. **Request Download** is enabled only once every fact is held or automatic; anything else names the authority to ask.
-2. The app gets the automatic facts first: it asks `Session keys` for a session key, which lands in your wallet as a `publicKeyCredential`.
-3. The app presents your wallet's credentials about you, and names the session key the data should be encrypted to.
-4. The **policy** checks that each credential is signed by an authority it accepts for that fact and that both policies pass — and since the same person satisfies both, it **approves** the request and issues a capability package naming your session key.
+1. The checklist is built from public data only: the credentials the policy's graph reads, the authorities it accepts, the directory, and your wallet. **Request Download** is enabled only once every credential is held or automatic; anything else names the authority to ask.
+2. The app gets the automatic credentials first: it asks `Session keys` for a session key, which lands in your wallet as a `publicKeyCredential`.
+3. The app presents your wallet's credentials of the types the graph reads, and names the session key the data should be encrypted to.
+4. The **policy** checks that each credential is signed by an authority it accepts for its type, runs the graph's components, and — since the same person satisfies both cards — **approves** the request and issues a capability package naming your session key.
 5. That capability package goes to the **guardian**, which encrypts the file to your session key and returns it.
 6. The app decrypts it with your **private** session key and shows you the data.
 
@@ -215,9 +214,9 @@ Session keys         ──issues──►  Session key        (at download time
                                    data_user's wallet
                                    │ presents
                                    ▼
-                                   Policy (GS + IS + download delivery)
-                                   │ accepts each authority for its facts
-                                   │ checks the policies
+                                   Policy (GS + IS, one graph)
+                                   │ accepts each authority for its credentials
+                                   │ runs the graph's components
                                    ▼
                                capability ──────────►  guardian
                                                         │ encrypts the file to

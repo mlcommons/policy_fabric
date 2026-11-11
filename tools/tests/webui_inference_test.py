@@ -10,7 +10,8 @@ browser instead, in the same order and with nothing added:
   authority that attests wallet keys;
 * **Hospital A** puts its cohort behind an inference guardian under **FL-DS**;
 * **Hospital B** puts its own cohort behind its own guardian under **FL-DS and
-  FL-IS together** -- modules of one policy agent, all of which must allow;
+  FL-IS together** -- their graphs composed into one, which grants only when both
+  cards do;
 * the script owner checks each site's readiness checklist and runs **one round**
   across both, filling the union of the roles the two sites ask for, and gets
   per-site metrics and one aggregate back.
@@ -101,6 +102,9 @@ ALLOWED_INSTITUTION = "did:example:best_university"
 
 DS_CARD = "FL-INFERENCE-DISEASE-SPECIFIC-RESEARCH"
 IS_CARD = "FL-INFERENCE-INSTITUTION-SPECIFIC-RESTRICTION"
+# the nodes of the cards' graphs that take the owners' parameters
+DS_NODE = "disease_specific_research_for_inference"
+IS_NODE = "institution_specific_restriction_for_inference"
 
 # A guardian answers /info before the FL client bundled with it has announced
 # itself, so a site can be up for a few seconds before it is listed.
@@ -527,7 +531,7 @@ def run_workflow(runner):
             runner,
             asset=ASSET_A,
             cards=[DS_CARD],
-            parameters={DS_CARD: {"allowedDiseases": [ALLOWED_DISEASE]}},
+            parameters={DS_NODE: {"allowedDiseases": [ALLOWED_DISEASE]}},
             authorities={
                 "IntendedDataUseCredential": [REVIEW_BOARD],
                 "ScriptHashCredential": [REVIEW_BOARD],
@@ -557,8 +561,8 @@ def run_workflow(runner):
             asset=ASSET_B,
             cards=[DS_CARD, IS_CARD],
             parameters={
-                DS_CARD: {"allowedDiseases": [ALLOWED_DISEASE]},
-                IS_CARD: {"allowedInstitutions": [ALLOWED_INSTITUTION]},
+                DS_NODE: {"allowedDiseases": [ALLOWED_DISEASE]},
+                IS_NODE: {"allowedInstitutions": [ALLOWED_INSTITUTION]},
             },
             authorities={
                 "IntendedDataUseCredential": [REVIEW_BOARD],
@@ -592,8 +596,8 @@ def run_workflow(runner):
         result = request_round(
             runner,
             sites=[ASSET_A, ASSET_B],
-            # The union of what the two sites declared: A's modules want Script
-            # only, B's want both.
+            # The union of what the two sites' graphs take: A's wants Script only,
+            # B's both.
             roles={"Script": SCRIPT_ASSET, "User": WALLET_NAME},
             checklists={
                 ASSET_A: script_facts,

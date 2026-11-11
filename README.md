@@ -16,10 +16,11 @@ The devcontainer brings up the policy engine, registries, and webapp; open the f
 ## Layout
 
 ```
-policy_cards/   Policy Card instances (Rego + docs)
-credentials/    Credential type definitions (the evidence vocabulary)
-tools/          Webapp, registries, guardians, FL server, policy engine
-docs/           The documentation site
+policy_cards/       Policy Card instances (graphs of components + docs)
+policy_components/  The policy components the cards' graphs are made of
+credentials/        Credential type definitions (the evidence vocabulary)
+tools/              Webapp, registries, guardians, FL server, policy engine
+docs/               The documentation site
 ```
 
 ## Disclaimer
