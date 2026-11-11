@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "name": "Population Origins or Ancestry Research Only",
+  "root": "grant_download",
+  "nodes": {
+    "project_membership": {
+      "component": "project_membership",
+      "inputs": {
+        "team": {
+          "from": "presented"
+        },
+        "ownership": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "population_origins_or_ancestry_research_only": {
+      "component": "population_origins_or_ancestry_research_only",
+      "inputs": {
+        "projectMembership": {
+          "from": "node",
+          "node": "project_membership",
+          "accept_presented": true
+        },
+        "intendedDataUse": {
+          "from": "presented"
+        },
+        "agreement": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "grant_download": {
+      "component": "grant_download",
+      "inputs": {
+        "key": {
+          "from": "presented"
+        },
+        "grant": {
+          "from": "node",
+          "node": "population_origins_or_ancestry_research_only",
+          "accept_presented": false
+        }
+      },
+      "policy_data": {}
+    }
+  },
+  "trusted_issuers": {
+    "AgreementCredential": [],
+    "IntendedDataUseCredential": [],
+    "ProjectMembershipCredential": [],
+    "ProjectOwnershipCredential": [],
+    "TeamCredential": [],
+    "publicKeyCredential": []
+  }
+}

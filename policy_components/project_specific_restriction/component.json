@@ -1,0 +1,41 @@
+{
+  "name": "ProjectSpecificRestriction",
+  "group": "card",
+  "summary": "The card component of Project Specific Restriction (DUO_0000027). It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "projectMembership": {
+      "type": "ProjectMembershipCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "project"
+      ]
+    },
+    "intendedDataUse": {
+      "type": "IntendedDataUseCredential",
+      "about": "project",
+      "role": "User",
+      "claims": []
+    },
+    "agreement": {
+      "type": "AgreementCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": []
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "approvedProjects": {
+      "type": "array of strings",
+      "description": "Project DIDs for which access is allowed; compared with the subject of each IntendedDataUseCredential. If the key is missing, no IDU qualifies and access is denied."
+    }
+  },
+  "card": "project-specific-restriction",
+  "duo": "DUO_0000027",
+  "changes_from_today": []
+}

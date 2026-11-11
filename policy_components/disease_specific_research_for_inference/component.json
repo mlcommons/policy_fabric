@@ -1,0 +1,39 @@
+{
+  "name": "DiseaseSpecificResearchForInference",
+  "group": "card",
+  "summary": "The card component of Disease Specific Research for inference (DUO_0000007). It reads IntendedDataUseCredential and ScriptHashCredential, compares them with its policy data, and outputs the InferenceGrantCredential that Grant inference takes.",
+  "inputs": {
+    "intendedDataUse": {
+      "type": "IntendedDataUseCredential",
+      "about": "script",
+      "role": "Script",
+      "claims": [
+        "useOnlyFor.diseases"
+      ]
+    },
+    "scriptHash": {
+      "type": "ScriptHashCredential",
+      "about": "script",
+      "role": "Script",
+      "claims": [
+        "scriptHash"
+      ]
+    }
+  },
+  "output": {
+    "type": "InferenceGrantCredential",
+    "about": "script",
+    "claims": [
+      "script_digest"
+    ]
+  },
+  "policy_data": {
+    "allowedDiseases": {
+      "type": "array of strings",
+      "description": "Allowed MONDO disease codes. An IntendedDataUseCredential qualifies if any entry of claims.useOnlyFor.diseases is in this list."
+    }
+  },
+  "card": "FL/inference-disease-specific-research",
+  "duo": "DUO_0000007",
+  "changes_from_today": []
+}

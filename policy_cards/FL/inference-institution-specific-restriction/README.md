@@ -4,30 +4,29 @@
 
 **Rule:** The requester is a member of an institution you allow, and owns the script they bring.
 
-The requester holds an `AffiliationCredential` about themselves naming one of
-the owner's `allowedInstitutions`, and a `WalletVerifyingKeyCredential` binding
-their wallet to the key it is registered with on the ledger. The script holds a
-`ScriptOwnershipCredential` in which the requester's wallet claims it.
+The requester is a member of an allowed institution and owns the script: the ScriptOwnershipCredential is signed by the requester's own wallet, and checked against the key its WalletVerifyingKeyCredential attests. Outputs, for the script, the InferenceGrantCredential that Grant inference takes.
 
-That ownership claim is self-issued, so no trusted issuer stands behind it. The
-card checks its signature against the wallet key an authority attested instead,
-through `vc_supplied_verification_tasks`: the claim counts because the
-requester's own wallet signed it.
+The card is a graph of policy components. Each takes credentials, from the requester's presentation or
+from the components before it, and outputs a credential of its own; the last, Grant inference, issues
+`do_inference` for the digest of the script the request names.
 
-| Role | Fact | About | Read from it |
-|------|------|-------|--------------|
-| User | `AffiliationCredential` | the requester | `isMemberOf` |
-| User | `WalletVerifyingKeyCredential` | the requester | `verifying_key` |
-| Script | `ScriptOwnershipCredential` | the script | `ownedBy` |
+| Policy Component | What it checks |
+|---|---|
+| InstitutionSpecificRestrictionForInference | The requester is a member of an allowed institution and owns the script: the ScriptOwnershipCredential is signed by the requester's own wallet, and checked against the key its WalletVerifyingKeyCredential attests. Outputs, for the script, the InferenceGrantCredential that Grant inference takes. |
+| Grant inference | The end of every federated learning card. Issues do_inference for the script digest the request names, when every card on the asset granted that script, with that digest. |
 
-**Parameters**
+**Presented credentials**, each from an authority the asset's owner accepts for its type, except the one the requester's own wallet signs:
 
-- `allowedInstitutions` — DIDs of the institutions the requester may be a member
-  of.
+| Role | Credential | About | Claims read |
+|---|---|---|---|
+| User | Affiliation (`AffiliationCredential`) | the requester | `isMemberOf` |
+| Script | Script digest (`ScriptHashCredential`) | the script | `scriptHash` |
+| Script | Script ownership (`ScriptOwnershipCredential`) | the script | `issuer`, `ownedBy`; signed by the requester's own wallet, checked against its attested key |
+| User | Wallet key (`WalletVerifyingKeyCredential`) | the requester | `verifying_key` |
 
-Each fact must be about the holder of its role, and from an authority this asset
-accepts for that type. The card names no operation: the delivery module of the
-asset's guardian does.
+**Parameters:**
 
-> The executable rule is [`policy.rego`](policy.rego); this file is its
-> human-readable companion, and [`card.json`](card.json) is its manifest.
+- **InstitutionSpecificRestrictionForInference · `allowedInstitutions`** (array of strings): Allowed institution identifiers. An AffiliationCredential qualifies if claims.isMemberOf is in this list.
+
+> The card is [`graph.json`](graph.json), decided as [`graph_vectors.json`](graph_vectors.json) says; its
+> components are in [`policy_components/`](../../../policy_components/), and [`card.json`](card.json) names it.

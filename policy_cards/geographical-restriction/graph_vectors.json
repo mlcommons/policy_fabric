@@ -1,0 +1,59 @@
+{
+  "registry": {
+    "LocationCredential": ["did:example:loc-authority"],
+    "publicKeyCredential": ["did:example:key-authority"]
+  },
+  "request": {"channel_key": "PUBKEY-USER-1"},
+  "policy_data": {
+    "geographical_restriction": {"allowedCountries": ["US", "CA"]},
+    "grant_download": {}
+  },
+  "credentials": {
+    "location": {"type": "LocationCredential", "issuer": "did:example:loc-authority", "signer": "did:example:loc-authority",
+                 "subject": "did:example:user-1",
+                 "claims": {"locatedAt": {"street": "1 Main", "zipCode": "00000", "state": "MA", "country": "US"}}},
+    "key": {"type": "publicKeyCredential", "issuer": "did:example:key-authority", "signer": "did:example:key-authority",
+            "subject": "did:example:user-1", "claims": {"key": "PUBKEY-USER-1"}}
+  },
+  "vectors": [
+    {
+      "name": "allow: the requester's organisation is in a country the owner allows",
+      "present": {"User": ["location", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["location", "key"],
+                 "verified": ["location", "key"]}
+    },
+    {
+      "name": "deny: a country the owner does not allow",
+      "present": {"User": ["location", "key"]},
+      "change": {"location": {"claims": {"locatedAt": {"country": "FR"}}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the key of someone else",
+      "present": {"User": ["location", "key"]},
+      "change": {"key": {"subject": "did:example:user-2"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: no LocationCredential",
+      "present": {"User": ["key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "geographical_restriction", "input": "location"}]}
+    },
+    {
+      "name": "deny: no publicKeyCredential",
+      "present": {"User": ["location"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+    },
+    {
+      "name": "deny: a LocationCredential from an issuer the contract does not trust",
+      "present": {"User": ["location", "key"]},
+      "change": {"location": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
+      "expect": {"decision": false, "missing": [{"node": "geographical_restriction", "input": "location"}]}
+    }
+  ]
+}

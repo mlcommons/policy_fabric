@@ -1,0 +1,43 @@
+{
+  "name": "DiseaseSpecificResearch",
+  "group": "card",
+  "summary": "The card component of Disease Specific Research (DUO_0000007). It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "projectMembership": {
+      "type": "ProjectMembershipCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "project"
+      ]
+    },
+    "intendedDataUse": {
+      "type": "IntendedDataUseCredential",
+      "about": "project",
+      "role": "User",
+      "claims": [
+        "useOnlyFor.diseases"
+      ]
+    },
+    "agreement": {
+      "type": "AgreementCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": []
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "allowedDiseases": {
+      "type": "array of strings",
+      "description": "MONDO disease codes the owner allows. An IntendedDataUseCredential qualifies if any entry of claims.useOnlyFor.diseases is in this list."
+    }
+  },
+  "card": "disease-specific-research",
+  "duo": "DUO_0000007",
+  "changes_from_today": []
+}

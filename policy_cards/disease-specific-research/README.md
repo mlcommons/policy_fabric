@@ -4,28 +4,35 @@
 
 **Rule:** The requester's research studies a disease within your scope.
 
-The requester holds a `ResearchPurposeCredential` about themselves: the project
-they work on and the purposes and diseases it declared. At least one of its
-`diseases` must be in the owner's `allowedDiseases` (MONDO codes). The fact must
-be about the project the request names, which keeps this card consistent with
-every other project-bound card on the same asset.
+It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
 
-Which project the requester works on, and what it declared, is established once
-by an authority -- for instance the *project research purpose* authority card,
-which checks the requester's team, their PI's project and the project's intended
-use -- rather than on every request.
+The card is a graph of policy components. Each takes credentials, from the requester's presentation or
+from the components before it, and outputs a credential of its own; the last, Grant download, issues
+`do_download`, encrypted to the requester's session key (the key in their `publicKeyCredential`).
 
-| Role | Fact | About | Read from it |
-|------|------|-------|--------------|
-| User | `ResearchPurposeCredential` | the requester | `diseases`, `project` |
+| Policy Component | What it checks |
+|---|---|
+| ProjectMembership | The requester is on the team of a PI who owns a project. Checks that the ProjectOwnershipCredential is about the PI the TeamCredential names (MemberOfTeamOf); outputs the project, for the requester. |
+| DiseaseSpecificResearch | It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes. |
+| Grant download | The end of every download card. Issues do_download to the holder of the key when the card granted that same person: the publicKeyCredential and the DownloadGrantCredential must be about the same subject. The channel key is the key in the publicKeyCredential. |
 
-**Parameters**
+**Presented credentials**, each from an authority the asset's owner accepts for its type:
 
-- `allowedDiseases` — MONDO codes of the diseases research may study.
+| Role | Credential | About | Claims read |
+|---|---|---|---|
+| User | Project ownership (`ProjectOwnershipCredential`) | the PI | `Owns` |
+| User | Team membership (`TeamCredential`) | the requester | `MemberOfTeamOf` |
+| User | Accepted terms (`AgreementCredential`) | the requester | none |
+| User | Intended data use (`IntendedDataUseCredential`) | the project | `useOnlyFor.diseases` |
+| User | Session key (`publicKeyCredential`) | the requester | `key` |
 
-Each fact must be about the holder of its role, and from an authority this asset
-accepts for that type. The card names no operation: the delivery module of the
-asset's guardian does.
+A credential the graph also accepts presented, from an authority the owner accepts for it, stands in for the components that would produce it:
 
-> The executable rule is [`policy.rego`](policy.rego); this file is its
-> human-readable companion, and [`card.json`](card.json) is its manifest.
+- Project membership (`ProjectMembershipCredential`) about the requester, in place of ProjectMembership's.
+
+**Parameters:**
+
+- **DiseaseSpecificResearch · `allowedDiseases`** (array of strings): MONDO disease codes the owner allows. An IntendedDataUseCredential qualifies if any entry of claims.useOnlyFor.diseases is in this list.
+
+> The card is [`graph.json`](graph.json), decided as [`graph_vectors.json`](graph_vectors.json) says; its
+> components are in [`policy_components/`](../../policy_components/), and [`card.json`](card.json) names it.

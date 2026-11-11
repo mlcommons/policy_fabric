@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "name": "Publication Required",
+  "root": "grant_download",
+  "nodes": {
+    "project_membership": {
+      "component": "project_membership",
+      "inputs": {
+        "team": {
+          "from": "presented"
+        },
+        "ownership": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "publication_required": {
+      "component": "publication_required",
+      "inputs": {
+        "projectMembership": {
+          "from": "node",
+          "node": "project_membership",
+          "accept_presented": true
+        },
+        "affiliation": {
+          "from": "presented"
+        },
+        "scopedAgreement": {
+          "from": "presented"
+        },
+        "agreement": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "grant_download": {
+      "component": "grant_download",
+      "inputs": {
+        "key": {
+          "from": "presented"
+        },
+        "grant": {
+          "from": "node",
+          "node": "publication_required",
+          "accept_presented": false
+        }
+      },
+      "policy_data": {}
+    }
+  },
+  "trusted_issuers": {
+    "AffiliationCredential": [],
+    "AgreementCredential": [],
+    "ProjectMembershipCredential": [],
+    "ProjectOwnershipCredential": [],
+    "ScopedAgreementCredential": [],
+    "TeamCredential": [],
+    "publicKeyCredential": []
+  }
+}

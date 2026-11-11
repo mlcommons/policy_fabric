@@ -1,0 +1,37 @@
+{
+  "name": "PublicationMoratorium",
+  "group": "card",
+  "summary": "The card component of Publication Moratorium (DUO_0000024). It reads AgreementCredential and ComputeEnvironmentCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "agreement": {
+      "type": "AgreementCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "agreementInfo.documentID"
+      ]
+    },
+    "computeEnvironment": {
+      "type": "ComputeEnvironmentCredential",
+      "about": "compute",
+      "role": "User",
+      "claims": [
+        "hasComputeProfile.profile.SecureHandlingOfResults"
+      ]
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "requiredDocumentID": {
+      "type": "string",
+      "description": "Identifier of the terms document the requester must have accepted; compared for equality with AgreementCredential.agreementInfo.documentID. If the key is missing, nothing qualifies and access is denied."
+    }
+  },
+  "card": "publication-moratorium",
+  "duo": "DUO_0000024",
+  "changes_from_today": []
+}

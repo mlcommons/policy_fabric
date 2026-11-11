@@ -4,27 +4,40 @@
 
 **Rule:** The requester's research has ethics approval.
 
-The requester holds an `EthicsApprovalCredential` about themselves, from an
-authority this asset accepts for that fact. The fact must be about the project
-the request names, which keeps this card consistent with every other
-project-bound card on the same asset.
+The requester holds an IRBClearanceCredential for a project, and that project's IntendedDataUseCredential names at least one purpose and only purposes the IRB approved. Outputs the DownloadGrantCredential that Grant download takes. No policy data.
 
-How the approval was established is the authority's business, not this card's:
-an IRB office can hand-sign it after its own review, and the
-*accredited-committee check* authority card issues it from the project's
-approval by a committee accredited for the PI's institution. The owner picks
-which of them to accept; this card reads the fact the same way whoever issued
-it.
+The card is a graph of policy components. Each takes credentials, from the requester's presentation or
+from the components before it, and outputs a credential of its own; the last, Grant download, issues
+`do_download`, encrypted to the requester's session key (the key in their `publicKeyCredential`).
 
-| Role | Fact | About | Read from it |
-|------|------|-------|--------------|
-| User | `EthicsApprovalCredential` | the requester | `project` |
+| Policy Component | What it checks |
+|---|---|
+| InstitutionalIRBApproval | The project was approved by an IRB that is accredited for an institution. Checks that the EthicsCommitteeAccreditationCredential is about the committee that approved the project (isApprovedByEthicsCommittee); outputs, for the project, that institution (ResponsibleFor) and the purposes the IRB approved. |
+| ProjectMembership | The requester is on the team of a PI who owns a project. Checks that the ProjectOwnershipCredential is about the PI the TeamCredential names (MemberOfTeamOf); outputs the project, for the requester. |
+| IRBClearance | The requester belongs to the institution whose accredited IRB approved the requester's project. Checks that the AffiliationCredential is the requester's, that its isMemberOf is the approval's institution, and that the approved project is the requester's project; outputs, for the requester, the project and the approved purposes. |
+| EthicsApprovalRequired | The requester holds an IRBClearanceCredential for a project, and that project's IntendedDataUseCredential names at least one purpose and only purposes the IRB approved. Outputs the DownloadGrantCredential that Grant download takes. No policy data. |
+| Grant download | The end of every download card. Issues do_download to the holder of the key when the card granted that same person: the publicKeyCredential and the DownloadGrantCredential must be about the same subject. The channel key is the key in the publicKeyCredential. |
 
-**Parameters:** none; the rule is structural.
+**Presented credentials**, each from an authority the asset's owner accepts for its type:
 
-Each fact must be about the holder of its role, and from an authority this asset
-accepts for that type. The card names no operation: the delivery module of the
-asset's guardian does.
+| Role | Credential | About | Claims read |
+|---|---|---|---|
+| User | Ethics committee accreditation (`EthicsCommitteeAccreditationCredential`) | the ethics committee | `ResponsibleFor` |
+| User | IRB approval (`IRBApprovalCredential`) | the project | `isApprovedByEthicsCommittee`, `purposes` |
+| User | Project ownership (`ProjectOwnershipCredential`) | the PI | `Owns` |
+| User | Team membership (`TeamCredential`) | the requester | `MemberOfTeamOf` |
+| User | Affiliation (`AffiliationCredential`) | the requester | `isMemberOf` |
+| User | Intended data use (`IntendedDataUseCredential`) | the project | `useOnlyFor.purposes` |
+| User | Session key (`publicKeyCredential`) | the requester | `key` |
 
-> The executable rule is [`policy.rego`](policy.rego); this file is its
-> human-readable companion, and [`card.json`](card.json) is its manifest.
+A credential the graph also accepts presented, from an authority the owner accepts for it, stands in for the components that would produce it:
+
+- Project membership (`ProjectMembershipCredential`) about the requester, in place of ProjectMembership's.
+- IRB clearance (`IRBClearanceCredential`) about the requester, in place of IRBClearance's.
+
+**Parameters:**
+
+None: the decision is structural.
+
+> The card is [`graph.json`](graph.json), decided as [`graph_vectors.json`](graph_vectors.json) says; its
+> components are in [`policy_components/`](../../policy_components/), and [`card.json`](card.json) names it.

@@ -4,27 +4,27 @@
 
 **Rule:** The script declares a use within your disease scope.
 
-The data stays put and a script runs against it, so this card asks what the code
-is for rather than who is asking. The script asset holds an
-`IntendedDataUseCredential` about itself, from an authority this site accepts,
-and at least one of its `useOnlyFor.diseases` must be in the owner's
-`allowedDiseases`.
+It reads IntendedDataUseCredential and ScriptHashCredential, compares them with its policy data, and outputs the InferenceGrantCredential that Grant inference takes.
 
-Which script runs is fixed by the inference delivery module, which authorizes
-the digest of the same script asset; both read facts about the one `Script`
-holder.
+The card is a graph of policy components. Each takes credentials, from the requester's presentation or
+from the components before it, and outputs a credential of its own; the last, Grant inference, issues
+`do_inference` for the digest of the script the request names.
 
-| Role | Fact | About | Read from it |
-|------|------|-------|--------------|
-| Script | `IntendedDataUseCredential` | the script | `useOnlyFor.diseases` |
+| Policy Component | What it checks |
+|---|---|
+| DiseaseSpecificResearchForInference | It reads IntendedDataUseCredential and ScriptHashCredential, compares them with its policy data, and outputs the InferenceGrantCredential that Grant inference takes. |
+| Grant inference | The end of every federated learning card. Issues do_inference for the script digest the request names, when every card on the asset granted that script, with that digest. |
 
-**Parameters**
+**Presented credentials**, each from an authority the asset's owner accepts for its type:
 
-- `allowedDiseases` — MONDO codes of the diseases research may study.
+| Role | Credential | About | Claims read |
+|---|---|---|---|
+| Script | Intended data use (`IntendedDataUseCredential`) | the script | `useOnlyFor.diseases` |
+| Script | Script digest (`ScriptHashCredential`) | the script | `scriptHash` |
 
-Each fact must be about the holder of its role, and from an authority this asset
-accepts for that type. The card names no operation: the delivery module of the
-asset's guardian does.
+**Parameters:**
 
-> The executable rule is [`policy.rego`](policy.rego); this file is its
-> human-readable companion, and [`card.json`](card.json) is its manifest.
+- **DiseaseSpecificResearchForInference · `allowedDiseases`** (array of strings): Allowed MONDO disease codes. An IntendedDataUseCredential qualifies if any entry of claims.useOnlyFor.diseases is in this list.
+
+> The card is [`graph.json`](graph.json), decided as [`graph_vectors.json`](graph_vectors.json) says; its
+> components are in [`policy_components/`](../../../policy_components/), and [`card.json`](card.json) names it.

@@ -1,0 +1,39 @@
+{
+  "name": "UserSpecificRestriction",
+  "group": "card",
+  "summary": "The card component of User Specific Restriction (DUO_0000026). It reads UserPlatformCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "userPlatform": {
+      "type": "UserPlatformCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "userId",
+        "accountType",
+        "profileStatus"
+      ]
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "approvedUsers": {
+      "type": "array of strings",
+      "description": "Route 1: approved user identifiers, matched against UserPlatformCredential claims.userId."
+    },
+    "allowedAccountTypes": {
+      "type": "array of strings",
+      "description": "Route 2: allowed account types, matched against claims.accountType."
+    },
+    "requiredProfileStatuses": {
+      "type": "array of strings",
+      "description": "Route 3: accepted profile statuses, matched against claims.profileStatus. An alternative route, not an extra requirement."
+    }
+  },
+  "card": "user-specific-restriction",
+  "duo": "DUO_0000026",
+  "changes_from_today": []
+}

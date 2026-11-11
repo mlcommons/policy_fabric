@@ -1,0 +1,58 @@
+{
+  "version": 2,
+  "name": "No General Methods Research",
+  "root": "grant_download",
+  "nodes": {
+    "project_membership": {
+      "component": "project_membership",
+      "inputs": {
+        "team": {
+          "from": "presented"
+        },
+        "ownership": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "no_general_methods_research": {
+      "component": "no_general_methods_research",
+      "inputs": {
+        "projectMembership": {
+          "from": "node",
+          "node": "project_membership",
+          "accept_presented": true
+        },
+        "intendedDataUse": {
+          "from": "presented"
+        },
+        "agreement": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "grant_download": {
+      "component": "grant_download",
+      "inputs": {
+        "key": {
+          "from": "presented"
+        },
+        "grant": {
+          "from": "node",
+          "node": "no_general_methods_research",
+          "accept_presented": false
+        }
+      },
+      "policy_data": {}
+    }
+  },
+  "trusted_issuers": {
+    "AgreementCredential": [],
+    "IntendedDataUseCredential": [],
+    "ProjectMembershipCredential": [],
+    "ProjectOwnershipCredential": [],
+    "TeamCredential": [],
+    "publicKeyCredential": []
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "NotForProfitOrganisationUseOnly",
+  "group": "card",
+  "summary": "The card component of Not-for-Profit Organisation Use Only (DUO_0000045). It reads LegalDesignationCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "legalDesignation": {
+      "type": "LegalDesignationCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "hasLegalForm"
+      ]
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "nonprofitLegalForms": {
+      "type": "array of strings",
+      "description": "ISO 20275 ELF codes the data owner treats as not-for-profit; a LegalDesignationCredential qualifies if its hasLegalForm is in this list. If the key is missing, nothing qualifies and access is denied."
+    }
+  },
+  "card": "not-for-profit-organisation-use-only",
+  "duo": "DUO_0000045",
+  "changes_from_today": []
+}

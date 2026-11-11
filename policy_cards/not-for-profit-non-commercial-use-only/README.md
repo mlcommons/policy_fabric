@@ -4,28 +4,29 @@
 
 **Rule:** The requester acts for a not-for-profit organisation, and their research has no commercial purpose.
 
-The requester holds a `LegalDesignationCredential` about themselves with a
-not-for-profit legal form (`nonprofitLegalForms`), and a
-`ResearchPurposeCredential` about themselves none of whose purposes is
-prohibited (`prohibitedPurposes`, preset to the commercial term). The fact must
-be about the project the request names, which keeps this card consistent with
-every other project-bound card on the same asset.
+It reads LegalDesignationCredential and IntendedDataUseCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
 
-| Role | Fact | About | Read from it |
-|------|------|-------|--------------|
-| User | `LegalDesignationCredential` | the requester | `hasLegalForm` |
-| User | `ResearchPurposeCredential` | the requester | `purposes`, `project` |
+The card is a graph of policy components. Each takes credentials, from the requester's presentation or
+from the components before it, and outputs a credential of its own; the last, Grant download, issues
+`do_download`, encrypted to the requester's session key (the key in their `publicKeyCredential`).
 
-**Parameters**
+| Policy Component | What it checks |
+|---|---|
+| NotForProfitNonCommercialUseOnly | It reads LegalDesignationCredential and IntendedDataUseCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes. |
+| Grant download | The end of every download card. Issues do_download to the holder of the key when the card granted that same person: the publicKeyCredential and the DownloadGrantCredential must be about the same subject. The channel key is the key in the publicKeyCredential. |
 
-- `nonprofitLegalForms` — ISO 20275 ELF codes of the legal forms that count as
-  not-for-profit. Preset: `["V2VJ", "8ES1"]`.
-- `prohibitedPurposes` — Research purposes that disqualify; the research must
-  have none. Preset: `["commercial"]`.
+**Presented credentials**, each from an authority the asset's owner accepts for its type:
 
-Each fact must be about the holder of its role, and from an authority this asset
-accepts for that type. The card names no operation: the delivery module of the
-asset's guardian does.
+| Role | Credential | About | Claims read |
+|---|---|---|---|
+| User | Intended data use (`IntendedDataUseCredential`) | the project | `useOnlyFor.purposes` |
+| User | Legal designation (`LegalDesignationCredential`) | the requester | `hasLegalForm` |
+| User | Session key (`publicKeyCredential`) | the requester | `key` |
 
-> The executable rule is [`policy.rego`](policy.rego); this file is its
-> human-readable companion, and [`card.json`](card.json) is its manifest.
+**Parameters:**
+
+- **NotForProfitNonCommercialUseOnly · `nonprofitLegalForms`** (array of strings): ISO 20275 ELF codes the data owner treats as not-for-profit; a LegalDesignationCredential qualifies if its hasLegalForm is in this list. If the key is missing, nothing qualifies and access is denied.
+- **NotForProfitNonCommercialUseOnly · `prohibitedPurposes`** (array of strings): Purpose terms, as they appear in IntendedDataUseCredential.useOnlyFor.purposes, that make a use commercial; at least one presented IDU must contain none of them. If the key is missing, nothing qualifies and access is denied.
+
+> The card is [`graph.json`](graph.json), decided as [`graph_vectors.json`](graph_vectors.json) says; its
+> components are in [`policy_components/`](../../policy_components/), and [`card.json`](card.json) names it.

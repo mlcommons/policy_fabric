@@ -7,7 +7,7 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 1  Identification
 
 - **id:** `card.duo.0000012-rs`
-- **version:** 2.0.0
+- **version:** 3.0.0
 - **status:** released
 - **title:** Research-specific restrictions (DUO_0000012 RS)
 - **description:** Grant access only for research within the scope the data
@@ -18,7 +18,7 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 2  Scope & Target
 
 - **target.asset:** the dataset the data owner exposes for controlled access.
-- **target.guardians:** `download`, `inference`.
+- **target.guardians:** `download`.
 - **Out of scope:** any control over the asset after it is delivered
   (redistribution, retention).
 
@@ -28,13 +28,14 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 |---------|------------|-----------|----------|--------------------------------------------------------|
 | 1.0.0   | 2026-07-15 | MLCommons | released | Initial policy card authored from the RS policy.       |
 | 2.0.0   | 2026-10-02 | MLCommons | released | Reads one fact per holder; evidence chains and delivery moved out. |
+| 3.0.0   | 2026-11-10 | MLCommons | released | A graph of policy components: the chain is joined in the policy, and a joined credential an owner accepts may be presented instead. |
 
 ## 4  Summary & Intent
 
-The requester holds a `ResearchPurposeCredential` about themselves whose
-`purposes` include one of the owner's `allowedPurposes`. The fact must be about
-the project the request names, which keeps this card consistent with every other
-project-bound card on the same asset.
+It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
+
+The card is a graph of policy components: each takes credentials, presented or produced by the
+components before it, and outputs one of its own, until Grant download issues the capability.
 
 - **Governance objective:** restrict use of the asset to a research scope the
   owner defines.
@@ -43,57 +44,48 @@ project-bound card on the same asset.
 
 ```text
 Permission: use the target dataset through its guardian
-  Assignee:  the requester (the holder of each role's presentation)
-  Conditions (all must hold):
-    - a ResearchPurposeCredential about the requester lists a purpose ∈ allowedPurposes
-    - the credential is about the project the request names
-    - each credential is from an authority the owner accepts for its type
-  On grant:  the operation the guardian's delivery module names
+  Assignee:  the requester
+  Conditions (all must hold), as the graph's components check them:
+    - ProjectMembership: The requester is on the team of a PI who owns a project.
+    - ResearchSpecificRestrictions: It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
+    - Grant download: every card granted the holder of the session key
+    - each presented credential is from an authority the owner accepts for its type
+  On grant:  do_download, encrypted to the requester's session key (the key in their publicKeyCredential)
   Otherwise: deny
 ```
 
 ## 6  Associated Credentials (Evidence Requirements)
 
-Every type resolves to a schema in [`../../credentials/`](../../credentials/).
+Every type resolves to a schema in [`credentials/`](../../credentials/).
 
-| Role | Credential type | About | Claims consumed |
-|------|-----------------|-------|-----------------|
-| User | `ResearchPurposeCredential` | the requester | `purposes`, `project` |
+| Role | Credential | About | Claims read |
+|---|---|---|---|
+| User | Project ownership (`ProjectOwnershipCredential`) | the PI | `Owns` |
+| User | Team membership (`TeamCredential`) | the requester | `MemberOfTeamOf` |
+| User | Accepted terms (`AgreementCredential`) | the requester | none |
+| User | Intended data use (`IntendedDataUseCredential`) | the project | `useOnlyFor.purposes` |
+| User | Session key (`publicKeyCredential`) | the requester | `key` |
 
-Each credential must be about the holder of its role: facts about third parties
--- a PI, a project, a committee -- are inputs to authorities, never to this
-card.
+A credential the graph also accepts presented, from an authority the owner accepts for it, stands in for the components that would produce it:
+
+- Project membership (`ProjectMembershipCredential`) about the requester, in place of ProjectMembership's.
 
 ## 7  Reference Values Schema
 
-The values the data owner configures, as a JSON Schema in
-[`card.json`](card.json) (`parameters`), which also generates the owner's form:
-
-```json
-{
-  "allowedPurposes": ["string"]
-}
-```
-
-- `allowedPurposes` — Research purposes that qualify; the research must have at
-  least one.
+- **ResearchSpecificRestrictions · `allowedPurposes`** (array of strings): Allowed research purposes. An IntendedDataUseCredential qualifies if any entry of claims.useOnlyFor.purposes is in this list.
 
 ## 8  Capability Granted
 
-None of its own. A card decides; it does not deliver. The asset's guardian type
-picks one delivery module, which describes the policy decision: `do_download`
-with the requester's channel key for a download guardian, `do_inference` with
-the approved script's digest for an inference guardian. The policy agent issues
-the decision only if every card on the asset allows, and the asset's token turns
-it into the capability.
+`do_download`, encrypted to the requester's session key (the key in their `publicKeyCredential`), issued by Grant download. With several cards on one
+asset, their graphs compose into one under that component, which issues the capability only when
+every card granted it.
 
 ## 9  Codified Representation
 
-The rule is codified in Rego as the
-[`purpose-allowed`](../templates/purpose-allowed/policy.rego) rule template,
-with unit tests in [its tests](../templates/purpose-allowed/policy_test.rego).
-It reads `input.presentations`, `input.holders`, `input.request` and this card's
-own `input.policy_data`, and returns the decision and the credentials to verify.
+The card is [`graph.json`](graph.json), a graph of the components in
+[`policy_components/`](../../policy_components/), each a Rego module with its
+own unit tests. [`graph_vectors.json`](graph_vectors.json) states the decisions the graph must reach; the
+contract, the reference implementation in pdo-contracts (`pdo.rego.graph`) and the card tests run them.
 
 ## 10  Legal & Disclaimers
 

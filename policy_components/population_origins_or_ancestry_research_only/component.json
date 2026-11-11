@@ -1,0 +1,43 @@
+{
+  "name": "PopulationOriginsOrAncestryResearchOnly",
+  "group": "card",
+  "summary": "The card component of Population Origins or Ancestry Research Only (DUO_0000011). It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "projectMembership": {
+      "type": "ProjectMembershipCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "project"
+      ]
+    },
+    "intendedDataUse": {
+      "type": "IntendedDataUseCredential",
+      "about": "project",
+      "role": "User",
+      "claims": [
+        "useOnlyFor.purposes"
+      ]
+    },
+    "agreement": {
+      "type": "AgreementCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": []
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "allowedPurposes": {
+      "type": "array of strings",
+      "description": "Purpose terms, as they appear in IntendedDataUseCredential.useOnlyFor.purposes, that make an IDU usable: at least one of its purposes must be in this list. If the key is missing, no IDU qualifies and access is denied."
+    }
+  },
+  "card": "population-origins-or-ancestry-research-only",
+  "duo": "DUO_0000011",
+  "changes_from_today": []
+}

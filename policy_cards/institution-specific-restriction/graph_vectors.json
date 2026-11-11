@@ -1,0 +1,59 @@
+{
+  "registry": {
+    "AffiliationCredential": ["did:example:university"],
+    "publicKeyCredential": ["did:example:key-authority"]
+  },
+  "request": {"channel_key": "PUBKEY-USER-1"},
+  "policy_data": {
+    "institution_specific_restriction": {"allowedInstitutions": ["did:example:university", "did:example:hospital"]},
+    "grant_download": {}
+  },
+  "credentials": {
+    "affiliation": {"type": "AffiliationCredential", "issuer": "did:example:university", "signer": "did:example:university",
+                    "subject": "did:example:user-1",
+                    "claims": {"isMemberOf": "did:example:university", "typeOfMembership": "student"}},
+    "key": {"type": "publicKeyCredential", "issuer": "did:example:key-authority", "signer": "did:example:key-authority",
+            "subject": "did:example:user-1", "claims": {"key": "PUBKEY-USER-1"}}
+  },
+  "vectors": [
+    {
+      "name": "allow: the requester is a member of an institution the owner allows",
+      "present": {"User": ["affiliation", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["affiliation", "key"],
+                 "verified": ["affiliation", "key"]}
+    },
+    {
+      "name": "deny: an institution the owner does not allow",
+      "present": {"User": ["affiliation", "key"]},
+      "change": {"affiliation": {"claims": {"isMemberOf": "did:example:unknown"}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the key of someone else",
+      "present": {"User": ["affiliation", "key"]},
+      "change": {"key": {"subject": "did:example:user-2"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: no AffiliationCredential",
+      "present": {"User": ["key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "institution_specific_restriction", "input": "affiliation"}]}
+    },
+    {
+      "name": "deny: no publicKeyCredential",
+      "present": {"User": ["affiliation"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+    },
+    {
+      "name": "deny: an AffiliationCredential from an issuer the contract does not trust",
+      "present": {"User": ["affiliation", "key"]},
+      "change": {"affiliation": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
+      "expect": {"decision": false, "missing": [{"node": "institution_specific_restriction", "input": "affiliation"}]}
+    }
+  ]
+}

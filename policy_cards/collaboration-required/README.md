@@ -4,28 +4,36 @@
 
 **Rule:** The requester's institution accepted to collaborate with you on this dataset.
 
-The requester holds an `ObligationAcceptanceCredential` about themselves: their
-institution accepted the `Collaboration` obligation for their project and for
-this dataset (`datasetID`). The fact must be about the project the request
-names, which keeps this card consistent with every other project-bound card on
-the same asset.
+It reads ProjectMembershipCredential, AffiliationCredential, ScopedAgreementCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
 
-Establishing that acceptance -- the requester's PI, the PI's institution and
-project, and an agreement scoped to the obligation the institution signed -- is
-the job of an authority such as the *scoped obligation acceptance* authority
-card.
+The card is a graph of policy components. Each takes credentials, from the requester's presentation or
+from the components before it, and outputs a credential of its own; the last, Grant download, issues
+`do_download`, encrypted to the requester's session key (the key in their `publicKeyCredential`).
 
-| Role | Fact | About | Read from it |
-|------|------|-------|--------------|
-| User | `ObligationAcceptanceCredential` | the requester | `project`, `scopes` (`obligation`, `dataset`) |
+| Policy Component | What it checks |
+|---|---|
+| ProjectMembership | The requester is on the team of a PI who owns a project. Checks that the ProjectOwnershipCredential is about the PI the TeamCredential names (MemberOfTeamOf); outputs the project, for the requester. |
+| CollaborationRequired | It reads ProjectMembershipCredential, AffiliationCredential, ScopedAgreementCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes. |
+| Grant download | The end of every download card. Issues do_download to the holder of the key when the card granted that same person: the publicKeyCredential and the DownloadGrantCredential must be about the same subject. The channel key is the key in the publicKeyCredential. |
 
-**Parameters**
+**Presented credentials**, each from an authority the asset's owner accepts for its type:
 
-- `datasetID` — DID of this dataset, as the obligation names it.
+| Role | Credential | About | Claims read |
+|---|---|---|---|
+| User | Project ownership (`ProjectOwnershipCredential`) | the PI | `Owns` |
+| User | Team membership (`TeamCredential`) | the requester | `MemberOfTeamOf` |
+| User | Affiliation (`AffiliationCredential`) | the requester | `isMemberOf` |
+| User | Accepted terms (`AgreementCredential`) | the institution | `agreementInfo.documentID` |
+| User | Scoped agreement (`ScopedAgreementCredential`) | the terms document | `agreementInfo.scope.obligation`, `agreementInfo.scope.dataset`, `agreementInfo.scope.project` |
+| User | Session key (`publicKeyCredential`) | the requester | `key` |
 
-Each fact must be about the holder of its role, and from an authority this asset
-accepts for that type. The card names no operation: the delivery module of the
-asset's guardian does.
+A credential the graph also accepts presented, from an authority the owner accepts for it, stands in for the components that would produce it:
 
-> The executable rule is [`policy.rego`](policy.rego); this file is its
-> human-readable companion, and [`card.json`](card.json) is its manifest.
+- Project membership (`ProjectMembershipCredential`) about the requester, in place of ProjectMembership's.
+
+**Parameters:**
+
+- **CollaborationRequired · `datasetID`** (string): DID of the governed dataset. A ScopedAgreementCredential only counts if claims.agreementInfo.scope.dataset equals it.
+
+> The card is [`graph.json`](graph.json), decided as [`graph_vectors.json`](graph_vectors.json) says; its
+> components are in [`policy_components/`](../../policy_components/), and [`card.json`](card.json) names it.

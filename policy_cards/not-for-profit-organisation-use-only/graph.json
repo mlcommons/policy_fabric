@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "name": "Not-for-Profit Organisation Use Only",
+  "root": "grant_download",
+  "nodes": {
+    "not_for_profit_organisation_use_only": {
+      "component": "not_for_profit_organisation_use_only",
+      "inputs": {
+        "legalDesignation": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "grant_download": {
+      "component": "grant_download",
+      "inputs": {
+        "key": {
+          "from": "presented"
+        },
+        "grant": {
+          "from": "node",
+          "node": "not_for_profit_organisation_use_only",
+          "accept_presented": false
+        }
+      },
+      "policy_data": {}
+    }
+  },
+  "trusted_issuers": {
+    "LegalDesignationCredential": [],
+    "publicKeyCredential": []
+  }
+}

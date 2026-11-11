@@ -1,0 +1,73 @@
+{
+  "registry": {
+    "LegalDesignationCredential": ["did:example:registry"],
+    "IntendedDataUseCredential": ["did:example:dac"],
+    "publicKeyCredential": ["did:example:platform"]
+  },
+  "request": {"channel_key": "PUBKEY-ORG-1"},
+  "policy_data": {
+    "not_for_profit_non_commercial_use_only": {"nonprofitLegalForms": ["V2VJ", "8ES1"], "prohibitedPurposes": ["commercial"]},
+    "grant_download": {}
+  },
+  "credentials": {
+    "designation": {"type": "LegalDesignationCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
+                    "subject": "did:example:org-1", "claims": {"hasLegalForm": "V2VJ"}},
+    "use": {"type": "IntendedDataUseCredential", "issuer": "did:example:dac", "signer": "did:example:dac",
+            "subject": "did:example:project-1", "claims": {"useOnlyFor": {"purposes": ["HMB"], "diseases": []}}},
+    "key": {"type": "publicKeyCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
+            "subject": "did:example:org-1", "claims": {"key": "PUBKEY-ORG-1"}}
+  },
+  "vectors": [
+    {
+      "name": "allow: a not-for-profit legal form and a non-commercial intended use",
+      "present": {"User": ["designation", "use", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:org-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-ORG-1"}},
+                 "evidence": ["designation", "use", "key"],
+                 "verified": ["designation", "use", "key"]}
+    },
+    {
+      "name": "deny: a legal form the owner does not treat as not-for-profit",
+      "present": {"User": ["designation", "use", "key"]},
+      "change": {"designation": {"claims": {"hasLegalForm": "XTIQ"}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: an intended use with a commercial purpose",
+      "present": {"User": ["designation", "use", "key"]},
+      "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["HMB", "commercial"]}}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the key of someone else",
+      "present": {"User": ["designation", "use", "key"]},
+      "change": {"key": {"subject": "did:example:org-2"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: no LegalDesignationCredential",
+      "present": {"User": ["use", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "not_for_profit_non_commercial_use_only", "input": "legalDesignation"}]}
+    },
+    {
+      "name": "deny: no IntendedDataUseCredential",
+      "present": {"User": ["designation", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "not_for_profit_non_commercial_use_only", "input": "intendedDataUse"}]}
+    },
+    {
+      "name": "deny: no publicKeyCredential",
+      "present": {"User": ["designation", "use"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+    },
+    {
+      "name": "deny: a LegalDesignationCredential from an issuer the contract does not trust",
+      "present": {"User": ["designation", "use", "key"]},
+      "change": {"designation": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
+      "expect": {"decision": false, "missing": [{"node": "not_for_profit_non_commercial_use_only", "input": "legalDesignation"}]}
+    }
+  ]
+}

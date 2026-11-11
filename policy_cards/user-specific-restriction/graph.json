@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "name": "User Specific Restriction",
+  "root": "grant_download",
+  "nodes": {
+    "user_specific_restriction": {
+      "component": "user_specific_restriction",
+      "inputs": {
+        "userPlatform": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "grant_download": {
+      "component": "grant_download",
+      "inputs": {
+        "key": {
+          "from": "presented"
+        },
+        "grant": {
+          "from": "node",
+          "node": "user_specific_restriction",
+          "accept_presented": false
+        }
+      },
+      "policy_data": {}
+    }
+  },
+  "trusted_issuers": {
+    "UserPlatformCredential": [],
+    "publicKeyCredential": []
+  }
+}

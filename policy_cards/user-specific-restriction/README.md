@@ -4,24 +4,29 @@
 
 **Rule:** The requester's platform account is approved by id, account type or profile status.
 
-The requester holds a `UserPlatformCredential` about themselves, from an
-authority this asset accepts for that fact. The account qualifies through any
-one of three routes the owner configures: its `userId` is approved by name, its
-`accountType` is allowed as a group, or its `profileStatus` is accepted.
+It reads UserPlatformCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
 
-| Role | Fact | About | Read from it |
-|------|------|-------|--------------|
-| User | `UserPlatformCredential` | the requester | `userId`, `accountType`, `profileStatus` |
+The card is a graph of policy components. Each takes credentials, from the requester's presentation or
+from the components before it, and outputs a credential of its own; the last, Grant download, issues
+`do_download`, encrypted to the requester's session key (the key in their `publicKeyCredential`).
 
-**Parameters**
+| Policy Component | What it checks |
+|---|---|
+| UserSpecificRestriction | It reads UserPlatformCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes. |
+| Grant download | The end of every download card. Issues do_download to the holder of the key when the card granted that same person: the publicKeyCredential and the DownloadGrantCredential must be about the same subject. The channel key is the key in the publicKeyCredential. |
 
-- `approvedUsers` — Platform account ids approved by name.
-- `allowedAccountTypes` — Account types approved as a group.
-- `requiredProfileStatuses` — Profile statuses approved as a group.
+**Presented credentials**, each from an authority the asset's owner accepts for its type:
 
-Each fact must be about the holder of its role, and from an authority this asset
-accepts for that type. The card names no operation: the delivery module of the
-asset's guardian does.
+| Role | Credential | About | Claims read |
+|---|---|---|---|
+| User | Platform account (`UserPlatformCredential`) | the requester | `userId`, `accountType`, `profileStatus` |
+| User | Session key (`publicKeyCredential`) | the requester | `key` |
 
-> The executable rule is [`policy.rego`](policy.rego); this file is its
-> human-readable companion, and [`card.json`](card.json) is its manifest.
+**Parameters:**
+
+- **UserSpecificRestriction · `approvedUsers`** (array of strings): Route 1: approved user identifiers, matched against UserPlatformCredential claims.userId.
+- **UserSpecificRestriction · `allowedAccountTypes`** (array of strings): Route 2: allowed account types, matched against claims.accountType.
+- **UserSpecificRestriction · `requiredProfileStatuses`** (array of strings): Route 3: accepted profile statuses, matched against claims.profileStatus. An alternative route, not an extra requirement.
+
+> The card is [`graph.json`](graph.json), decided as [`graph_vectors.json`](graph_vectors.json) says; its
+> components are in [`policy_components/`](../../policy_components/), and [`card.json`](card.json) names it.

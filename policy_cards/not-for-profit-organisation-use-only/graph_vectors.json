@@ -1,0 +1,58 @@
+{
+  "registry": {
+    "LegalDesignationCredential": ["did:example:registry"],
+    "publicKeyCredential": ["did:example:platform"]
+  },
+  "request": {"channel_key": "PUBKEY-ORG-1"},
+  "policy_data": {
+    "not_for_profit_organisation_use_only": {"nonprofitLegalForms": ["V2VJ", "8ES1"]},
+    "grant_download": {}
+  },
+  "credentials": {
+    "designation": {"type": "LegalDesignationCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
+                    "subject": "did:example:org-1", "claims": {"hasLegalForm": "V2VJ"}},
+    "key": {"type": "publicKeyCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
+            "subject": "did:example:org-1", "claims": {"key": "PUBKEY-ORG-1"}}
+  },
+  "vectors": [
+    {
+      "name": "allow: a legal form the owner accepts as not-for-profit",
+      "present": {"User": ["designation", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:org-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-ORG-1"}},
+                 "evidence": ["designation", "key"],
+                 "verified": ["designation", "key"]}
+    },
+    {
+      "name": "deny: a legal form the owner does not accept as not-for-profit",
+      "present": {"User": ["designation", "key"]},
+      "change": {"designation": {"claims": {"hasLegalForm": "XTIQ"}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the key of someone else",
+      "present": {"User": ["designation", "key"]},
+      "change": {"key": {"subject": "did:example:org-2"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: no LegalDesignationCredential",
+      "present": {"User": ["key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "not_for_profit_organisation_use_only", "input": "legalDesignation"}]}
+    },
+    {
+      "name": "deny: no publicKeyCredential",
+      "present": {"User": ["designation"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+    },
+    {
+      "name": "deny: a LegalDesignationCredential from an issuer the contract does not trust",
+      "present": {"User": ["designation", "key"]},
+      "change": {"designation": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
+      "expect": {"decision": false, "missing": [{"node": "not_for_profit_organisation_use_only", "input": "legalDesignation"}]}
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "name": "General Research Use",
+  "root": "grant_download",
+  "nodes": {
+    "general_research_use": {
+      "component": "general_research_use",
+      "inputs": {
+        "agreement": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "grant_download": {
+      "component": "grant_download",
+      "inputs": {
+        "key": {
+          "from": "presented"
+        },
+        "grant": {
+          "from": "node",
+          "node": "general_research_use",
+          "accept_presented": false
+        }
+      },
+      "policy_data": {}
+    }
+  },
+  "trusted_issuers": {
+    "AgreementCredential": [],
+    "publicKeyCredential": []
+  }
+}

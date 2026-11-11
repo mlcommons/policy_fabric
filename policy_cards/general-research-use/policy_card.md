@@ -7,7 +7,7 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 1  Identification
 
 - **id:** `card.duo.0000042-gru`
-- **version:** 2.0.0
+- **version:** 3.0.0
 - **status:** released
 - **title:** General research use (DUO_0000042 GRU)
 - **description:** Grant access to a requester who accepted the data owner's
@@ -18,7 +18,7 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 2  Scope & Target
 
 - **target.asset:** the dataset the data owner exposes for controlled access.
-- **target.guardians:** `download`, `inference`.
+- **target.guardians:** `download`.
 - **Out of scope:** any control over the asset after it is delivered
   (redistribution, retention).
 
@@ -28,11 +28,14 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 |---------|------------|-----------|----------|--------------------------------------------------------|
 | 1.0.0   | 2026-07-15 | MLCommons | released | Initial policy card authored from the GRU policy.      |
 | 2.0.0   | 2026-10-02 | MLCommons | released | Reads one fact per holder; evidence chains and delivery moved out. |
+| 3.0.0   | 2026-11-10 | MLCommons | released | A graph of policy components: the chain is joined in the policy, and a joined credential an owner accepts may be presented instead. |
 
 ## 4  Summary & Intent
 
-The requester holds an `AgreementCredential` about themselves showing they
-accepted the terms document the owner requires (`requiredDocumentID`).
+It reads AgreementCredential, compares it with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
+
+The card is a graph of policy components: each takes credentials, presented or produced by the
+components before it, and outputs one of its own, until Grant download issues the capability.
 
 - **Governance objective:** allow general research use under accepted terms.
 
@@ -40,55 +43,40 @@ accepted the terms document the owner requires (`requiredDocumentID`).
 
 ```text
 Permission: use the target dataset through its guardian
-  Assignee:  the requester (the holder of each role's presentation)
-  Conditions (all must hold):
-    - an AgreementCredential about the requester has agreementInfo.documentID = requiredDocumentID
-    - each credential is from an authority the owner accepts for its type
-  On grant:  the operation the guardian's delivery module names
+  Assignee:  the requester
+  Conditions (all must hold), as the graph's components check them:
+    - GeneralResearchUse: It reads AgreementCredential, compares it with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
+    - Grant download: every card granted the holder of the session key
+    - each presented credential is from an authority the owner accepts for its type
+  On grant:  do_download, encrypted to the requester's session key (the key in their publicKeyCredential)
   Otherwise: deny
 ```
 
 ## 6  Associated Credentials (Evidence Requirements)
 
-Every type resolves to a schema in [`../../credentials/`](../../credentials/).
+Every type resolves to a schema in [`credentials/`](../../credentials/).
 
-| Role | Credential type | About | Claims consumed |
-|------|-----------------|-------|-----------------|
-| User | `AgreementCredential` | the requester | `agreementInfo.documentID` |
-
-Each credential must be about the holder of its role: facts about third parties
--- a PI, a project, a committee -- are inputs to authorities, never to this
-card.
+| Role | Credential | About | Claims read |
+|---|---|---|---|
+| User | Accepted terms (`AgreementCredential`) | the requester | `agreementInfo.documentID` |
+| User | Session key (`publicKeyCredential`) | the requester | `key` |
 
 ## 7  Reference Values Schema
 
-The values the data owner configures, as a JSON Schema in
-[`card.json`](card.json) (`parameters`), which also generates the owner's form:
-
-```json
-{
-  "requiredDocumentID": "string"
-}
-```
-
-- `requiredDocumentID` — DID of the terms document the requester must have
-  accepted.
+- **GeneralResearchUse · `requiredDocumentID`** (string): DID of the terms document the requester must accept. An AgreementCredential qualifies only if claims.agreementInfo.documentID equals it.
 
 ## 8  Capability Granted
 
-None of its own. A card decides; it does not deliver. The asset's guardian type
-picks one delivery module, which describes the policy decision: `do_download`
-with the requester's channel key for a download guardian, `do_inference` with
-the approved script's digest for an inference guardian. The policy agent issues
-the decision only if every card on the asset allows, and the asset's token turns
-it into the capability.
+`do_download`, encrypted to the requester's session key (the key in their `publicKeyCredential`), issued by Grant download. With several cards on one
+asset, their graphs compose into one under that component, which issues the capability only when
+every card granted it.
 
 ## 9  Codified Representation
 
-The rule is codified in Rego as [`policy.rego`](policy.rego), with unit tests in
-[`policy_test.rego`](policy_test.rego). It reads `input.presentations`,
-`input.holders`, `input.request` and this card's own `input.policy_data`, and
-returns the decision and the credentials to verify.
+The card is [`graph.json`](graph.json), a graph of the components in
+[`policy_components/`](../../policy_components/), each a Rego module with its
+own unit tests. [`graph_vectors.json`](graph_vectors.json) states the decisions the graph must reach; the
+contract, the reference implementation in pdo-contracts (`pdo.rego.graph`) and the card tests run them.
 
 ## 10  Legal & Disclaimers
 

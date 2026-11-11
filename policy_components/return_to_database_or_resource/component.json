@@ -1,0 +1,37 @@
+{
+  "name": "ReturnToDatabaseOrResource",
+  "group": "card",
+  "summary": "The card component of Return to Database or Resource (DUO_0000029). It reads AgreementCredential and ComputeEnvironmentCredential: the agreement must be to the terms document its policy data names, and the compute environment must attest SecureHandlingOfResults. It outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "agreement": {
+      "type": "AgreementCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "agreementInfo.documentID"
+      ]
+    },
+    "computeEnvironment": {
+      "type": "ComputeEnvironmentCredential",
+      "about": "compute",
+      "role": "User",
+      "claims": [
+        "hasComputeProfile.profile.SecureHandlingOfResults"
+      ]
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "requiredDocumentID": {
+      "type": "string",
+      "description": "DID of the terms document the requester must accept. An AgreementCredential qualifies if claims.agreementInfo.documentID equals it."
+    }
+  },
+  "card": "return-to-database-or-resource",
+  "duo": "DUO_0000029",
+  "changes_from_today": []
+}

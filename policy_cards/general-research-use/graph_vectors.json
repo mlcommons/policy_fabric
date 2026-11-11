@@ -1,0 +1,59 @@
+{
+  "registry": {
+    "AgreementCredential": ["did:example:platform"],
+    "publicKeyCredential": ["did:example:platform"]
+  },
+  "request": {"channel_key": "PUBKEY-USER-1"},
+  "policy_data": {
+    "general_research_use": {"requiredDocumentID": "did:example:terms-1"},
+    "grant_download": {}
+  },
+  "credentials": {
+    "agreement": {"type": "AgreementCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
+                  "subject": "did:example:user-1",
+                  "claims": {"agreementInfo": {"documentID": "did:example:terms-1", "documentVersion": "1.0"}}},
+    "key": {"type": "publicKeyCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
+            "subject": "did:example:user-1", "claims": {"key": "PUBKEY-USER-1"}}
+  },
+  "vectors": [
+    {
+      "name": "allow: the requester accepted the required terms",
+      "present": {"User": ["agreement", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["agreement", "key"],
+                 "verified": ["agreement", "key"]}
+    },
+    {
+      "name": "deny: the requester accepted other terms",
+      "present": {"User": ["agreement", "key"]},
+      "change": {"agreement": {"claims": {"agreementInfo": {"documentID": "did:example:terms-2"}}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the key of someone else",
+      "present": {"User": ["agreement", "key"]},
+      "change": {"key": {"subject": "did:example:user-2"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: no AgreementCredential",
+      "present": {"User": ["key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "general_research_use", "input": "agreement"}]}
+    },
+    {
+      "name": "deny: no publicKeyCredential",
+      "present": {"User": ["agreement"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+    },
+    {
+      "name": "deny: an AgreementCredential from an issuer the contract does not trust",
+      "present": {"User": ["agreement", "key"]},
+      "change": {"agreement": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
+      "expect": {"decision": false, "missing": [{"node": "general_research_use", "input": "agreement"}]}
+    }
+  ]
+}

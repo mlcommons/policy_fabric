@@ -1,0 +1,107 @@
+{
+  "registry": {
+    "AffiliationCredential": ["did:example:university"],
+    "WalletVerifyingKeyCredential": ["did:example:wallet-key-authority"],
+    "ScriptHashCredential": ["did:example:script-authority"],
+    "ScriptOwnershipCredential": [],
+    "publicKeyCredential": ["did:example:key-authority"]
+  },
+  "request": {"script_digest": "sha256:abc"},
+  "policy_data": {
+    "institution_specific_restriction_for_inference": {"allowedInstitutions": ["did:example:university", "did:example:hospital"]},
+    "grant_inference": {}
+  },
+  "credentials": {
+    "affiliation": {"type": "AffiliationCredential", "issuer": "did:example:university", "signer": "did:example:university",
+                    "subject": "did:pdo:user-wallet",
+                    "claims": {"isMemberOf": "did:example:university", "typeOfMembership": "student"}},
+    "key": {"type": "publicKeyCredential", "issuer": "did:example:key-authority", "signer": "did:example:key-authority",
+            "subject": "did:pdo:user-wallet", "claims": {"key": "CHANNELKEY"}},
+    "wallet_key": {"type": "WalletVerifyingKeyCredential", "issuer": "did:example:wallet-key-authority",
+                   "signer": "did:example:wallet-key-authority", "subject": "did:pdo:user-wallet",
+                   "claims": {"verifying_key": "WALLETPEM"}},
+    "ownership": {"type": "ScriptOwnershipCredential", "issuer": "did:pdo:user-wallet", "signer": "did:pdo:user-wallet",
+                  "subject": "did:pdo:script-asset", "claims": {"ownedBy": "did:pdo:user-wallet"},
+                  "signing_key": "WALLETPEM"},
+    "hash": {"type": "ScriptHashCredential", "issuer": "did:example:script-authority",
+             "signer": "did:example:script-authority", "subject": "did:pdo:script-asset",
+             "claims": {"scriptHash": "sha256:abc"}}
+  },
+  "vectors": [
+    {
+      "name": "allow: a member of an allowed institution owns the script",
+      "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership", "hash"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:pdo:script-asset",
+                 "operation": {"name": "do_inference", "parameters": {"script_digest": "sha256:abc"}},
+                 "evidence": ["affiliation", "wallet_key", "ownership", "hash"],
+                 "verified": ["affiliation", "wallet_key", "ownership", "hash"]}
+    },
+    {
+      "name": "deny: an institution the owner does not allow",
+      "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership", "hash"]},
+      "change": {"affiliation": {"claims": {"isMemberOf": "did:example:elsewhere"}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the wallet key of someone else",
+      "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership", "hash"]},
+      "change": {"wallet_key": {"subject": "did:pdo:other-wallet"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: an ownership signed by another wallet",
+      "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership", "hash"]},
+      "change": {"ownership": {"issuer": "did:pdo:other-wallet", "signer": "did:pdo:other-wallet", "signing_key": "OTHERPEM"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: an ownership naming another wallet as owner",
+      "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership", "hash"]},
+      "change": {"ownership": {"claims": {"ownedBy": "did:pdo:other-wallet"}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: an ownership not signed with the key the wallet key credential attests",
+      "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership", "hash"]},
+      "change": {"ownership": {"signing_key": "OTHERPEM"}},
+      "expect": {"decision": false, "reason": "credential verification failed"}
+    },
+    {
+      "name": "deny: the hash of another script",
+      "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership", "hash"]},
+      "change": {"hash": {"subject": "did:pdo:other-script"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: no AffiliationCredential",
+      "present": {"User": ["key", "wallet_key"], "Script": ["ownership", "hash"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "institution_specific_restriction_for_inference", "input": "affiliation"}]}
+    },
+    {
+      "name": "deny: no WalletVerifyingKeyCredential",
+      "present": {"User": ["affiliation", "key"], "Script": ["ownership", "hash"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "institution_specific_restriction_for_inference", "input": "walletVerifyingKey"}]}
+    },
+    {
+      "name": "deny: no ScriptOwnershipCredential",
+      "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["hash"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "institution_specific_restriction_for_inference", "input": "scriptOwnership"}]}
+    },
+    {
+      "name": "deny: no ScriptHashCredential",
+      "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "institution_specific_restriction_for_inference", "input": "scriptHash"}]}
+    },
+    {
+      "name": "deny: an AffiliationCredential from an issuer the contract does not trust",
+      "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership", "hash"]},
+      "change": {"affiliation": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
+      "expect": {"decision": false, "missing": [{"node": "institution_specific_restriction_for_inference", "input": "affiliation"}]}
+    }
+  ]
+}

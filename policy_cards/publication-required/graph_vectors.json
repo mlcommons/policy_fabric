@@ -1,0 +1,152 @@
+{
+  "registry": {
+    "TeamCredential": ["did:example:registry"],
+    "ProjectOwnershipCredential": ["did:example:registry"],
+    "AffiliationCredential": ["did:example:registry"],
+    "ScopedAgreementCredential": ["did:example:notary"],
+    "AgreementCredential": ["did:example:notary"],
+    "publicKeyCredential": ["did:example:platform"],
+    "ProjectMembershipCredential": ["did:example:research-office"]
+  },
+  "request": {"channel_key": "PUBKEY-USER-1"},
+  "policy_data": {
+    "project_membership": {},
+    "publication_required": {"datasetID": "did:example:dataset-1"},
+    "grant_download": {}
+  },
+  "credentials": {
+    "team": {"type": "TeamCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
+             "subject": "did:example:user-1", "claims": {"MemberOfTeamOf": "did:example:pi-1"}},
+    "ownership": {"type": "ProjectOwnershipCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
+                  "subject": "did:example:pi-1", "claims": {"Owns": "did:example:project-1"}},
+    "affiliation": {"type": "AffiliationCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
+                    "subject": "did:example:user-1",
+                    "claims": {"isMemberOf": "did:example:institution-1", "typeOfMembership": "staff"}},
+    "pi_affiliation": {"type": "AffiliationCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
+                       "subject": "did:example:pi-1",
+                       "claims": {"isMemberOf": "did:example:institution-1", "typeOfMembership": "faculty"}},
+    "scoped": {"type": "ScopedAgreementCredential", "issuer": "did:example:notary", "signer": "did:example:notary",
+               "subject": "did:example:terms-1",
+               "claims": {"agreementInfo": {
+                 "counterParty": "did:example:owner-1",
+                 "scope": {"obligation": "Publication", "project": "did:example:project-1", "dataset": "did:example:dataset-1"}}}},
+    "agreement": {"type": "AgreementCredential", "issuer": "did:example:notary", "signer": "did:example:notary",
+                  "subject": "did:example:institution-1",
+                  "claims": {"agreementInfo": {"documentID": "did:example:terms-1", "documentVersion": "1.0"}}},
+    "key": {"type": "publicKeyCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
+            "subject": "did:example:user-1", "claims": {"key": "PUBKEY-USER-1"}},
+    "membership": {"type": "ProjectMembershipCredential", "issuer": "did:example:research-office",
+                   "signer": "did:example:research-office", "subject": "did:example:user-1",
+                   "claims": {"project": "did:example:project-1"}}
+  },
+  "vectors": [
+    {
+      "name": "allow: the requester's institution agreed to publish, with the requester's affiliation",
+      "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["team", "ownership", "affiliation", "scoped", "agreement", "key"],
+                 "verified": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]}
+    },
+    {
+      "name": "deny: only the PI's affiliation, which today's card reads",
+      "present": {"User": ["team", "ownership", "pi_affiliation", "scoped", "agreement", "key"]},
+      "change": {},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: terms with an obligation other than Publication",
+      "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
+      "change": {"scoped": {"claims": {"agreementInfo": {"scope": {"obligation": "Collaboration"}}}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: terms scoped to another dataset",
+      "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
+      "change": {"scoped": {"claims": {"agreementInfo": {"scope": {"dataset": "did:example:dataset-2"}}}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: terms scoped to another project",
+      "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
+      "change": {"scoped": {"claims": {"agreementInfo": {"scope": {"project": "did:example:project-2"}}}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the requester belongs to an institution that did not agree",
+      "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
+      "change": {"affiliation": {"claims": {"isMemberOf": "did:example:institution-2"}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the institution agreed to other terms",
+      "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
+      "change": {"agreement": {"claims": {"agreementInfo": {"documentID": "did:example:terms-2"}}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the requester is not on the team of the PI who owns the project",
+      "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
+      "change": {"team": {"claims": {"MemberOfTeamOf": "did:example:pi-2"}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the key of someone else",
+      "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
+      "change": {"key": {"subject": "did:example:user-2"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: no TeamCredential",
+      "present": {"User": ["ownership", "affiliation", "scoped", "agreement", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "project_membership", "input": "team"}]}
+    },
+    {
+      "name": "deny: no ProjectOwnershipCredential",
+      "present": {"User": ["team", "affiliation", "scoped", "agreement", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "project_membership", "input": "ownership"}]}
+    },
+    {
+      "name": "deny: no AffiliationCredential",
+      "present": {"User": ["team", "ownership", "scoped", "agreement", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "publication_required", "input": "affiliation"}]}
+    },
+    {
+      "name": "deny: no ScopedAgreementCredential",
+      "present": {"User": ["team", "ownership", "affiliation", "agreement", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "publication_required", "input": "scopedAgreement"}]}
+    },
+    {
+      "name": "deny: no AgreementCredential",
+      "present": {"User": ["team", "ownership", "affiliation", "scoped", "key"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "publication_required", "input": "agreement"}]}
+    },
+    {
+      "name": "deny: no publicKeyCredential",
+      "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+    },
+    {
+      "name": "deny: a ScopedAgreementCredential from an issuer the contract does not trust",
+      "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
+      "change": {"scoped": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
+      "expect": {"decision": false, "missing": [{"node": "publication_required", "input": "scopedAgreement"}]}
+    },
+    {
+      "name": "allow: a trusted ProjectMembershipCredential stands in for the team and ownership",
+      "present": {"User": ["membership", "affiliation", "scoped", "agreement", "key"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:example:user-1",
+                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
+                 "evidence": ["membership", "affiliation", "scoped", "agreement", "key"],
+                 "verified": ["membership", "affiliation", "scoped", "agreement", "key"]}
+    }
+  ]
+}

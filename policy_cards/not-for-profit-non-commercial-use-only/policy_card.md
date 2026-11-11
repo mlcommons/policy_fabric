@@ -7,7 +7,7 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 1  Identification
 
 - **id:** `card.duo.0000018-npuncu`
-- **version:** 2.0.0
+- **version:** 3.0.0
 - **status:** released
 - **title:** Not-for-profit, non-commercial use only (DUO_0000018 NPUNCU)
 - **description:** Grant access only to a not-for-profit requester whose
@@ -18,7 +18,7 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 ## 2  Scope & Target
 
 - **target.asset:** the dataset the data owner exposes for controlled access.
-- **target.guardians:** `download`, `inference`.
+- **target.guardians:** `download`.
 - **Out of scope:** any control over the asset after it is delivered
   (redistribution, retention).
 
@@ -28,15 +28,14 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 |---------|------------|-----------|----------|--------------------------------------------------------|
 | 1.0.0   | 2026-07-15 | MLCommons | released | Initial policy card authored from the NPUNCU policy.   |
 | 2.0.0   | 2026-10-02 | MLCommons | released | Reads one fact per holder; evidence chains and delivery moved out. |
+| 3.0.0   | 2026-11-10 | MLCommons | released | A graph of policy components: the chain is joined in the policy, and a joined credential an owner accepts may be presented instead. |
 
 ## 4  Summary & Intent
 
-The requester holds a `LegalDesignationCredential` about themselves with a
-not-for-profit legal form (`nonprofitLegalForms`), and a
-`ResearchPurposeCredential` about themselves none of whose purposes is
-prohibited (`prohibitedPurposes`, preset to the commercial term). The fact must
-be about the project the request names, which keeps this card consistent with
-every other project-bound card on the same asset.
+It reads LegalDesignationCredential and IntendedDataUseCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
+
+The card is a graph of policy components: each takes credentials, presented or produced by the
+components before it, and outputs one of its own, until Grant download issues the capability.
 
 - **Governance objective:** restrict use of the asset to not-for-profit,
   non-commercial research.
@@ -45,61 +44,42 @@ every other project-bound card on the same asset.
 
 ```text
 Permission: use the target dataset through its guardian
-  Assignee:  the requester (the holder of each role's presentation)
-  Conditions (all must hold):
-    - a LegalDesignationCredential about the requester asserts hasLegalForm ∈ nonprofitLegalForms
-    - a ResearchPurposeCredential about the requester lists no purpose ∈ prohibitedPurposes
-    - the research is about the project the request names
-    - each credential is from an authority the owner accepts for its type
-  On grant:  the operation the guardian's delivery module names
+  Assignee:  the requester
+  Conditions (all must hold), as the graph's components check them:
+    - NotForProfitNonCommercialUseOnly: It reads LegalDesignationCredential and IntendedDataUseCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
+    - Grant download: every card granted the holder of the session key
+    - each presented credential is from an authority the owner accepts for its type
+  On grant:  do_download, encrypted to the requester's session key (the key in their publicKeyCredential)
   Otherwise: deny
 ```
 
 ## 6  Associated Credentials (Evidence Requirements)
 
-Every type resolves to a schema in [`../../credentials/`](../../credentials/).
+Every type resolves to a schema in [`credentials/`](../../credentials/).
 
-| Role | Credential type | About | Claims consumed |
-|------|-----------------|-------|-----------------|
-| User | `LegalDesignationCredential` | the requester | `hasLegalForm` |
-| User | `ResearchPurposeCredential` | the requester | `purposes`, `project` |
-
-Each credential must be about the holder of its role: facts about third parties
--- a PI, a project, a committee -- are inputs to authorities, never to this
-card.
+| Role | Credential | About | Claims read |
+|---|---|---|---|
+| User | Intended data use (`IntendedDataUseCredential`) | the project | `useOnlyFor.purposes` |
+| User | Legal designation (`LegalDesignationCredential`) | the requester | `hasLegalForm` |
+| User | Session key (`publicKeyCredential`) | the requester | `key` |
 
 ## 7  Reference Values Schema
 
-The values the data owner configures, as a JSON Schema in
-[`card.json`](card.json) (`parameters`), which also generates the owner's form:
-
-```json
-{
-  "nonprofitLegalForms": ["string"],
-  "prohibitedPurposes": ["string"]
-}
-```
-
-- `nonprofitLegalForms` — ISO 20275 ELF codes of the legal forms that count as
-  not-for-profit. Preset: `["V2VJ", "8ES1"]`.
-- `prohibitedPurposes` — Research purposes that disqualify; the research must
-  have none. Preset: `["commercial"]`.
+- **NotForProfitNonCommercialUseOnly · `nonprofitLegalForms`** (array of strings): ISO 20275 ELF codes the data owner treats as not-for-profit; a LegalDesignationCredential qualifies if its hasLegalForm is in this list. If the key is missing, nothing qualifies and access is denied.
+- **NotForProfitNonCommercialUseOnly · `prohibitedPurposes`** (array of strings): Purpose terms, as they appear in IntendedDataUseCredential.useOnlyFor.purposes, that make a use commercial; at least one presented IDU must contain none of them. If the key is missing, nothing qualifies and access is denied.
 
 ## 8  Capability Granted
 
-None of its own. A card decides; it does not deliver. The asset's guardian type
-picks one delivery module, which describes the policy decision: `do_download`
-with the requester's channel key for a download guardian, `do_inference` with
-the approved script's digest for an inference guardian. The policy agent issues
-the decision only if every card on the asset allows, and the asset's token turns
-it into the capability.
+`do_download`, encrypted to the requester's session key (the key in their `publicKeyCredential`), issued by Grant download. With several cards on one
+asset, their graphs compose into one under that component, which issues the capability only when
+every card granted it.
 
 ## 9  Codified Representation
 
-The rule is codified in Rego as [`policy.rego`](policy.rego), with unit tests in
-[`policy_test.rego`](policy_test.rego). It reads `input.presentations`,
-`input.holders`, `input.request` and this card's own `input.policy_data`, and
-returns the decision and the credentials to verify.
+The card is [`graph.json`](graph.json), a graph of the components in
+[`policy_components/`](../../policy_components/), each a Rego module with its
+own unit tests. [`graph_vectors.json`](graph_vectors.json) states the decisions the graph must reach; the
+contract, the reference implementation in pdo-contracts (`pdo.rego.graph`) and the card tests run them.
 
 ## 10  Legal & Disclaimers
 

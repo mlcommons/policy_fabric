@@ -1,0 +1,37 @@
+{
+  "name": "InstitutionalIRBApproval",
+  "group": "shared",
+  "summary": "The project was approved by an IRB that is accredited for an institution. Checks that the EthicsCommitteeAccreditationCredential is about the committee that approved the project (isApprovedByEthicsCommittee); outputs, for the project, that institution (ResponsibleFor) and the purposes the IRB approved.",
+  "inputs": {
+    "accreditation": {
+      "type": "EthicsCommitteeAccreditationCredential",
+      "about": "committee",
+      "role": "User",
+      "claims": [
+        "ResponsibleFor"
+      ]
+    },
+    "irb": {
+      "type": "IRBApprovalCredential",
+      "about": "project",
+      "role": "User",
+      "claims": [
+        "isApprovedByEthicsCommittee",
+        "purposes"
+      ],
+      "new_claims": [
+        "purposes"
+      ]
+    }
+  },
+  "output": {
+    "type": "InstitutionalIRBApprovalCredential",
+    "about": "project",
+    "claims": [
+      "institution",
+      "purposes"
+    ]
+  },
+  "policy_data": {},
+  "changes_from_today": []
+}

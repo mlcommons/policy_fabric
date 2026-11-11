@@ -1,0 +1,57 @@
+{
+  "name": "CollaborationRequired",
+  "group": "card",
+  "summary": "The card component of Collaboration Required (DUO_0000020). It reads ProjectMembershipCredential, AffiliationCredential, ScopedAgreementCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "projectMembership": {
+      "type": "ProjectMembershipCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "project"
+      ]
+    },
+    "affiliation": {
+      "type": "AffiliationCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "isMemberOf"
+      ]
+    },
+    "scopedAgreement": {
+      "type": "ScopedAgreementCredential",
+      "about": "document",
+      "role": "User",
+      "claims": [
+        "agreementInfo.scope.obligation",
+        "agreementInfo.scope.dataset",
+        "agreementInfo.scope.project"
+      ]
+    },
+    "agreement": {
+      "type": "AgreementCredential",
+      "about": "institution",
+      "role": "User",
+      "claims": [
+        "agreementInfo.documentID"
+      ]
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "datasetID": {
+      "type": "string",
+      "description": "DID of the governed dataset. A ScopedAgreementCredential only counts if claims.agreementInfo.scope.dataset equals it."
+    }
+  },
+  "card": "collaboration-required",
+  "duo": "DUO_0000020",
+  "changes_from_today": [
+    "Changed from the card's Rego module: the AffiliationCredential is the requester's; the module read the PI's."
+  ]
+}

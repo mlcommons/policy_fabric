@@ -1,0 +1,32 @@
+{
+  "name": "ProjectMembership",
+  "group": "shared",
+  "summary": "The requester is on the team of a PI who owns a project. Checks that the ProjectOwnershipCredential is about the PI the TeamCredential names (MemberOfTeamOf); outputs the project, for the requester.",
+  "inputs": {
+    "team": {
+      "type": "TeamCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "MemberOfTeamOf"
+      ]
+    },
+    "ownership": {
+      "type": "ProjectOwnershipCredential",
+      "about": "pi",
+      "role": "User",
+      "claims": [
+        "Owns"
+      ]
+    }
+  },
+  "output": {
+    "type": "ProjectMembershipCredential",
+    "about": "requester",
+    "claims": [
+      "project"
+    ]
+  },
+  "policy_data": {},
+  "changes_from_today": []
+}

@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "name": "Return to Database or Resource",
+  "root": "grant_download",
+  "nodes": {
+    "return_to_database_or_resource": {
+      "component": "return_to_database_or_resource",
+      "inputs": {
+        "agreement": {
+          "from": "presented"
+        },
+        "computeEnvironment": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "grant_download": {
+      "component": "grant_download",
+      "inputs": {
+        "key": {
+          "from": "presented"
+        },
+        "grant": {
+          "from": "node",
+          "node": "return_to_database_or_resource",
+          "accept_presented": false
+        }
+      },
+      "policy_data": {}
+    }
+  },
+  "trusted_issuers": {
+    "AgreementCredential": [],
+    "ComputeEnvironmentCredential": [],
+    "publicKeyCredential": []
+  }
+}

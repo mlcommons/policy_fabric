@@ -1,0 +1,41 @@
+{
+  "name": "NotForProfitNonCommercialUseOnly",
+  "group": "card",
+  "summary": "The card component of Not-for-Profit, Non-Commercial Use Only (DUO_0000018). It reads LegalDesignationCredential and IntendedDataUseCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "inputs": {
+    "legalDesignation": {
+      "type": "LegalDesignationCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "hasLegalForm"
+      ]
+    },
+    "intendedDataUse": {
+      "type": "IntendedDataUseCredential",
+      "about": "project",
+      "role": "User",
+      "claims": [
+        "useOnlyFor.purposes"
+      ]
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {
+    "nonprofitLegalForms": {
+      "type": "array of strings",
+      "description": "ISO 20275 ELF codes the data owner treats as not-for-profit; a LegalDesignationCredential qualifies if its hasLegalForm is in this list. If the key is missing, nothing qualifies and access is denied."
+    },
+    "prohibitedPurposes": {
+      "type": "array of strings",
+      "description": "Purpose terms, as they appear in IntendedDataUseCredential.useOnlyFor.purposes, that make a use commercial; at least one presented IDU must contain none of them. If the key is missing, nothing qualifies and access is denied."
+    }
+  },
+  "card": "not-for-profit-non-commercial-use-only",
+  "duo": "DUO_0000018",
+  "changes_from_today": []
+}

@@ -1,0 +1,59 @@
+{
+  "registry": {
+    "IntendedDataUseCredential": ["did:example:dac"],
+    "ScriptHashCredential": ["did:example:script-authority"]
+  },
+  "request": {"script_digest": "sha256:abc"},
+  "policy_data": {
+    "disease_specific_research_for_inference": {"allowedDiseases": ["MONDO:0005148", "MONDO:0005015"]},
+    "grant_inference": {}
+  },
+  "credentials": {
+    "use": {"type": "IntendedDataUseCredential", "issuer": "did:example:dac", "signer": "did:example:dac",
+            "subject": "did:pdo:script-asset",
+            "claims": {"useOnlyFor": {"purposes": ["DS"], "diseases": ["MONDO:0005015"]}}},
+    "hash": {"type": "ScriptHashCredential", "issuer": "did:example:script-authority",
+             "signer": "did:example:script-authority", "subject": "did:pdo:script-asset",
+             "claims": {"scriptHash": "sha256:abc"}}
+  },
+  "vectors": [
+    {
+      "name": "allow: the script declares a disease the owner allows",
+      "present": {"Script": ["use", "hash"]},
+      "change": {},
+      "expect": {"decision": true, "subject": "did:pdo:script-asset",
+                 "operation": {"name": "do_inference", "parameters": {"script_digest": "sha256:abc"}},
+                 "evidence": ["use", "hash"], "verified": ["use", "hash"]}
+    },
+    {
+      "name": "deny: a disease the owner does not allow",
+      "present": {"Script": ["use", "hash"]},
+      "change": {"use": {"claims": {"useOnlyFor": {"diseases": ["MONDO:9999999"]}}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: the declared use of another script",
+      "present": {"Script": ["use", "hash"]},
+      "change": {"use": {"subject": "did:pdo:other-script"}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
+      "name": "deny: no IntendedDataUseCredential",
+      "present": {"Script": ["hash"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "disease_specific_research_for_inference", "input": "intendedDataUse"}]}
+    },
+    {
+      "name": "deny: no ScriptHashCredential",
+      "present": {"Script": ["use"]},
+      "change": {},
+      "expect": {"decision": false, "missing": [{"node": "disease_specific_research_for_inference", "input": "scriptHash"}]}
+    },
+    {
+      "name": "deny: a ScriptHashCredential from an issuer the contract does not trust",
+      "present": {"Script": ["use", "hash"]},
+      "change": {"hash": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
+      "expect": {"decision": false, "missing": [{"node": "disease_specific_research_for_inference", "input": "scriptHash"}]}
+    }
+  ]
+}

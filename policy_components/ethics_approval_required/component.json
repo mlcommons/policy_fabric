@@ -1,0 +1,36 @@
+{
+  "name": "EthicsApprovalRequired",
+  "group": "card",
+  "summary": "The card component of Ethics Approval Required (DUO_0000021). The requester holds an IRBClearanceCredential for a project, and that project's IntendedDataUseCredential names at least one purpose and only purposes the IRB approved. Outputs the DownloadGrantCredential that Grant download takes. No policy data.",
+  "inputs": {
+    "clearance": {
+      "type": "IRBClearanceCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "project",
+        "purposes"
+      ]
+    },
+    "use": {
+      "type": "IntendedDataUseCredential",
+      "about": "project",
+      "role": "User",
+      "claims": [
+        "useOnlyFor.purposes"
+      ]
+    }
+  },
+  "output": {
+    "type": "DownloadGrantCredential",
+    "about": "requester",
+    "claims": []
+  },
+  "policy_data": {},
+  "card": "ethics-approval-required",
+  "duo": "DUO_0000021",
+  "changes_from_today": [
+    "Changed from the card's Rego module: the AffiliationCredential is the requester's; the module read the PI's.",
+    "New claim: IRBApprovalCredential.purposes, the purposes the IRB approved. InstitutionalIRBApprovalCredential and IRBClearanceCredential carry it on."
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "name": "Time Limit on Use",
+  "root": "grant_download",
+  "nodes": {
+    "time_limit_on_use": {
+      "component": "time_limit_on_use",
+      "inputs": {
+        "agreement": {
+          "from": "presented"
+        },
+        "computeEnvironment": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "grant_download": {
+      "component": "grant_download",
+      "inputs": {
+        "key": {
+          "from": "presented"
+        },
+        "grant": {
+          "from": "node",
+          "node": "time_limit_on_use",
+          "accept_presented": false
+        }
+      },
+      "policy_data": {}
+    }
+  },
+  "trusted_issuers": {
+    "AgreementCredential": [],
+    "ComputeEnvironmentCredential": [],
+    "publicKeyCredential": []
+  }
+}
