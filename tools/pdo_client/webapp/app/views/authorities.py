@@ -1,16 +1,14 @@
-"""The Authorities page: the operator's side of establishing facts.
+"""The Authorities page: the operator's side of issuing credentials.
 
-Three kinds of authority, which a policy cannot tell apart:
+Two kinds of authority, which a policy cannot tell apart:
 
 * **hand-signing** -- a person or office signs after its own review
   (a signature_authority, signing from one fixed context);
-* **rule-based** -- a Rego rule over input credentials from authorities it
-  accepts (a policy agent whose policy is an authority card);
 * **system** -- ledger or cryptographic facts: the session-key authority and the
   wallet key authority created with it.
 
 Every authority is recorded in the directory (the asset registry) when it is
-created, with the facts it issues, so owners can find it and accept it.
+created, with the credential types it issues, so owners can find it and accept it.
 """
 
 import logging
@@ -20,7 +18,7 @@ from django.http import Http404
 from django.shortcuts import render
 
 from .. import ledger_client, naming, pdo_runner, registry_client, schemas, trust
-from ..credentials import PUBLIC_KEY, WALLET_KEY, trusted_types
+from ..credentials import PUBLIC_KEY, WALLET_KEY
 from ..did_utils import DID_PREFIX, make_did, parse_did
 from ..models import AppConfig
 from ..url_safe_id import decode_cid, encode_cid
@@ -29,7 +27,6 @@ from ._helpers import BaseView, JsonView, ValidationError, redirect_with_msg, re
 logger = logging.getLogger(__name__)
 
 HAND_SIGNING = "hand-signing"
-RULE_BASED = "rule-based"
 SYSTEM = "system"
 
 SESSION_KEY_CHECKS = (
@@ -51,17 +48,9 @@ def _hand_signing_ids(user_name):
     return [cid for cid in ids if cid not in assets]
 
 
-def _rule_based_ids(user_name):
-    """The user's policy agents the directory lists as rule-based authorities; the
-    others are the policies of their assets."""
-    listed = {parse_did(a["did"])[0] for a in registry_client.list_authorities() if a["kind"] == RULE_BASED}
-    return [cid for cid in ledger_client.list_policy_agent_ids(user_name) if cid in listed]
-
-
 def _ids_by_kind(user_name):
     return {
         HAND_SIGNING: _hand_signing_ids(user_name),
-        RULE_BASED: _rule_based_ids(user_name),
         SYSTEM: ledger_client.list_external_key_authority_ids(user_name)
         + ledger_client.list_wallet_key_authority_ids(user_name),
     }
@@ -90,7 +79,6 @@ def _card(contract_id, kind, name):
         "facts": entry["facts"],
         "checks": entry["checks"],
         "directory_id": entry["id"],
-        "inputs": entry["inputs"],
     }
 
 
@@ -108,7 +96,7 @@ def _require_authority(user_name, contract_id):
     raise Http404(f"authority not found: {contract_id}")
 
 
-def _record(contract_id, kind, name, user_name, *, facts, checks, inputs, sources, metadata):
+def _record(contract_id, kind, name, user_name, *, facts, checks, metadata):
     """Name an authority locally and list it in the directory."""
     naming.set_name(make_did(contract_id), name)
     registry_client.register_authority({
@@ -118,8 +106,6 @@ def _record(contract_id, kind, name, user_name, *, facts, checks, inputs, source
         "operator": user_name,
         "facts": facts,
         "checks": checks,
-        "inputs": inputs,
-        "sources": sources,
         "metadata": metadata,
     })
 
@@ -129,8 +115,7 @@ def _record(contract_id, kind, name, user_name, *, facts, checks, inputs, source
 # ============================================================
 def create_hand_signing(name, user_name, facts, checks):
     contract_id = pdo_runner.create_hand_signing_authority(name, user_name)
-    _record(contract_id, HAND_SIGNING, name, user_name,
-            facts=facts, checks=checks, inputs={}, sources=[], metadata={})
+    _record(contract_id, HAND_SIGNING, name, user_name, facts=facts, checks=checks, metadata={})
     return contract_id
 
 
@@ -143,24 +128,10 @@ def create_session_keys(name, user_name):
     """
     before = set(ledger_client.list_wallet_key_authority_ids(user_name))
     contract_id = pdo_runner.create_session_key_authority(user_name)
-    _record(contract_id, SYSTEM, name, user_name,
-            facts=["publicKeyCredential"], checks=SESSION_KEY_CHECKS, inputs={}, sources=[], metadata={})
+    _record(contract_id, SYSTEM, name, user_name, facts=["publicKeyCredential"], checks=SESSION_KEY_CHECKS, metadata={})
     for wka_id in set(ledger_client.list_wallet_key_authority_ids(user_name)) - before:
         _record(wka_id, SYSTEM, f"{name} (wallet keys)", user_name,
-                facts=["WalletVerifyingKeyCredential"], checks=WALLET_KEY_CHECKS, inputs={}, sources=[], metadata={})
-    return contract_id
-
-
-def create_rule_based(name, user_name, template_id):
-    """A policy agent issuing the card's fact by the card's rule, the rule's
-    module id being the card's name."""
-    card = registry_client.get_authority_template(template_id)
-    if card["parameters_schema"]["properties"]:
-        raise ValueError(f"The authority card {card['name']} has parameters, which this page cannot set.")
-    contract_id = pdo_runner.create_policy_agent(name, user_name, [[card["name"], card["rego_source"]]])
-    pdo_runner.set_policy_data(contract_id, {card["name"]: {}}, user_name)
-    _record(contract_id, RULE_BASED, name, user_name, facts=[card["issues"]], checks=card["rule"],
-            inputs=card["requirements"], sources=[], metadata={"card": card["name"]})
+                facts=["WalletVerifyingKeyCredential"], checks=WALLET_KEY_CHECKS, metadata={})
     return contract_id
 
 
@@ -173,25 +144,21 @@ class AuthoritiesListView(BaseView):
     def get(self, request):
         user_name = AppConfig.get_instance().public_key
         credential_templates = registry_client.list_credential_templates()
-        authority_templates = registry_client.list_authority_templates()
         names = {t["template_type"]: t["display_name"] for t in credential_templates}
 
         authorities = _cards(user_name)
         for a in authorities:
             a["fact_names"] = [names[t] for t in a["facts"]]
-        for t in authority_templates:
-            t["issues_name"] = names[t["issues"]]
-            t["input_names"] = sorted({names[i] for types in t["requirements"].values() for i in types})
 
         return render(request, "authorities/list.html", {
             "authorities": authorities,
-            # what a person can sign for: not the facts the system establishes,
-            # nor the ones requesters sign about themselves
+            # what a person can sign for: not the facts the system establishes, nor
+            # the ones requesters sign about themselves, nor what only a policy
+            # component produces (a download grant, say)
             "attestable": [
                 t for t in credential_templates
-                if not t["self_asserted"] and t["template_type"] not in (PUBLIC_KEY, WALLET_KEY)
+                if not t["self_asserted"] and t["presentable"] and t["template_type"] not in (PUBLIC_KEY, WALLET_KEY)
             ],
-            "authority_templates": authority_templates,
         })
 
     def post(self, request):
@@ -212,11 +179,6 @@ class AuthoritiesListView(BaseView):
                 if not checks:
                     return redirect_with_msg("/authorities/", "Say what this authority checks.", "error")
                 create_hand_signing(name, user_name, facts, checks)
-            elif kind == RULE_BASED:
-                template_id = request.POST.get("template", "")
-                if not template_id:
-                    return redirect_with_msg("/authorities/", "Choose an authority card.", "error")
-                create_rule_based(name, user_name, template_id)
             elif kind == SYSTEM:
                 create_session_keys(name, user_name)
             else:
@@ -229,8 +191,7 @@ class AuthoritiesListView(BaseView):
 
 
 class AuthorityDetailView(BaseView):
-    """GET: one authority. A hand-signing one signs from here; a rule-based one
-    shows its locked rule and the authorities it accepts for its inputs."""
+    """GET: one authority. A hand-signing one signs from here."""
 
     def get(self, request, cid_url):
         contract_id = decode_cid(cid_url)
@@ -254,19 +215,6 @@ class AuthorityDetailView(BaseView):
                 }
                 for t in authority["facts"]
             ]
-        elif kind == RULE_BASED:
-            try:
-                policy = pdo_runner.get_rego_policy(contract_id, user_name)
-                trusted = pdo_runner.list_trusted_issuers(contract_id, user_name)
-                facts = sorted({t for types in policy["requirements"].values() for t in types})
-                [[_, rule_source]] = policy["rego_modules"]
-                ctx["rule"] = {"credential_type": policy["credential_type"], "rego_module": rule_source}
-                ctx["issued_name"] = names[policy["credential_type"]]
-                ctx["needs_project"] = "project" in templates[policy["credential_type"]]["json_schema"]["properties"]
-                ctx["trust_rows"] = trust.panel(facts, trusted, registry_client.list_authorities(), names)
-            except Exception as e:
-                logger.exception("Failed to read the authority's rule")
-                ctx["error"] = str(e)
         return render(request, "authorities/detail.html", ctx)
 
 
@@ -337,82 +285,3 @@ class AuthoritySignCredentialEndpoint(JsonView):
         signed = pdo_runner.sign_credential(contract_id, [context], credential, user_name)
         pdo_runner.wallet_add_vc(holder_id, signed, user_name)
         return {"ok": True, "message": f"{fact} signed and delivered to {make_did(holder_id)}."}
-
-
-class AuthorityAcceptEndpoint(JsonView):
-    """POST {did, credential_types} -- a rule-based authority accepts an authority
-    for some of its inputs."""
-
-    def handle(self, request, data, cid_url):
-        contract_id = decode_cid(cid_url)
-        user_name = AppConfig.get_instance().public_key
-        if _require_authority(user_name, contract_id) != RULE_BASED:
-            raise ValidationError("Only rule-based authorities accept other authorities.")
-        did = require(data, "did")
-        types = data.get("credential_types")
-        if not isinstance(types, list) or not types:
-            raise ValidationError("'credential_types' must be a non-empty list")
-        for issuer_id, path, facts in trust.registrations({t: [did] for t in types}):
-            pdo_runner.register_trusted_issuer(
-                contract_id, issuer_id, user_name, path=path, credential_types=facts
-            )
-        _sync_sources(contract_id, user_name)
-        return {"ok": True, "message": "Accepted for: " + ", ".join(types)}
-
-
-class AuthorityWithdrawEndpoint(JsonView):
-    """POST {contract_id, credential_types} -- withdraw a rule-based authority's
-    trust in another for some of its inputs."""
-
-    def handle(self, request, data, cid_url):
-        contract_id = decode_cid(cid_url)
-        user_name = AppConfig.get_instance().public_key
-        if _require_authority(user_name, contract_id) != RULE_BASED:
-            raise ValidationError("Only rule-based authorities accept other authorities.")
-        issuer_id = require(data, "contract_id")
-        types = data.get("credential_types")
-        if not isinstance(types, list) or not types:
-            raise ValidationError("'credential_types' must be a non-empty list")
-        pdo_runner.unregister_trusted_issuer(
-            contract_id, issuer_id, user_name, credential_types=types
-        )
-        _sync_sources(contract_id, user_name)
-        return {"ok": True, "message": "Trust withdrawn."}
-
-
-def _sync_sources(contract_id, user_name):
-    """Mirror a rule-based authority's accepted sources into its directory entry,
-    so owners choosing it see whom it trusts."""
-    entry = registry_client.get_authority_by_did(directory_did(contract_id, RULE_BASED))
-    trusted = pdo_runner.list_trusted_issuers(contract_id, user_name)
-    sources = [
-        {"did": make_did(issuer_id), "credential_types": sorted(trusted_types(trusted, issuer_id))}
-        for issuer_id in sorted(trusted)
-    ]
-    registry_client.update_authority(entry["id"], {"sources": sources})
-
-
-class AuthorityIssueEndpoint(JsonView):
-    """POST {wallet_id, project} -- present one of the user's wallets to a
-    rule-based authority and store what it issues in that wallet. The project is
-    named exactly when the issued fact is about one."""
-
-    def handle(self, request, data, cid_url):
-        contract_id = decode_cid(cid_url)
-        user_name = AppConfig.get_instance().public_key
-        if _require_authority(user_name, contract_id) != RULE_BASED:
-            raise ValidationError("Only rule-based authorities issue on presentation.")
-        wallet_id = require(data, "wallet_id")
-        if not ledger_client.user_owns_contract(user_name, wallet_id):
-            raise ValidationError(f"wallet not found: {wallet_id}")
-        policy = pdo_runner.get_rego_policy(contract_id, user_name)
-        issued = registry_client.credential_templates_by_type()[policy["credential_type"]]
-        declared = {"project": require(data, "project")} if "project" in issued["json_schema"]["properties"] else {}
-        vc = pdo_runner.issue_credential(
-            contract_id,
-            {role: wallet_id for role in policy["requirements"]},
-            user_name,
-            declared,
-        )
-        pdo_runner.wallet_add_vc(wallet_id, vc, user_name)
-        return {"ok": True, "message": f"{policy['credential_type']} issued into your wallet."}

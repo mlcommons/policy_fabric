@@ -2,7 +2,7 @@
 {% block title %}{{ asset.name }} — Asset — PDO Client{% endblock %}
 
 {% block content %}
-<div class="container"
+<div class="container{% if graph_policy or expose %} container-wide{% endif %}"
      data-asset-cid-url="{{ asset.cid_url }}"
      data-asset-did="{{ asset.did }}">
     <div class="page-header">
@@ -43,51 +43,45 @@
         {% endif %}
     </div>
 
-    {% if has_policy %}
+    {% if graph_policy %}
 
-    <div class="card" id="attached-policies">
-        <h2>Policies</h2>
-        <ul class="item-list">
-            {% for c in cards %}
-            <li data-card="{{ c.name }}">
-                <span><span class="badge badge-code">{{ c.code }}</span> <strong>{{ c.title }}</strong>
-                    <span class="muted">— {{ c.rule }}</span></span>
-            </li>
-            {% endfor %}
-            {% if delivery %}
-            <li><span><span class="badge badge-code">delivery</span> {{ delivery }}</span></li>
-            {% endif %}
-        </ul>
+    <div class="card" id="policy-graph-card">
+        <h2>Policy graph</h2>
+        <p class="muted">The policy is a graph of policy components, composed from
+            {% for c in cards %}<span class="badge badge-code">{{ c.code }}</span> {{ c.title }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+            Its hash is <span class="did-display">{{ graph_sha256 }}</span>.</p>
+        <div class="graph-panel"><div id="asset-policy-graph"></div></div>
+        <h3>Requesters present one of</h3>
+        <ol class="alternatives" id="policy-alternatives">
+            {% for names in alternatives %}<li>{{ names|join:", " }}</li>{% endfor %}
+        </ol>
     </div>
 
     <div class="card" id="trust-panel">
         <h2>Accepted authorities</h2>
-        <p class="muted">For each fact your policies read, the authorities whose word you take for it.</p>
+        <p class="muted">For each credential the graph may take presented, the authorities whose word you take for it.
+            A credential with none cannot be presented, so requesters meet the graph another way.</p>
         {% include "_trust_table.html" %}
     </div>
 
-    {% if cards %}
+    {% if graph_policy.nodes %}
     <div class="card">
         <h2>Parameters</h2>
-        <form id="policy-data-form">
-            <div id="policy-data-forms"></div>
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary">Update</button>
-            </div>
-        </form>
+        <div id="node-data-forms"></div>
     </div>
-    {{ cards|json_script:"attached-cards-data" }}
     {% endif %}
+    {{ graph_policy|json_script:"graph-policy-data" }}
 
     {% elif guardian_deployed and supports_policy and expose %}
     <div class="card" id="expose-panel">
         <h2>Expose</h2>
-        <p class="muted">Choose the rules a requester must meet, set each rule's parameters,
-            and say whose word you take for the facts the rules read.</p>
+        <p class="muted">Choose the policies a requester must meet: their graphs of policy components
+            compose into one. Set each component's parameters, and say whose word you take for each
+            credential the graph takes presented.</p>
 
         <h3>1. Policies</h3>
         <div id="expose-cards" class="option-list"></div>
-        <p class="muted" id="expose-delivery"></p>
+        <div id="expose-graph" class="graph-panel" hidden></div>
 
         <h3>2. Parameters</h3>
         <div id="expose-parameters"><p class="muted">Choose a policy first.</p></div>
@@ -104,6 +98,7 @@
         </div>
     </div>
     {{ expose|json_script:"expose-data" }}
+    {{ catalog|json_script:"policy-catalog" }}
     {% elif guardian_deployed and not supports_policy %}
     <div class="card">
         <p class="muted" style="margin:0">This asset is served in the clear by a
@@ -116,6 +111,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/policy_ui/policy_graph.js"></script>
 <script src="/static/js/render.js"></script>
 <script src="/static/js/schema_form.js"></script>
 <script src="/static/js/trust_table.js"></script>

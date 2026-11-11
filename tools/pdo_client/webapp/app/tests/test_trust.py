@@ -5,27 +5,27 @@ from app import trust
 from .fixtures import authority, trusting
 
 DIRECTORY = [
-    authority("did:pdo:irb#poc", "IRB office", "hand-signing", ["EthicsApprovalCredential"]),
-    authority("did:pdo:committee", "Committee check", "rule-based", ["EthicsApprovalCredential"]),
+    authority("did:pdo:irb#poc", "IRB office", "hand-signing", ["IRBClearanceCredential"]),
+    authority("did:pdo:ethics#poc", "Ethics registry", "hand-signing", ["IRBClearanceCredential"]),
     authority("did:pdo:eka", "Session keys", "system", ["publicKeyCredential"]),
 ]
-NAMES = {"EthicsApprovalCredential": "Ethics approval", "publicKeyCredential": "Session key",
+NAMES = {"IRBClearanceCredential": "IRB clearance", "publicKeyCredential": "Session key",
          "LocationCredential": "Location"}
 
 
 class Trust(unittest.TestCase):
-    def test_a_row_per_fact_with_accepted_and_offered_authorities(self):
+    def test_a_row_per_type_with_accepted_and_offered_authorities(self):
         rows = trust.panel(
-            ["EthicsApprovalCredential", "publicKeyCredential"],
-            trusting("irb", ["EthicsApprovalCredential"]),
+            ["IRBClearanceCredential", "publicKeyCredential"],
+            trusting("irb", ["IRBClearanceCredential"]),
             DIRECTORY,
             NAMES,
         )
         ethics = rows[0]
-        self.assertEqual(ethics["name"], "Ethics approval")
+        self.assertEqual(ethics["name"], "IRB clearance")
         self.assertEqual([a["name"] for a in ethics["accepted"]], ["IRB office"])
         self.assertEqual(ethics["accepted"][0]["kind_label"], "Hand-signing")
-        self.assertEqual([o["name"] for o in ethics["options"]], ["Committee check"])
+        self.assertEqual([o["name"] for o in ethics["options"]], ["Ethics registry"])
         self.assertEqual(rows[1]["accepted"], [])
 
     def test_an_accepted_issuer_missing_from_the_directory_is_still_shown(self):
@@ -34,7 +34,7 @@ class Trust(unittest.TestCase):
 
     def test_a_lone_system_authority_is_preselected(self):
         self.assertEqual(trust.preselected("publicKeyCredential", DIRECTORY), ["did:pdo:eka"])
-        self.assertEqual(trust.preselected("EthicsApprovalCredential", DIRECTORY), [])
+        self.assertEqual(trust.preselected("IRBClearanceCredential", DIRECTORY), [])
 
     def test_choices_become_one_registration_per_authority_and_context(self):
         self.assertEqual(

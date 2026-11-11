@@ -1,10 +1,10 @@
 // The requester's readiness checklist (app/checklist.py), as a table.
 //
-//   window.checklist.render(container, rows)  -> renders one row per fact
-//   window.checklist.ready(rows)              -> every fact held or automatic
+//   window.checklist.render(container, rows)  -> renders one row per credential
+//   window.checklist.ready(rows)              -> every credential held or automatic
 //
 // Each row carries data-fact and data-status, so what the page says about a
-// fact can be read off the page.
+// credential can be read off the page.
 
 (function () {
     var LABELS = {
@@ -44,12 +44,12 @@
     function render(container, rows) {
         container.innerHTML = '';
         if (!rows.length) {
-            container.innerHTML = '<p class="muted">This asset needs no facts.</p>';
+            container.innerHTML = '<p class="muted">This asset needs no credentials.</p>';
             return;
         }
         var table = document.createElement('table');
         table.className = 'data-table checklist';
-        table.innerHTML = '<thead><tr><th>Role</th><th>Fact</th><th>Status</th><th></th></tr></thead>';
+        table.innerHTML = '<thead><tr><th>Role</th><th>Credential</th><th>Status</th><th></th></tr></thead>';
         var body = document.createElement('tbody');
         rows.forEach(function (row) {
             var tr = document.createElement('tr');

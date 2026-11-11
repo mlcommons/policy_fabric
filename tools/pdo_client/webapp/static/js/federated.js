@@ -20,7 +20,6 @@
     var roles = [];        // the union the selected sites asked for
     var scriptRole = '';   // the role whose identity is the script itself
     var checking = 0;      // the latest checklist request; older answers are dropped
-    var needsProject = false;  // whether a selected site needs a fact about a project
 
     function el(id) { return document.getElementById(id); }
 
@@ -159,18 +158,6 @@
     }
 
     // ------------------------------------------------------------ checklists
-    function renderProjects(needed, projects) {
-        needsProject = needed;
-        var select = el('fl-project');
-        var current = select.value;
-        select.innerHTML = '';
-        projects.forEach(function (p) {
-            select.appendChild(new Option(p, p, false, p === current));
-        });
-        el('fl-project-none').classList.toggle('hidden', projects.length > 0);
-        el('fl-project-group').classList.toggle('hidden', !needed);
-    }
-
     function renderChecklists(info) {
         var box = el('fl-run-checklists');
         box.innerHTML = '';
@@ -192,7 +179,6 @@
             section.appendChild(body);
             box.appendChild(section);
         });
-        renderProjects(info.needs_project, info.projects);
     }
 
     function refreshChecklists() {
@@ -207,8 +193,7 @@
             .then(function (info) {
                 if (token !== checking) return;
                 renderChecklists(info);
-                submit.disabled = !info.sites.some(function (s) { return s.ready; })
-                    || (info.needs_project && !info.projects.length);
+                submit.disabled = !info.sites.some(function (s) { return s.ready; });
             })
             .catch(function (e) {
                 if (token !== checking) return;
@@ -228,7 +213,6 @@
             + '. Each site is asked separately, by its own policy.';
         el('fl-run-roles').innerHTML = '';
         el('fl-run-checklists').innerHTML = '';
-        renderProjects(false, []);
         el('fl-run-submit').disabled = true;
         el('fl-run-modal').classList.remove('hidden');
 
@@ -345,7 +329,6 @@
         el('fl-run-form').addEventListener('submit', function (e) {
             e.preventDefault();
             var payload = { server_url: serverUrl, asset_dids: selectedDids(), wallets: collectWallets() };
-            if (needsProject) payload.project = el('fl-project').value;
             window.progress.run('/api/federated/run/stream/', payload, {
                 title: 'Running the federated round…',
                 onComplete: function (term) {

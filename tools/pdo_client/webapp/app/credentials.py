@@ -13,7 +13,6 @@ from .did_utils import DID_PREFIX, make_did
 
 PUBLIC_KEY = "publicKeyCredential"
 WALLET_KEY = "WalletVerifyingKeyCredential"
-PROJECT_OWNERSHIP = "ProjectOwnershipCredential"
 
 
 def contract_id_of(identifier):

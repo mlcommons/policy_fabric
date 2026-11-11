@@ -11,9 +11,9 @@ is used as the one family-agnostic entry point for all of them by contract_id
 — only ``sign_credential`` is NOT reusable against an ``external_key_authority``
 contract (it's a distinct, non-aliased op there).
 
-An asset's policy and a rule-based authority are both a ``rego_policy_agent``:
-one issues policy decisions, the other a fact. System
-authorities are the authority family's session-key and wallet-key authorities.
+An asset's policy is a ``rego_policy_agent`` set with a policy graph: it issues
+the policy decisions the asset's ``rego_token`` trusts. System authorities are the
+authority family's session-key and wallet-key authorities.
 
 Helpers mutate the shared state when loading contexts, so all calls run
 under a single global lock.
@@ -23,6 +23,7 @@ import base64
 import json
 import logging
 import os
+import shutil
 import tempfile
 import threading
 import time
@@ -278,9 +279,9 @@ def _presentation(state, wallet_ids, requirements, user_name):
     """One verifiable presentation per role, keyed by role, written to a file.
 
     A role is presented from the wallet chosen for it, with every stored
-    credential of the role's types, whoever it is about: a policy reads only the
-    facts about the role's holder, and an authority may read copies of facts about
-    others. The caller must hold ``_op_lock``.
+    credential of the role's types, whoever it is about: the policy's components
+    read credentials about the role's holder and copies of credentials about others
+    (the PI's project ownership, say). The caller must hold ``_op_lock``.
     """
     presentation = {}
     for role, types in requirements.items():
@@ -303,54 +304,8 @@ def _presentation(state, wallet_ids, requirements, user_name):
 
 
 # ============================================================
-# Policy agents: an asset's policy, and rule-based authorities
+# Policy agents: an asset's policy
 # ============================================================
-def create_policy_agent(description, user_name, rego_modules):
-    """Create a policy agent and lock in its policy: its ``[module_id, rego_source]``
-    modules, one of which declares the type it issues, each written to a file for
-    the command that reads it.
-
-    Returns the contract_id.
-    """
-    state = get_state()
-    module_paths = []
-    module_args = []
-    for module_id, source in rego_modules:
-        path = _tmp_path(".rego")
-        with open(path, "w") as f:
-            f.write(source)
-        module_paths.append(path)
-        module_args.append([module_id, path])
-
-    try:
-        with _op_lock:
-            contract_id = rego_policy_agent.create_rego_policy_agent(state, user_name, description=description)
-            time.sleep(1)
-            rego_policy_agent.set_rego_policy(state, contract_id, user_name, module=module_args)
-    finally:
-        for path in module_paths:
-            _safe_unlink(path)
-    return contract_id
-
-
-def get_rego_policy(agent_id, user_name):
-    """``{credential_type, rego_modules, requirements}``."""
-    state = get_state()
-    with _op_lock:
-        return _as_json(rego_policy_agent.get_rego_policy(state, agent_id, user_name))
-
-
-def set_policy_data(agent_id, policy_data, user_name):
-    """Write the policy data, each module's parameters under its module id."""
-    state = get_state()
-    data_path = _tmp_json(policy_data)
-    try:
-        with _op_lock:
-            rego_policy_agent.set_policy_data(state, agent_id, user_name, data=data_path)
-    finally:
-        _safe_unlink(data_path)
-
-
 def get_policy_data(agent_id, user_name):
     state = get_state()
     with _op_lock:
@@ -387,12 +342,10 @@ def list_trusted_issuers(agent_id, user_name):
         return _as_json(rego_policy_agent.list_trusted_issuers(state, agent_id, user_name))
 
 
-def _issue(state, agent_id, wallet_ids, user_name, request, issued_path):
-    """Present the wallets to a policy agent, role by role as its requirements
-    name them, with what the requester declares, and write what it issues to
-    ``issued_path``. The caller must hold ``_op_lock``."""
-    requirements = _as_json(rego_policy_agent.get_requirements(state, agent_id, user_name))
-    time.sleep(1)
+def _issue(state, agent_id, wallet_ids, user_name, request, requirements, issued_path):
+    """Present the wallets to a policy agent, role by role with the credential types
+    ``requirements`` names, with what the requester declares, and write what it
+    issues to ``issued_path``. The caller must hold ``_op_lock``."""
     presentation_path = _presentation(state, wallet_ids, requirements, user_name)
     try:
         rego_policy_agent.issue_policy_credential(
@@ -406,19 +359,6 @@ def _issue(state, agent_id, wallet_ids, user_name, request, issued_path):
         time.sleep(1)
     finally:
         _safe_unlink(presentation_path)
-
-
-def issue_credential(agent_id, wallet_ids, user_name, request):
-    """Ask a rule-based authority for the fact it issues, presenting the wallets
-    its rule reads; returns the credential."""
-    state = get_state()
-    issued_path = _tmp_path(".json")
-    try:
-        with _op_lock:
-            _issue(state, agent_id, wallet_ids, user_name, request, issued_path)
-        return _read_json(issued_path)
-    finally:
-        _safe_unlink(issued_path)
 
 
 def obtain_wallet_key_credential(wka_id, wallet_id, user_name):
@@ -455,15 +395,30 @@ def bind_session_key(eka_id, wallet_id, user_name, keys_dir):
 # ============================================================
 # Asset policy ops (owner-side)
 # ============================================================
-def create_asset_policy(description, guardian_url_port, user_name, rego_modules):
-    """Create the asset's policy agent, issuing policy decisions from
-    ``rego_modules`` (the cards the owner selected and the delivery module of the
-    asset's guardian), and a rego_token that trusts it for them.
+def create_asset_policy(description, guardian_url_port, user_name, graph, components):
+    """Create the asset's policy agent with a policy graph -- ``graph``, whose nodes'
+    policy_data are the owner's values, and ``components``, ``{component_id: rego_source}``
+    for every component it uses -- and a rego_token that trusts it for its decisions.
 
-    Returns ``{'policy_contract_id', 'token_contract_id'}``.
+    Returns ``{'policy_contract_id', 'token_contract_id', 'graph_hash'}``.
     """
-    policy_id = create_policy_agent(description, user_name, rego_modules)
     state = get_state()
+    graph_path = _tmp_json(graph)
+    components_dir = tempfile.mkdtemp(prefix="pdo_components_", dir=cfg.SCRATCH_DIR)
+    for component_id, source in components.items():
+        os.makedirs(os.path.join(components_dir, component_id))
+        with open(os.path.join(components_dir, component_id, "component.rego"), "w") as f:
+            f.write(source)
+    try:
+        with _op_lock:
+            policy_id = rego_policy_agent.create_rego_policy_agent(state, user_name, description=description)
+            time.sleep(1)
+            rego_policy_agent.set_policy_graph(state, policy_id, user_name, graph=graph_path, components=components_dir)
+            time.sleep(1)
+            stored = _as_json(rego_policy_agent.get_policy_graph(state, policy_id, user_name))
+    finally:
+        _safe_unlink(graph_path)
+        shutil.rmtree(components_dir, ignore_errors=True)
     with _op_lock:
         time.sleep(1)
         token_id = rego_token.create_rego_token(state, user_name, guardian_url_port)
@@ -476,7 +431,25 @@ def create_asset_policy(description, guardian_url_port, user_name, rego_modules)
             credential_types=["policy_decision"],
             path=["__ISSUER__"],
         )
-    return {"policy_contract_id": policy_id, "token_contract_id": token_id}
+    return {"policy_contract_id": policy_id, "token_contract_id": token_id, "graph_hash": stored["sha256"]}
+
+
+def get_policy_graph(agent_id, user_name):
+    """``{policy_graph, components, sha256}`` of an asset's policy."""
+    state = get_state()
+    with _op_lock:
+        return _as_json(rego_policy_agent.get_policy_graph(state, agent_id, user_name))
+
+
+def set_node_policy_data(agent_id, node, policy_data, user_name):
+    """Replace one node's policy data in an asset's policy graph."""
+    state = get_state()
+    data_path = _tmp_json(policy_data)
+    try:
+        with _op_lock:
+            rego_policy_agent.set_node_policy_data(state, agent_id, user_name, node=node, data=data_path)
+    finally:
+        _safe_unlink(data_path)
 
 
 # ============================================================
@@ -499,34 +472,35 @@ def resolve_policy_id(token_id, user_name):
         return _resolve_policy_id(state, token_id, user_name)
 
 
-def get_policy_requirements(token_id, user_name):
-    """The per-role credential requirements of the policy a token names, which
-    the consumer needs before presenting anything: they say which roles must be
-    filled and from where."""
+def get_requirement_alternatives(token_id, user_name):
+    """The bundles of credential types, by role, that satisfy the policy a token names,
+    smallest first, which the consumer needs before presenting anything: they say
+    which roles must be filled and from where."""
     state = get_state()
     with _op_lock:
         policy_id = _resolve_policy_id(state, token_id, user_name)
-        return _as_json(rego_policy_agent.get_requirements(state, policy_id, user_name))
+        return _as_json(rego_policy_agent.get_requirement_alternatives(state, policy_id, user_name))["alternatives"]
 
 
-def _issue_policy_decision(state, wallet_ids, token_id, user_name, issued_path, request):
+def _issue_policy_decision(state, wallet_ids, token_id, user_name, issued_path, request, requirements):
     """Have an asset's policy judge a presentation, writing the decision to
     ``issued_path``.
 
     The token names the policy agent. Each role is presented from the wallet
     chosen for it -- the requester's own for ``User``, the script's for
-    ``Script``. ``request`` carries what the requester declares: the project, the
-    channel key, the script digest.
+    ``Script`` -- with the credential types of ``requirements``, the alternative
+    the requester can satisfy. ``request`` carries what the requester declares:
+    the channel key, or the script digest.
 
     This is where every policy-gated flow starts; what follows differs only in
     what the resulting capability is handed to. The caller must hold ``_op_lock``.
     """
     policy_id = _resolve_policy_id(state, token_id, user_name)
     time.sleep(1)
-    _issue(state, policy_id, wallet_ids, user_name, request, issued_path)
+    _issue(state, policy_id, wallet_ids, user_name, request, requirements, issued_path)
 
 
-def use_asset(*, wallet_ids, token_id, guardian_url_port, user_name, request):
+def use_asset(*, wallet_ids, token_id, guardian_url_port, user_name, request, requirements):
     """Run the consumer download flow.
 
     Issues a policy decision credential and redeems the capability it authorizes
@@ -542,7 +516,7 @@ def use_asset(*, wallet_ids, token_id, guardian_url_port, user_name, request):
 
     try:
         with _op_lock:
-            _issue_policy_decision(state, wallet_ids, token_id, user_name, issued_path, request)
+            _issue_policy_decision(state, wallet_ids, token_id, user_name, issued_path, request, requirements)
             rego_token.do_operation(
                 state,
                 token_id,
@@ -556,7 +530,7 @@ def use_asset(*, wallet_ids, token_id, guardian_url_port, user_name, request):
         _safe_unlink(issued_path)
 
 
-def create_capability(*, wallet_ids, token_id, user_name, request):
+def create_capability(*, wallet_ids, token_id, user_name, request, requirements):
     """Run the consumer flow up to the capability, without redeeming it.
 
     Used by actions where someone else contacts the guardian: the inference flow
@@ -573,7 +547,7 @@ def create_capability(*, wallet_ids, token_id, user_name, request):
 
     try:
         with _op_lock:
-            _issue_policy_decision(state, wallet_ids, token_id, user_name, issued_path, request)
+            _issue_policy_decision(state, wallet_ids, token_id, user_name, issued_path, request, requirements)
             rego_token.create_capability(
                 state,
                 token_id,

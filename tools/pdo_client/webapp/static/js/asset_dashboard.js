@@ -1,10 +1,11 @@
 // Asset dashboard.
 //
 // Before the asset is exposed, the Expose panel: the owner picks policy cards
-// (those that fit this asset's guardian), fills each one's parameter form, and
-// accepts authorities fact by fact; a review line says what requesters will
-// need. Afterwards: trust can be withdrawn or added fact by fact, and each
-// policy's parameters edited.
+// (those that fit this asset's guardian), whose graphs of policy components
+// compose into one; fills each node's parameter form; and accepts authorities
+// for each credential type the graph takes presented. A review line lists the
+// ways requesters can meet the graph. Afterwards: the graph is drawn, trust can
+// be withdrawn or added type by type, and each node's parameters edited.
 
 (function () {
     function el(id) { return document.getElementById(id); }
@@ -18,36 +19,45 @@
         return list.filter(function (x, i) { return list.indexOf(x) === i; });
     }
 
+    // a fieldset with a legend and a body for one node's parameter form
+    function nodeFieldset(n) {
+        var set = document.createElement('fieldset');
+        set.className = 'schema-fieldset';
+        set.dataset.parameters = n.node;
+        var legend = document.createElement('legend');
+        legend.textContent = n.name;
+        set.appendChild(legend);
+        var body = document.createElement('div');
+        set.appendChild(body);
+        return { set: set, body: body };
+    }
+
     // ------------------------------------------------------------- expose
     function exposePanel(cidUrl, data) {
-        var selected = [];   // [{card, form}] in the order the cards are listed
-        var chosen = {};     // fact -> [DID, ...], for every fact the platform knows
-        var touched = {};    // facts the owner has already seen, so defaults apply once
+        var selected = [];   // the chosen cards, in the order they are listed
+        var chosen = {};     // credential type -> [DID, ...], for every type the platform knows
+        var touched = {};    // types the owner has already seen, so defaults apply once
         Object.keys(data.facts).forEach(function (t) { chosen[t] = []; });
+        var composed = null; // {graph, alternatives, nodes} of the selection
+        var nodeForms = {};  // node -> its parameter form
+        var drawn = null;    // the composed graph, drawn
+        var composing = 0;   // the latest compose request; one answered after a later one is dropped
 
         function fact(type) { return data.facts[type]; }
         function byDid(did) {
             return data.authorities.filter(function (a) { return a.did === did; })[0];
         }
-        function byContract(did) {
-            var id = did.replace(/^did:pdo:/, '').split('#')[0];
-            return data.authorities.filter(function (a) { return a.contract_id === id; })[0];
-        }
         function optionsFor(type) {
             return data.authorities.filter(function (a) { return a.facts.indexOf(type) !== -1; });
         }
-        function needs(module) {
-            var out = [];
-            Object.keys(module.requirements).forEach(function (role) {
-                out = out.concat(module.requirements[role]);
-            });
-            return unique(out);
-        }
+        // the types the composed graph takes presented, and the ones the requester signs
         function neededFacts() {
-            var facts = [];
-            selected.forEach(function (s) { facts = facts.concat(needs(s.card)); });
-            if (selected.length) facts = facts.concat(needs(data.delivery));
-            return unique(facts);
+            if (!composed) return [];
+            var types = Object.keys(composed.graph.trusted_issuers);
+            composed.alternatives.forEach(function (bundle) {
+                Object.keys(bundle).forEach(function (role) { types = types.concat(bundle[role]); });
+            });
+            return unique(types);
         }
         function factNames(types) {
             return types.map(function (t) { return fact(t).name; }).join(', ');
@@ -70,54 +80,42 @@
                 item.querySelector('.badge-code').textContent = card.code;
                 item.querySelector('strong').textContent = card.title;
                 item.querySelector('.option-rule').textContent = card.rule;
-                item.querySelector('small').textContent = 'Needs: ' + factNames(needs(card));
+                item.querySelector('small').textContent = 'Takes: ' + factNames(Object.keys(card.graph.trusted_issuers));
                 item.querySelector('input').addEventListener('change', function (e) {
                     if (e.target.checked) {
-                        selected.push({ card: card, form: null });
-                        selected.sort(function (a, b) {
-                            return data.cards.indexOf(a.card) - data.cards.indexOf(b.card);
-                        });
+                        selected.push(card);
+                        selected.sort(function (a, b) { return data.cards.indexOf(a) - data.cards.indexOf(b); });
                     } else {
-                        selected = selected.filter(function (s) { return s.card !== card; });
+                        selected = selected.filter(function (c) { return c !== card; });
                     }
                     refresh();
                 });
                 item.querySelector('button').addEventListener('click', function () {
-                    window.render.showCard(card.code + ' · ' + card.title, card.readme, card.rego_source);
+                    window.render.showCard(card.code + ' · ' + card.title, card.readme, card.rego_source, card.graph);
                 });
                 box.appendChild(item);
             });
-            el('expose-delivery').textContent =
-                'Always included: ' + data.delivery.title + ' — ' + data.delivery.rule +
-                ' Needs: ' + factNames(needs(data.delivery)) + '.';
         }
 
-        // ---- 2. parameters, one generated form per selected card
+        // ---- 2. parameters, one generated form per node that takes them
         function renderParameters() {
             var box = el('expose-parameters');
             var values = {};
-            selected.forEach(function (s) {
-                if (s.form) values[s.card.id] = s.form.value();
-            });
+            Object.keys(nodeForms).forEach(function (n) { values[n] = nodeForms[n].value(); });
             box.innerHTML = '';
-            selected.forEach(function (s) {
-                var set = document.createElement('fieldset');
-                set.className = 'schema-fieldset';
-                set.dataset.parameters = s.card.name;
-                var legend = document.createElement('legend');
-                legend.textContent = s.card.code + ' · ' + s.card.title;
-                set.appendChild(legend);
-                var body = document.createElement('div');
-                set.appendChild(body);
-                box.appendChild(set);
-                s.form = window.schemaForm.render(
-                    body, s.card.parameters_schema, s.card.id in values ? values[s.card.id] : s.card.defaults
-                );
+            nodeForms = {};
+            (composed ? composed.nodes : []).forEach(function (n) {
+                if (!Object.keys(n.schema).length) return;
+                var parts = nodeFieldset(n);
+                box.appendChild(parts.set);
+                nodeForms[n.node] = window.schemaForm.render(parts.body, n.schema, n.node in values ? values[n.node] : {});
             });
-            if (!selected.length) box.innerHTML = '<p class="muted">Choose a policy first.</p>';
+            if (!box.children.length) {
+                box.innerHTML = '<p class="muted">' + (composed ? 'No component of these policies takes parameters.' : 'Choose a policy first.') + '</p>';
+            }
         }
 
-        // ---- 3. accepted authorities, one row per fact
+        // ---- 3. accepted authorities, one row per credential type
         function choose(type, did, on) {
             var list = chosen[type];
             list = list.filter(function (d) { return d !== did; });
@@ -147,12 +145,6 @@
             var details = [];
             if (authority.operator) details.push('operated by ' + authority.operator);
             if (authority.checks) details.push(authority.checks);
-            if (authority.sources.length) {
-                details.push('accepts ' + authority.sources.map(function (s) {
-                    var known = byContract(s.did);
-                    return known ? known.name : s.did;
-                }).join(', ') + ' for its inputs');
-            }
             text.querySelector('small').textContent = details.join(' · ');
             label.appendChild(cb);
             label.appendChild(text);
@@ -187,8 +179,8 @@
                 var options = optionsFor(type);
                 if (!touched[type]) {
                     touched[type] = true;
-                    // A fact only a single system authority establishes, such as
-                    // the session key, is accepted by default.
+                    // A type only a single system authority issues, such as the
+                    // session key, is accepted by default.
                     if (options.length === 1 && options[0].kind === 'system') choose(type, options[0].did, true);
                 }
                 var list = document.createElement('div');
@@ -252,57 +244,91 @@
             });
         }
 
+        // ---- the graph the selection composes into
+        function renderGraph() {
+            var box = el('expose-graph');
+            if (drawn) drawn.destroy();
+            drawn = null;
+            box.hidden = !composed;
+            if (composed) drawn = window.PolicyGraph.render(box, composed.graph, readJson('policy-catalog'), 'light');
+        }
+
+        function compose() {
+            var request = ++composing;
+            if (!selected.length) {
+                composed = null;
+                return Promise.resolve();
+            }
+            return window.api.post('/api/assets/' + cidUrl + '/compose/', {
+                cards: selected.map(function (c) { return c.id; }),
+            }).then(function (res) {
+                if (request === composing) composed = res;
+            }, function (err) {
+                if (request !== composing) return;
+                composed = null;
+                window.flash(err.message, 'error');
+            });
+        }
+
+        // a way to meet the graph is open when every credential in it is accepted from
+        // some authority, or signed by the requester
+        function openAlternatives() {
+            return composed.alternatives.filter(function (bundle) {
+                return Object.keys(bundle).every(function (role) {
+                    return bundle[role].every(function (t) { return fact(t).self_asserted || chosen[t].length; });
+                });
+            });
+        }
+
         // ---- 4. review
-        function describe(type) {
-            if (fact(type).self_asserted) return fact(type).name + ' (signed by their own wallet)';
-            var accepted = chosen[type].map(function (did) {
-                return byDid(did) || { name: did, kind: 'unlisted' };
-            });
-            if (!accepted.length) return fact(type).name + ' (no authority accepted yet)';
-            var automatic = accepted.every(function (a) { return a.kind === 'system'; });
-            return fact(type).name + ' (' + (automatic
-                ? 'automatic'
-                : accepted.map(function (a) { return a.name; }).join(' or ')) + ')';
-        }
-
-        function missing() {
-            return neededFacts().filter(function (t) {
-                return !fact(t).self_asserted && !chosen[t].length;
-            });
-        }
-
         function renderReview() {
-            var facts = neededFacts();
-            el('expose-review').textContent = facts.length
-                ? 'Requesters will need: ' + facts.map(describe).join(', ') + '.'
-                : 'Choose a policy first.';
-            el('expose-submit').disabled = !selected.length || missing().length > 0;
+            if (!composed) {
+                el('expose-review').textContent = 'Choose a policy first.';
+                el('expose-submit').disabled = true;
+                return;
+            }
+            var open = openAlternatives();
+            el('expose-review').textContent = 'Requesters will present one of: ' + composed.alternatives.map(function (bundle) {
+                var names = [];
+                Object.keys(bundle).forEach(function (role) {
+                    names = names.concat(bundle[role].map(function (t) { return fact(t).name; }));
+                });
+                return names.join(' + ') + (open.indexOf(bundle) === -1 ? ' (no authority accepted for all)' : '');
+            }).join('; or ') + '.';
+            el('expose-submit').disabled = !open.length;
         }
 
         function refresh() {
-            renderParameters();
-            renderTrustLists();
-            renderAuthorities();
-            renderReview();
+            compose().then(function () {
+                renderParameters();
+                renderTrustLists();
+                renderAuthorities();
+                renderReview();
+                renderGraph();
+            });
         }
 
         function submit() {
             var errors = [];
             var parameters = {};
-            selected.forEach(function (s) {
-                s.form.errors().forEach(function (e) { errors.push(s.card.code + ': ' + e); });
-                parameters[s.card.id] = s.form.value();
+            composed.nodes.forEach(function (n) {
+                if (n.node in nodeForms) {
+                    nodeForms[n.node].errors().forEach(function (e) { errors.push(n.name + ': ' + e); });
+                    parameters[n.node] = nodeForms[n.node].value();
+                } else {
+                    parameters[n.node] = {};
+                }
             });
             if (errors.length) {
                 window.flash(errors.join('\n'), 'error');
                 return;
             }
             var authorities = {};
-            neededFacts().forEach(function (t) {
+            Object.keys(composed.graph.trusted_issuers).forEach(function (t) {
                 if (!fact(t).self_asserted) authorities[t] = chosen[t];
             });
             window.progress.run('/assets/' + cidUrl + '/expose/stream/', {
-                cards: selected.map(function (s) { return s.card.id; }),
+                cards: selected.map(function (c) { return c.id; }),
                 parameters: parameters,
                 authorities: authorities,
             }, { title: 'Exposing the asset…' });
@@ -314,41 +340,33 @@
     }
 
     // ------------------------------------------------------------ exposed
-    function parametersEditor(cidUrl, cards) {
-        var box = el('policy-data-forms');
-        var forms = cards.map(function (card) {
-            var set = document.createElement('fieldset');
-            set.className = 'schema-fieldset';
-            set.dataset.parameters = card.name;
-            var legend = document.createElement('legend');
-            legend.textContent = card.code + ' · ' + card.title;
-            set.appendChild(legend);
-            var body = document.createElement('div');
-            set.appendChild(body);
-            box.appendChild(set);
-            return { card: card, form: window.schemaForm.render(body, card.parameters_schema, card.values) };
-        });
-
-        el('policy-data-form').addEventListener('submit', async function (e) {
-            e.preventDefault();
-            var errors = [];
-            var policyData = {};
-            forms.forEach(function (f) {
-                f.form.errors().forEach(function (err) { errors.push(f.card.code + ': ' + err); });
-                policyData[f.card.name] = f.form.value();
+    function policyGraph(cidUrl, policy) {
+        window.PolicyGraph.render(el('asset-policy-graph'), policy.graph, policy.catalog, 'light');
+        var box = el('node-data-forms');
+        if (!box) return;
+        policy.nodes.forEach(function (n) {
+            var parts = nodeFieldset(n);
+            var form = window.schemaForm.render(parts.body, n.schema, n.values);
+            var actions = document.createElement('div');
+            actions.className = 'form-actions';
+            actions.innerHTML = '<button type="button" class="btn btn-primary">Update</button>';
+            actions.querySelector('button').addEventListener('click', async function () {
+                var errors = form.errors();
+                if (errors.length) {
+                    window.flash(n.name + ': ' + errors.join('\n'), 'error');
+                    return;
+                }
+                try {
+                    var res = await window.api.post(
+                        '/api/assets/' + cidUrl + '/update-policy-data/', { node: n.node, policy_data: form.value() }
+                    );
+                    window.flash(res.message, 'success');
+                } catch (err) {
+                    window.flash(err.message, 'error');
+                }
             });
-            if (errors.length) {
-                window.flash(errors.join('\n'), 'error');
-                return;
-            }
-            try {
-                var res = await window.api.post(
-                    '/api/assets/' + cidUrl + '/update-policy-data/', { policy_data: policyData }
-                );
-                window.flash(res.message, 'success');
-            } catch (err) {
-                window.flash(err.message, 'error');
-            }
+            parts.set.appendChild(actions);
+            box.appendChild(parts.set);
         });
     }
 
@@ -362,8 +380,8 @@
 
         window.trustTable.wire(el('trust-panel'), '/api/assets/' + cidUrl + '/');
 
-        var cards = readJson('attached-cards-data');
-        if (cards) parametersEditor(cidUrl, cards);
+        var policy = readJson('graph-policy-data');
+        if (policy) policyGraph(cidUrl, policy);
     }
 
     if (document.readyState === 'loading') {

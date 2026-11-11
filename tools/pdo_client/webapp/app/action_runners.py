@@ -95,13 +95,6 @@ class GuardianActionRunner:
         self.metadata = metadata or {}
         self.params = params or {}
         self.wallets = dict(wallets or {})
-        # what the requester declares, handed to every module as input.request:
-        # the project this use is for, when they name one
-        self.request = {}
-        if "project" in self.params:
-            if not self.params["project"]:
-                raise ValueError("The project this use is for must be named.")
-            self.request["project"] = self.params["project"]
 
         self.guardian = guardian_endpoint(self.metadata)
 
@@ -147,24 +140,23 @@ class GuardianActionRunner:
     # shared steps
     # -----------------------------------------------------------------
     def _get_ready(self, ctx):
-        """Check every fact the asset needs, and get the ones that are automatic.
+        """Check every credential the asset needs, and get the ones that are automatic.
 
         Fails with what is missing, and whom to ask, before anything is presented.
         """
         assessment = readiness.assess(self.token_id, self.wallets, self.user_name)
         ctx["trusted"] = assessment["trusted"]
-        if assessment["needs_project"] and "project" not in self.request:
-            raise ValueError("A fact this asset needs is about a project: name the project this use is for.")
+        ctx["requirements"] = assessment["requirements"]
         if not checklist.ready(assessment["rows"]):
             raise ValueError("Not ready: " + readiness.describe_blockers(assessment["rows"]))
-        obtained = readiness.obtain(assessment["rows"], self.wallets, self.user_name, self.request)
+        obtained = readiness.obtain(assessment["rows"], self.wallets, self.user_name)
         if not obtained:
-            raise SkipStep("every fact is already held")
+            raise SkipStep("every credential is already held")
         return {"detail": "obtained " + "; ".join(obtained)}
 
     @property
     def _ready_step(self):
-        return ("ready", "Checking the facts this asset needs", self._get_ready)
+        return ("ready", "Checking the credentials this asset needs", self._get_ready)
 
 
 class PublicGuardianActionRunner(GuardianActionRunner):
@@ -204,7 +196,7 @@ class DownloadGuardianActionRunner(GuardianActionRunner):
     result_kind = "data"
 
     def steps(self):
-        # the download delivery module reads the session key of the User role
+        # Grant download reads the session key of the User role
         wallet_id = self.wallets["User"]
 
         def download(ctx):
@@ -218,7 +210,8 @@ class DownloadGuardianActionRunner(GuardianActionRunner):
                 token_id=self.token_id,
                 guardian_url_port=self.guardian,
                 user_name=self.user_name,
-                request={**self.request, "channel_key": key},
+                request={"channel_key": key},
+                requirements=ctx["requirements"],
             )
             ctx["output_path"], ctx["channel_key"] = output_path, key
 
@@ -282,12 +275,13 @@ class InferenceGuardianActionRunner(GuardianActionRunner):
     def steps(self):
         def capability(ctx):
             # minted for the digest of the script actually being sent
-            request = dict(self.request, script_digest=self.params["script_digest"])
+            request = {"script_digest": self.params["script_digest"]}
             cap, _ = pdo_runner.create_capability(
                 wallet_ids=self.wallets,
                 token_id=self.token_id,
                 user_name=self.user_name,
                 request=request,
+                requirements=ctx["requirements"],
             )
             ctx["capability"] = cap
             return {"detail": "issued by this site's own policy"}

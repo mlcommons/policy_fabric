@@ -94,14 +94,9 @@ def list_trust_lists():
 # ============================================================
 
 
-def list_policy_templates():
-    """Every policy and delivery template."""
-    return _get(_template_registry("policies/"), {})
-
-
-def policy_templates_for(guardian_type, kind):
-    """The templates of a kind (``policy`` or ``delivery``) for a guardian type."""
-    return _get(_template_registry("policies/"), {"guardian_type": guardian_type, "kind": kind})
+def policy_templates_for(guardian_type):
+    """The policy cards whose graphs end in the grant of a guardian type."""
+    return _get(_template_registry("policies/"), {"guardian_type": guardian_type})
 
 
 def get_policy_template(pk):
@@ -109,21 +104,15 @@ def get_policy_template(pk):
     return _get(_template_registry(f"policies/{pk}/"), {})
 
 
-def delivery_template(guardian_type):
-    """The delivery module of a guardian type."""
-    modules = policy_templates_for(guardian_type, "delivery")
-    if len(modules) != 1:
-        raise ValueError(f"expected one delivery module for {guardian_type!r}, found {len(modules)}")
-    return modules[0]
+def get_catalog():
+    """The policy catalog: credential types, policy components, and every card with its
+    graph, as tools/policy_catalog builds it."""
+    return _get(_template_registry("catalog/"), {})
 
 
-def list_authority_templates():
-    """Every rule-based authority card."""
-    return _get(_template_registry("authorities/"), {})
-
-
-def get_authority_template(pk):
-    return _get(_template_registry(f"authorities/{pk}/"), {})
+def list_policy_components():
+    """Every policy component, with its Rego source."""
+    return _get(_template_registry("components/"), {})
 
 
 def list_credential_templates():

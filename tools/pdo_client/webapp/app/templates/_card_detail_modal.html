@@ -1,4 +1,4 @@
-<!-- A card's README and rule; opened by window.render.showCard. -->
+<!-- A card's graph, README and rule; opened by window.render.showCard. -->
 <div id="card-detail-modal" class="modal-backdrop hidden">
     <div class="modal card-detail-modal" style="max-width:860px">
         <div class="modal-header">
@@ -7,8 +7,12 @@
                     data-modal-close="card-detail-modal">&times;</button>
         </div>
         <div class="tabs">
+            <button type="button" class="tab-btn" data-card-tab="graph">Graph</button>
             <button type="button" class="tab-btn active" data-card-tab="readme">Overview</button>
             <button type="button" class="tab-btn" data-card-tab="rego">Rule</button>
+        </div>
+        <div class="tab-panel" data-card-panel="graph">
+            <div id="card-detail-graph"></div>
         </div>
         <div class="tab-panel active" data-card-panel="readme">
             <div class="markdown-body" id="card-detail-readme"></div>
