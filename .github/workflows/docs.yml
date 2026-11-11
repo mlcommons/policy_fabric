@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'credentials/**'
+      - 'policy_components/**'
+      - 'policy_cards/**'
+      - 'tools/policy_catalog/**'
+      - 'tools/pdo_client/webapp/static/policy_ui/**'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 

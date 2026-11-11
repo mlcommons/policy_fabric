@@ -1,0 +1,80 @@
+name: Policy checks
+
+on:
+  pull_request:
+    paths:
+      - 'credentials/**'
+      - 'policy_components/**'
+      - 'policy_cards/**'
+      - 'tools/policy_catalog/**'
+      - 'tools/pdo_client/webapp/static/policy_ui/**'
+      - 'docs/**'
+      - '.github/workflows/policy-checks.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'credentials/**'
+      - 'policy_components/**'
+      - 'policy_cards/**'
+      - 'tools/policy_catalog/**'
+      - 'tools/pdo_client/webapp/static/policy_ui/**'
+      - 'docs/**'
+      - '.github/workflows/policy-checks.yml'
+
+permissions:
+  contents: read
+
+env:
+  # the contracts' graph reference implementation, and the regorus revision their engine is
+  # built from (rego-contract/src/packages/regorus/build.sh)
+  PDO_CONTRACTS_REF: policy-components
+  REGORUS_COMMIT: acf7f7a25ec718be7c0d58eb2bd8dd1e6c0163df
+
+jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: python3 tools/policy_catalog/build_catalog.py --repo . --out catalog.json
+
+  components:
+    runs-on: ubuntu-latest
+    steps:
+      # the cards' original Rego modules are read from the repository's first commit
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: mlcommons/pdo-contracts
+          ref: ${{ env.PDO_CONTRACTS_REF }}
+          path: pdo-contracts
+      - uses: open-policy-agent/setup-opa@v2
+        with:
+          version: 1.4.2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build the regorus bindings with the contract's builtins
+        run: |
+          pip install maturin jsonschema setuptools
+          git clone https://github.com/microsoft/regorus.git "$RUNNER_TEMP/regorus"
+          git -C "$RUNNER_TEMP/regorus" checkout "$REGORUS_COMMIT"
+          cd "$RUNNER_TEMP/regorus/bindings/python"
+          maturin build --release --no-default-features --features "regorus/opa-no-std,regorus/std" -o "$RUNNER_TEMP/wheels"
+          pip install "$RUNNER_TEMP"/wheels/*.whl
+      - run: PDO_CONTRACTS_ROOT="$PWD/pdo-contracts" bash policy_components/run_tests.sh
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: pip install -r docs/requirements.txt
+      - run: mkdocs build --strict -f docs/mkdocs.yml
