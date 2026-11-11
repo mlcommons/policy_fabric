@@ -8,14 +8,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Install deps first so code changes don't bust the pip layer.
-COPY requirements.txt ./
+COPY registry/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the registry app. The credential/policy-card folders it seeds from live
-# outside this build context (at the top of the policy_fabric tree), so they are
-# not baked in; run_docker.sh bind-mounts the host folders onto the container
-# paths named in CMD below.
-COPY . .
+# Copy the registry app, and the policy catalog builder where run.sh looks for it
+# (build.sh puts both in the build context). The credential/card/component
+# folders it seeds from live outside this build context (at the top of the
+# policy_fabric tree), so they are not baked in; run_docker.sh bind-mounts the
+# host folders onto the container paths named in CMD below.
+COPY registry/ .
+COPY policy_catalog/ /policy_catalog/
 
 # Non-root user + group 0 access so any host uid can read/write mounted
 # volumes when launched with `--user $(id -u):0`. New files written at
@@ -31,4 +33,4 @@ ENTRYPOINT ["bash", "/app/run.sh"]
 CMD ["--interface", "0.0.0.0", "--port", "8000", \
      "--credentials-dir", "/templates/credentials", \
      "--policy-cards-dir", "/templates/policy_cards", \
-     "--authority-cards-dir", "/templates/authority_cards"]
+     "--policy-components-dir", "/templates/policy_components"]

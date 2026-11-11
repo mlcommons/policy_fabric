@@ -2,49 +2,40 @@ from django.db import models
 
 
 class PolicyTemplate(models.Model):
-    """A policy card, or the delivery module of a guardian type."""
-
-    POLICY = "policy"
-    DELIVERY = "delivery"
+    """A policy card: a graph of policy components, ending in the grant of one kind of
+    guardian."""
 
     name = models.CharField(max_length=100, unique=True)
-    kind = models.CharField(max_length=20, default=POLICY)
     code = models.CharField(max_length=40, default="")
     title = models.CharField(max_length=200, default="")
     rule = models.TextField(default="")
+    # the guardians the card's grant fits: download or inference
     guardian_types = models.JSONField(default=list)
-    # the facts the module reads: { role: [credential_type, ...] }
-    requirements = models.JSONField(default=dict)
-    # JSON Schema of the module's policy data; it generates the owner's form
-    parameters_schema = models.JSONField(default=dict)
-    defaults = models.JSONField(default=dict)
-    operation = models.CharField(max_length=100, default="")
-    rego_source = models.TextField(default="")
     readme = models.TextField(default="")
+    # the card, its graph.json
+    graph = models.JSONField()
 
     def __str__(self):
         return self.name
 
 
-class AuthorityTemplate(models.Model):
-    """A rule-based authority card: a rule whose output is a credential."""
+class PolicyComponent(models.Model):
+    """A policy component: Rego that the nodes of a policy graph run."""
 
-    name = models.CharField(max_length=100, unique=True)
-    title = models.CharField(max_length=200, default="")
-    rule = models.TextField(default="")
-    issues = models.CharField(max_length=100)
-    presenters = models.TextField(default="")
-    requirements = models.JSONField(default=dict)
-    parameters_schema = models.JSONField(default=dict)
-    rego_source = models.TextField(default="")
-    readme = models.TextField(default="")
+    component_id = models.CharField(max_length=100, unique=True)
+    package = models.CharField(max_length=200)
+    rego_source = models.TextField()
+    # its component.json: name, group, summary, inputs, output and policy data, as shown
+    metadata = models.JSONField()
+    # JSON Schema of a node's policy data; it generates the owner's form
+    policy_data_schema = models.JSONField()
 
     def __str__(self):
-        return self.name
+        return self.component_id
 
 
 class CredentialTemplate(models.Model):
-    """A credential type: a standard fact, or an input to an authority."""
+    """A credential type, presented to policy components or produced by them."""
 
     template_type = models.CharField(max_length=100, unique=True)
     display_name = models.CharField(max_length=200, default="")
@@ -56,6 +47,9 @@ class CredentialTemplate(models.Model):
     self_asserted = models.BooleanField(default=False)
     # the full JSON Schema of the claims
     json_schema = models.JSONField(default=dict)
+    # whether a wallet may present it, so an authority may issue it: a type no policy
+    # component produces, or a produced type whose schema says x-presentable
+    presentable = models.BooleanField(default=True)
     # a flat fill-in hint derived from json_schema
     claims_schema = models.JSONField(default=dict)
 

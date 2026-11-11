@@ -12,41 +12,37 @@ IRB_OFFICE = {
     "name": "Best University IRB office",
     "kind": "hand-signing",
     "operator": "vc_issuer",
-    "facts": ["EthicsApprovalCredential", "IRBApprovalCredential"],
+    "facts": ["IRBClearanceCredential", "IRBApprovalCredential"],
     "checks": "Signs after its own review.",
-    "inputs": {},
-    "sources": [],
     "metadata": {},
 }
 
-COMMITTEE_CHECK = {
-    "did": "did:pdo:committee-check",
-    "name": "Accredited-committee check",
-    "kind": "rule-based",
+SESSION_KEYS = {
+    "did": "did:pdo:session-keys",
+    "name": "Session keys",
+    "kind": "system",
     "operator": "vc_issuer",
-    "facts": ["EthicsApprovalCredential"],
-    "checks": "Approval by a committee accredited for the PI's institution.",
-    "inputs": {"User": ["TeamCredential", "IRBApprovalCredential"]},
-    "sources": [{"did": "did:pdo:registrar#poc", "credential_types": ["TeamCredential"]}],
-    "metadata": {"card": "ACCREDITED-COMMITTEE-CHECK"},
+    "facts": ["publicKeyCredential"],
+    "checks": "Binds a session key to a wallet.",
+    "metadata": {},
 }
 
 TRUST_LIST = {
     "name": "Accredited IRBs",
     "maintainer": "national registry",
     "description": "IRBs the national registry accredits.",
-    "entries": [{"did": IRB_OFFICE["did"], "credential_types": ["EthicsApprovalCredential"]}],
+    "entries": [{"did": IRB_OFFICE["did"], "credential_types": ["IRBClearanceCredential"]}],
 }
 
 
 class Directory(TestCase):
     def test_authorities_are_listed_and_found_by_did(self):
         post(self.client, "/api/authorities/", IRB_OFFICE)
-        post(self.client, "/api/authorities/", COMMITTEE_CHECK)
+        post(self.client, "/api/authorities/", SESSION_KEYS)
 
         listed = self.client.get("/api/authorities/").json()
-        self.assertEqual([a["name"] for a in listed], [IRB_OFFICE["name"], COMMITTEE_CHECK["name"]])
-        self.assertEqual(listed[1]["inputs"], COMMITTEE_CHECK["inputs"])
+        self.assertEqual([a["name"] for a in listed], [IRB_OFFICE["name"], SESSION_KEYS["name"]])
+        self.assertEqual(listed[1]["facts"], SESSION_KEYS["facts"])
 
         found = self.client.get("/api/authorities/by_did/", {"did": "did:pdo:irb-office#poc"}).json()
         self.assertEqual(found["kind"], "hand-signing")

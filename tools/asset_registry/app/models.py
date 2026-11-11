@@ -11,7 +11,8 @@ class Asset(models.Model):
 
 
 class Authority(models.Model):
-    """A directory entry for an authority: who it is and which facts it issues.
+    """A directory entry for an authority: who it is and which credential types it
+    issues.
 
     Discovery only. Trust is recorded on each policy agent, with the key read
     from the authority's own contract; this record is how an owner finds the
@@ -19,9 +20,8 @@ class Authority(models.Model):
     """
 
     HAND_SIGNING = "hand-signing"
-    RULE_BASED = "rule-based"
     SYSTEM = "system"
-    KINDS = (HAND_SIGNING, RULE_BASED, SYSTEM)
+    KINDS = (HAND_SIGNING, SYSTEM)
 
     did = models.CharField(max_length=500, unique=True)
     name = models.CharField(max_length=200)
@@ -31,9 +31,6 @@ class Authority(models.Model):
     facts = models.JSONField(default=list)
     # what it checks, in a sentence
     checks = models.TextField(default="")
-    # rule-based: the inputs it reads and the authorities it accepts for them
-    inputs = models.JSONField(default=dict)
-    sources = models.JSONField(default=list)
     metadata = models.JSONField(default=dict)
 
     def __str__(self):

@@ -1,18 +1,18 @@
 from django.contrib import admin
 
-from .models import AuthorityTemplate, CredentialTemplate, PolicyTemplate
+from .models import CredentialTemplate, PolicyComponent, PolicyTemplate
 
 
 @admin.register(PolicyTemplate)
 class PolicyTemplateAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "kind", "code")
+    list_display = ("id", "name", "code")
     search_fields = ("name", "code")
 
 
-@admin.register(AuthorityTemplate)
-class AuthorityTemplateAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "issues")
-    search_fields = ("name", "issues")
+@admin.register(PolicyComponent)
+class PolicyComponentAdmin(admin.ModelAdmin):
+    list_display = ("id", "component_id", "package")
+    search_fields = ("component_id",)
 
 
 @admin.register(CredentialTemplate)
