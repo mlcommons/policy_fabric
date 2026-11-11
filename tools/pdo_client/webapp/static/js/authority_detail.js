@@ -1,6 +1,5 @@
-// Authority page. A hand-signing authority signs one of the facts it attests,
-// with the claims form generated from the fact's schema; a rule-based one
-// accepts authorities for its inputs and can issue to one of the user's wallets.
+// Authority page. A hand-signing authority signs one of the credential types it
+// attests, with the claims form generated from the type's schema.
 
 (function () {
     var SUBJECTS = {
@@ -52,23 +51,6 @@
         });
     }
 
-    function issuing(cidUrl) {
-        var form = el('issue-form');
-        if (!form) return;
-        form.addEventListener('submit', async function (e) {
-            e.preventDefault();
-            try {
-                var payload = { wallet_id: el('issue-wallet').value };
-                // present exactly when the issued fact is about a project
-                if (el('issue-project')) payload.project = el('issue-project').value.trim();
-                var res = await window.api.post('/api/authorities/' + cidUrl + '/issue/', payload);
-                window.flash(res.message, 'success');
-            } catch (err) {
-                window.flash(err.message, 'error');
-            }
-        });
-    }
-
     function init() {
         var container = document.querySelector('[data-authority-cid-url]');
         if (!container) return;
@@ -87,12 +69,7 @@
             }
         });
 
-        var rule = el('authority-rule');
-        if (rule) rule.innerHTML = window.render.rego(rule.textContent);
-
         signing(cidUrl);
-        window.trustTable.wire(el('trust-panel'), '/api/authorities/' + cidUrl + '/');
-        issuing(cidUrl);
     }
 
     if (document.readyState === 'loading') {

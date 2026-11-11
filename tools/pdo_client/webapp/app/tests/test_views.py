@@ -15,7 +15,6 @@ if not settings.configured and "DJANGO_SETTINGS_MODULE" not in os.environ:
 
 from django.test import TestCase  # noqa: E402
 
-from app import action_runners  # noqa: E402
 from app.models import AppConfig  # noqa: E402
 from app.url_safe_id import encode_cid  # noqa: E402
 
@@ -35,45 +34,124 @@ LOCATION_SCHEMA = {
 }
 CREDENTIALS = [
     {"id": 1, "template_type": "LocationCredential", "display_name": "Location", "meaning": "Located at.",
-     "subject_kinds": ["wallet"], "self_asserted": False, "json_schema": LOCATION_SCHEMA},
+     "subject_kinds": ["wallet"], "self_asserted": False, "presentable": True, "json_schema": LOCATION_SCHEMA},
     {"id": 2, "template_type": "publicKeyCredential", "display_name": "Session key", "meaning": "A key.",
-     "subject_kinds": ["wallet"], "self_asserted": False,
+     "subject_kinds": ["wallet"], "self_asserted": False, "presentable": True,
      "json_schema": {"type": "object", "properties": {"key": {"type": "string"}}, "required": ["key"]}},
     {"id": 3, "template_type": "ScriptOwnershipCredential", "display_name": "Script ownership",
-     "meaning": "Owned.", "subject_kinds": ["script"], "self_asserted": True,
+     "meaning": "Owned.", "subject_kinds": ["script"], "self_asserted": True, "presentable": True,
      "json_schema": {"type": "object", "properties": {"ownedBy": {"type": "string"}}, "required": ["ownedBy"]}},
-    {"id": 4, "template_type": "EthicsApprovalCredential", "display_name": "Ethics approval",
-     "meaning": "Approved.", "subject_kinds": ["wallet"], "self_asserted": False,
+    {"id": 4, "template_type": "IRBClearanceCredential", "display_name": "IRB clearance",
+     "meaning": "Cleared.", "subject_kinds": ["wallet"], "self_asserted": False, "presentable": True,
      "json_schema": {"type": "object", "properties": {"project": {"type": "string"}}, "required": ["project"]}},
     {"id": 5, "template_type": "ProjectOwnershipCredential", "display_name": "Project ownership",
-     "meaning": "Owns.", "subject_kinds": ["wallet"], "self_asserted": False,
+     "meaning": "Owns.", "subject_kinds": ["wallet"], "self_asserted": False, "presentable": True,
      "json_schema": {"type": "object", "properties": {"Owns": {"type": "string"}}, "required": ["Owns"]}},
+    {"id": 6, "template_type": "AffiliationCredential", "display_name": "Affiliation",
+     "meaning": "A member.", "subject_kinds": ["wallet"], "self_asserted": False, "presentable": True,
+     "json_schema": {"type": "object", "properties": {"isMemberOf": {"type": "string"}}, "required": ["isMemberOf"]}},
+    {"id": 7, "template_type": "DownloadGrantCredential", "display_name": "Download grant",
+     "meaning": "Granted.", "subject_kinds": ["wallet"], "self_asserted": False, "presentable": False,
+     "json_schema": {"type": "object", "properties": {}, "required": []}},
+]
+
+# two download cards and an inference one as graphs of components, and the catalog that
+# describes the components
+COUNTRIES = {
+    "type": "object",
+    "properties": {"allowedCountries": {"type": "array", "items": {"type": "string"}, "description": "Countries."}},
+    "required": ["allowedCountries"],
+}
+
+
+def card_graph(name, node, input_name, input_type):
+    return {
+        "version": 2, "name": name, "root": "grant_download",
+        "nodes": {
+            node: {"component": node, "inputs": {input_name: {"from": "presented"}}, "policy_data": {}},
+            "grant_download": {"component": "grant_download", "inputs": {
+                "key": {"from": "presented"},
+                "grant": {"from": "node", "node": node, "accept_presented": False},
+            }, "policy_data": {}},
+        },
+        "trusted_issuers": {input_type: [], "publicKeyCredential": []},
+    }
+
+
+GS_GRAPH = card_graph("Geographical Restriction", "geographical_restriction", "location", "LocationCredential")
+IS_GRAPH = card_graph("Institution Specific Restriction", "institution_specific_restriction", "affiliation",
+                      "AffiliationCredential")
+FL_GRAPH = {
+    "version": 2, "name": "Inference", "root": "grant_inference",
+    "nodes": {"grant_inference": {"component": "grant_inference", "inputs": {"grant": {"from": "presented"}},
+                                  "policy_data": {}}},
+    "trusted_issuers": {},
+}
+
+
+def card_component(component_id, name, input_name, input_type, schema):
+    return {
+        "name": name, "group": "card", "policy_data_schema": schema, "rego": f"package pf.components.{component_id}",
+        "inputs": {input_name: {"type": input_type, "about": "requester", "role": "User", "claims": []}},
+        "output": {"type": "DownloadGrantCredential", "about": "requester", "claims": []},
+    }
+
+
+def catalog_card(name, component, template, graph):
+    return {"name": name, "duo": "DUO_0000000", "component": component, "template": template, "graph": graph}
+
+
+CATALOG = {
+    "subjects": {"requester": {"word": "requester", "legend": "the requester"}},
+    "credentials": {},
+    "components": {
+        "geographical_restriction": card_component(
+            "geographical_restriction", "GeographicalRestriction", "location", "LocationCredential", COUNTRIES),
+        "institution_specific_restriction": card_component(
+            "institution_specific_restriction", "InstitutionSpecificRestriction", "affiliation", "AffiliationCredential", {}),
+        "grant_download": {
+            "name": "Grant download", "group": "grant", "policy_data_schema": {}, "rego": "package pf.components.grant_download",
+            "inputs": {
+                "key": {"type": "publicKeyCredential", "about": "requester", "role": "User", "claims": ["key"]},
+                "grant": {"type": "DownloadGrantCredential", "about": "requester", "role": "User", "claims": []},
+            },
+            "output": {"capability": "do_download", "parameters": ["channel_key"]},
+        },
+    },
+    "cards": {
+        "geographical-restriction": catalog_card(
+            "Geographical Restriction", "geographical_restriction", "GEOGRAPHICAL-RESTRICTION", GS_GRAPH),
+        "institution-specific-restriction": catalog_card(
+            "Institution Specific Restriction", "institution_specific_restriction", "INSTITUTION-SPECIFIC-RESTRICTION",
+            IS_GRAPH),
+    },
+}
+COMPONENTS = [
+    {"component_id": cid, "package": f"pf.components.{cid}", "rego_source": f"package pf.components.{cid}",
+     "metadata": {}, "policy_data_schema": {}}
+    for cid in CATALOG["components"]
 ]
 GS = {
-    "id": 1, "name": "GEOGRAPHICAL-RESTRICTION", "kind": "policy", "code": "GS",
-    "title": "Geographical restriction", "rule": "The requester is located in an allowed country.",
-    "guardian_types": ["download", "inference"], "requirements": {"User": ["LocationCredential"]},
-    "parameters_schema": {
-        "type": "object",
-        "properties": {"allowedCountries": {"type": "array", "items": {"type": "string"}, "minItems": 1}},
-        "required": ["allowedCountries"],
-    },
-    "defaults": {}, "operation": "", "rego_source": "package subpolicy # GS", "readme": "# GS",
+    "id": 1, "name": "GEOGRAPHICAL-RESTRICTION", "code": "GS", "title": "Geographical restriction",
+    "rule": "The requester is located in an allowed country.", "guardian_types": ["download"],
+    "readme": "# GS", "graph": GS_GRAPH,
 }
-DELIVERY = {
-    "id": 9, "name": "DELIVERY-DOWNLOAD", "kind": "delivery", "code": "", "title": "Download delivery",
-    "rule": "Encrypts to the requester's session key.", "guardian_types": ["download"],
-    "requirements": {"User": ["publicKeyCredential"]}, "parameters_schema": {}, "defaults": {},
-    "operation": "do_download", "rego_source": "package subpolicy # delivery", "readme": "",
+IS = {
+    "id": 2, "name": "INSTITUTION-SPECIFIC-RESTRICTION", "code": "IS", "title": "Institution specific restriction",
+    "rule": "The requester belongs to an allowed institution.", "guardian_types": ["download"],
+    "readme": "# IS", "graph": IS_GRAPH,
+}
+FL = {
+    "id": 3, "name": "FL-INFERENCE", "code": "FL", "title": "Inference", "rule": "For inference.",
+    "guardian_types": ["inference"], "readme": "# FL", "graph": FL_GRAPH,
 }
 REGISTRY_OFFICE = {
     "id": 1, "did": f"did:pdo:{OFFICE}#poc", "name": "University registry", "kind": "hand-signing",
     "operator": "vc_issuer", "facts": ["LocationCredential"], "checks": "Checks records.",
-    "inputs": {}, "sources": [],
 }
 SESSION_KEYS = {
     "id": 2, "did": f"did:pdo:{EKA}", "name": "Session keys", "kind": "system", "operator": "vc_issuer",
-    "facts": ["publicKeyCredential"], "checks": "", "inputs": {}, "sources": [],
+    "facts": ["publicKeyCredential"], "checks": "",
 }
 
 
@@ -86,10 +164,10 @@ class FakeRegistries:
         self.registered = []
 
     def patches(self):
-        policies = [GS, DELIVERY]
+        policies = [GS, IS, FL]
 
-        def policy_templates_for(guardian_type, kind):
-            return [p for p in policies if guardian_type in p["guardian_types"] and p["kind"] == kind]
+        def policy_templates_for(guardian_type):
+            return [p for p in policies if guardian_type in p["guardian_types"]]
 
         def update(did, changes):
             self.asset["metadata"].update(changes)
@@ -99,15 +177,15 @@ class FakeRegistries:
             get_asset_by_did=mock.Mock(side_effect=lambda did: self.asset),
             list_assets=mock.Mock(side_effect=lambda: [self.asset]),
             update_asset_metadata_by_did=mock.Mock(side_effect=update),
-            list_policy_templates=mock.Mock(return_value=policies),
             policy_templates_for=mock.Mock(side_effect=policy_templates_for),
             get_policy_template=mock.Mock(side_effect=lambda pk: {p["id"]: p for p in policies}[int(pk)]),
             list_credential_templates=mock.Mock(return_value=CREDENTIALS),
             list_authorities=mock.Mock(side_effect=lambda: self.directory),
             list_trust_lists=mock.Mock(return_value=[]),
-            list_authority_templates=mock.Mock(return_value=[]),
             register_authority=mock.Mock(side_effect=self.registered.append),
             get_authority_by_did=mock.Mock(side_effect=self.authority_by_did),
+            get_catalog=mock.Mock(return_value=CATALOG),
+            list_policy_components=mock.Mock(return_value=COMPONENTS),
         )
 
     def authority_by_did(self, did):
@@ -137,7 +215,6 @@ class ViewTestCase(TestCase):
                 user_owns_contract=mock.Mock(return_value=True),
                 list_identity_ids=mock.Mock(return_value=[WALLET]),
                 list_signature_authority_ids=mock.Mock(return_value=[ASSET, OFFICE]),
-                list_policy_agent_ids=mock.Mock(return_value=[POLICY]),
                 list_external_key_authority_ids=mock.Mock(return_value=[EKA]),
                 list_wallet_key_authority_ids=mock.Mock(return_value=[]),
             ),
@@ -146,18 +223,19 @@ class ViewTestCase(TestCase):
             self.addCleanup(patcher.stop)
         self.runner = {
             "create_asset_policy": mock.Mock(
-                return_value={"policy_contract_id": POLICY, "token_contract_id": TOKEN}
+                return_value={"policy_contract_id": POLICY, "token_contract_id": TOKEN, "graph_hash": "hash="}
             ),
-            "set_policy_data": mock.Mock(),
+            "get_policy_graph": mock.Mock(return_value={"policy_graph": GS_GRAPH, "components": [], "sha256": "hash="}),
             "get_policy_data": mock.Mock(
-                return_value={"GEOGRAPHICAL-RESTRICTION": {"allowedCountries": ["US"]}}
+                return_value={"geographical_restriction": {"allowedCountries": ["US"]}, "grant_download": {}}
             ),
             "register_trusted_issuer": mock.Mock(),
             "unregister_trusted_issuer": mock.Mock(),
             "resolve_policy_id": mock.Mock(return_value=POLICY),
-            "get_policy_requirements": mock.Mock(
-                return_value={"User": ["LocationCredential", "publicKeyCredential"]}
+            "get_requirement_alternatives": mock.Mock(
+                return_value=[{"User": ["LocationCredential", "publicKeyCredential"]}]
             ),
+            "set_node_policy_data": mock.Mock(),
             "list_trusted_issuers": mock.Mock(
                 return_value={**trusting(OFFICE, ["LocationCredential"]), **trusting(EKA, ["publicKeyCredential"], ())}
             ),
@@ -176,72 +254,92 @@ class ViewTestCase(TestCase):
 
 
 class ExposePanel(ViewTestCase):
-    def test_the_panel_offers_the_cards_for_the_guardian_and_the_directory(self):
-        response = self.client.get(f"/assets/{encode_cid(ASSET)}/")
-        self.assertEqual(response.status_code, 200)
-        expose = response.context["expose"]
-        self.assertEqual([c["name"] for c in expose["cards"]], ["GEOGRAPHICAL-RESTRICTION"])
-        self.assertEqual(expose["delivery"]["name"], "DELIVERY-DOWNLOAD")
-        self.assertEqual([a["name"] for a in expose["authorities"]], ["University registry", "Session keys"])
-        self.assertContains(response, 'id="expose-data"')
+    parameters = {
+        "geographical_restriction": {"allowedCountries": ["US"]},
+        "institution_specific_restriction": {},
+        "grant_download": {},
+    }
+    authorities = {
+        "LocationCredential": [REGISTRY_OFFICE["did"]],
+        "AffiliationCredential": [REGISTRY_OFFICE["did"]],
+        "publicKeyCredential": [SESSION_KEYS["did"]],
+    }
+
+    def compose(self, cards):
+        return self.post(f"/api/assets/{encode_cid(ASSET)}/compose/", {"cards": cards})
 
     def expose(self, payload):
         return ndjson(self.post(f"/assets/{encode_cid(ASSET)}/expose/stream/", payload))
 
-    def test_exposing_builds_one_policy_from_the_cards_and_the_delivery_module(self):
-        events = self.expose({
-            "cards": [GS["id"]],
-            "parameters": {str(GS["id"]): {"allowedCountries": ["US"]}},
-            "authorities": {"LocationCredential": [REGISTRY_OFFICE["did"]], "publicKeyCredential": [SESSION_KEYS["did"]]},
-        })
-        self.assertEqual(events[-1]["status"], "done", events)
+    def test_the_panel_offers_the_cards_for_the_guardian_and_the_directory(self):
+        response = self.client.get(f"/assets/{encode_cid(ASSET)}/")
+        self.assertEqual(response.status_code, 200)
+        expose = response.context["expose"]
+        self.assertEqual([c["name"] for c in expose["cards"]], ["GEOGRAPHICAL-RESTRICTION", "INSTITUTION-SPECIFIC-RESTRICTION"])
+        self.assertEqual(expose["cards"][0]["graph"], GS_GRAPH)
+        self.assertEqual(expose["cards"][0]["rego_source"], "package pf.components.geographical_restriction")
+        self.assertEqual([a["name"] for a in expose["authorities"]], ["University registry", "Session keys"])
+        self.assertContains(response, 'id="expose-data"')
+        self.assertContains(response, 'id="policy-catalog"')
 
-        _, _, _, modules = self.runner["create_asset_policy"].call_args.args
-        self.assertEqual([m[0] for m in modules], ["GEOGRAPHICAL-RESTRICTION", "DELIVERY-DOWNLOAD"])
-        self.runner["set_policy_data"].assert_called_once_with(
-            POLICY, {"GEOGRAPHICAL-RESTRICTION": {"allowedCountries": ["US"]}, "DELIVERY-DOWNLOAD": {}}, OWNER
-        )
+    def test_two_cards_compose_under_one_grant(self):
+        body = self.compose([GS["id"], IS["id"]]).json()
+        graph = body["graph"]
+        self.assertEqual(list(graph["nodes"]), ["geographical_restriction", "institution_specific_restriction", "grant_download"])
+        self.assertEqual(graph["nodes"]["grant_download"]["inputs"]["grant"], [
+            {"from": "node", "node": "geographical_restriction", "accept_presented": False},
+            {"from": "node", "node": "institution_specific_restriction", "accept_presented": False},
+        ])
+        self.assertEqual(list(graph["trusted_issuers"]), ["AffiliationCredential", "LocationCredential", "publicKeyCredential"])
+        self.assertEqual(body["alternatives"], [{"User": ["AffiliationCredential", "LocationCredential", "publicKeyCredential"]}])
+        self.assertEqual([n["node"] for n in body["nodes"] if n["schema"]], ["geographical_restriction"])
+
+    def test_one_card_keeps_its_own_graph(self):
+        graph = self.compose([GS["id"]]).json()["graph"]
+        self.assertEqual(graph["nodes"], GS_GRAPH["nodes"])
+
+    def test_a_card_for_another_guardian_cannot_be_composed(self):
+        response = self.compose([FL["id"]])
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("FL", response.json()["error"])
+
+    def test_exposing_sets_the_composed_graph_with_each_nodes_parameters(self):
+        events = self.expose({"cards": [GS["id"], IS["id"]], "parameters": self.parameters, "authorities": self.authorities})
+        self.assertEqual(events[-1]["status"], "done", events)
+        _, _, _, graph, components = self.runner["create_asset_policy"].call_args.args
+        self.assertEqual(graph["nodes"]["geographical_restriction"]["policy_data"], {"allowedCountries": ["US"]})
+        self.assertEqual(sorted(components), sorted(CATALOG["components"]))
         registrations = sorted(
             (c.args[1], tuple(c.kwargs["path"]), tuple(c.kwargs["credential_types"]))
             for c in self.runner["register_trusted_issuer"].call_args_list
         )
         self.assertEqual(registrations, [(EKA, (), ("publicKeyCredential",)),
-                                         (OFFICE, ("poc",), ("LocationCredential",))])
+                                         (OFFICE, ("poc",), ("AffiliationCredential", "LocationCredential"))])
         metadata = self.registries.asset["metadata"]
-        self.assertEqual(metadata["policy_contract"], f"did:pdo:{TOKEN}")
-        self.assertEqual([c["code"] for c in metadata["cards"]], ["GS"])
-        self.assertEqual(metadata["delivery"], "DELIVERY-DOWNLOAD")
+        self.assertEqual((metadata["policy_contract"], metadata["graph_hash"]), (f"did:pdo:{TOKEN}", "hash="))
+        self.assertEqual([c["code"] for c in metadata["cards"]], ["GS", "IS"])
 
-    def test_a_fact_with_no_accepted_authority_blocks_exposing(self):
+    def test_every_node_needs_parameters_that_fit_it(self):
         with self.assertLogs("app.views._streaming", "ERROR"):
-            events = self.expose({
-                "cards": [GS["id"]],
-                "parameters": {str(GS["id"]): {"allowedCountries": ["US"]}},
-                "authorities": {"LocationCredential": [REGISTRY_OFFICE["did"]], "publicKeyCredential": []},
-            })
-        self.assertEqual(events[1]["status"], "error")
-        self.assertIn("Accept at least one authority for: publicKeyCredential", events[1]["detail"])
+            missing = self.expose({"cards": [GS["id"]], "parameters": {"geographical_restriction": {"allowedCountries": ["US"]}},
+                                   "authorities": {"LocationCredential": [REGISTRY_OFFICE["did"]], "publicKeyCredential": [SESSION_KEYS["did"]]}})
+        self.assertIn("every node", missing[1]["detail"])
+        with self.assertLogs("app.views._streaming", "ERROR"):
+            unfit = self.expose({"cards": [GS["id"]], "parameters": {"geographical_restriction": {"allowedCountries": "US"}, "grant_download": {}},
+                                 "authorities": {"LocationCredential": [REGISTRY_OFFICE["did"]], "publicKeyCredential": [SESSION_KEYS["did"]]}})
+        self.assertIn("GeographicalRestriction", unfit[1]["detail"])
         self.runner["create_asset_policy"].assert_not_called()
 
-    def test_every_selected_card_needs_its_parameters(self):
-        response = self.post(f"/assets/{encode_cid(ASSET)}/expose/stream/", {
-            "cards": [GS["id"]],
-            "parameters": {},
-            "authorities": {"LocationCredential": [REGISTRY_OFFICE["did"]], "publicKeyCredential": [SESSION_KEYS["did"]]},
-        })
+    def test_some_way_to_meet_the_graph_must_be_accepted(self):
+        with self.assertLogs("app.views._streaming", "ERROR"):
+            events = self.expose({"cards": [GS["id"], IS["id"]], "parameters": self.parameters,
+                                  "authorities": {**self.authorities, "publicKeyCredential": []}})
+        self.assertIn("at least one way to meet the policy", events[1]["detail"])
+        self.runner["create_asset_policy"].assert_not_called()
+
+    def test_the_payload_must_name_cards_parameters_and_authorities(self):
+        response = self.post(f"/assets/{encode_cid(ASSET)}/expose/stream/", {"cards": [GS["id"]], "parameters": {}})
         self.assertEqual(response.status_code, 400)
-        self.runner["create_asset_policy"].assert_not_called()
-
-    def test_parameters_that_do_not_fit_the_card_block_exposing(self):
-        with self.assertLogs("app.views._streaming", "ERROR"):
-            events = self.expose({
-                "cards": [GS["id"]],
-                "parameters": {str(GS["id"]): {"allowedCountries": []}},
-                "authorities": {"LocationCredential": [REGISTRY_OFFICE["did"]],
-                                "publicKeyCredential": [SESSION_KEYS["did"]]},
-            })
-        self.assertEqual(events[1]["status"], "error")
-        self.assertIn("GS", events[1]["detail"])
         self.runner["create_asset_policy"].assert_not_called()
 
 
@@ -249,19 +347,28 @@ class ExposedDashboard(ViewTestCase):
     metadata = {
         **ViewTestCase.metadata,
         "policy_contract": f"did:pdo:{TOKEN}",
-        "cards": [{"name": "GEOGRAPHICAL-RESTRICTION", "code": "GS", "title": "Geographical restriction",
-                   "rule": "Allowed countries."}],
-        "delivery": "DELIVERY-DOWNLOAD",
+        "graph_hash": "hash=",
+        "cards": [{"name": "GEOGRAPHICAL-RESTRICTION", "code": "GS", "title": "Geographical restriction", "rule": "Allowed countries."}],
+        "policy_data": {"geographical_restriction": {"allowedCountries": ["US"]}, "grant_download": {}},
     }
+
+    def test_the_dashboard_draws_the_graph_with_each_nodes_parameters(self):
+        response = self.client.get(f"/assets/{encode_cid(ASSET)}/")
+        self.assertEqual(response.status_code, 200)
+        policy = response.context["graph_policy"]
+        self.assertEqual(policy["graph"], GS_GRAPH)
+        self.assertEqual([(n["node"], n["values"]) for n in policy["nodes"]],
+                         [("geographical_restriction", {"allowedCountries": ["US"]})])
+        self.assertEqual(response.context["alternatives"], [["Location", "Session key"]])
+        self.assertContains(response, 'id="asset-policy-graph"')
 
     def test_trust_is_shown_by_name_and_kind(self):
         response = self.client.get(f"/assets/{encode_cid(ASSET)}/")
-        self.assertEqual(response.status_code, 200)
         rows = {r["type"]: r for r in response.context["trust_rows"]}
+        self.assertEqual(set(rows), {"LocationCredential", "publicKeyCredential"})
         self.assertEqual([a["name"] for a in rows["LocationCredential"]["accepted"]], ["University registry"])
         self.assertEqual(rows["publicKeyCredential"]["accepted"][0]["kind_label"], "System")
         self.assertContains(response, 'data-action="withdraw"')
-        self.assertEqual(response.context["cards"][0]["values"], {"allowedCountries": ["US"]})
 
     def test_accepting_an_authority_registers_its_signing_context(self):
         response = self.post(f"/api/assets/{encode_cid(ASSET)}/accept-authority/",
@@ -279,19 +386,17 @@ class ExposedDashboard(ViewTestCase):
             POLICY, OFFICE, OWNER, credential_types=["LocationCredential"]
         )
 
-    def test_policy_data_is_checked_against_each_card(self):
+    def test_a_nodes_policy_data_is_set_on_its_own(self):
         url = f"/api/assets/{encode_cid(ASSET)}/update-policy-data/"
-        bad = self.post(url, {"policy_data": {"GEOGRAPHICAL-RESTRICTION": {"allowedCountries": "US"}}})
-        self.assertEqual(bad.status_code, 400)
-        missing = self.post(url, {"policy_data": {}})
-        self.assertEqual(missing.status_code, 400)
-        good = self.post(url, {"policy_data": {"GEOGRAPHICAL-RESTRICTION": {"allowedCountries": ["CA"]}}})
-        self.assertEqual(good.status_code, 200)
-        self.runner["set_policy_data"].assert_called_once_with(
-            POLICY, {"GEOGRAPHICAL-RESTRICTION": {"allowedCountries": ["CA"]}, "DELIVERY-DOWNLOAD": {}}, OWNER
-        )
+        good = self.post(url, {"node": "geographical_restriction", "policy_data": {"allowedCountries": ["CA"]}})
+        self.assertEqual(good.status_code, 200, good.content)
+        self.runner["set_node_policy_data"].assert_called_once_with(POLICY, "geographical_restriction", {"allowedCountries": ["CA"]}, OWNER)
+        self.assertEqual(self.registries.asset["metadata"]["policy_data"]["geographical_restriction"], {"allowedCountries": ["CA"]})
+        self.assertEqual(self.post(url, {"node": "nope", "policy_data": {}}).status_code, 400)
+        self.assertEqual(self.post(url, {"node": "grant_download", "policy_data": {}}).status_code, 400)
+        self.assertEqual(self.post(url, {"node": "geographical_restriction", "policy_data": {"allowedCountries": "CA"}}).status_code, 400)
 
-    def test_the_checklist_reports_each_fact(self):
+    def test_the_checklist_reports_each_credential(self):
         location = vc("LocationCredential", WALLET_DID, {"locatedAt": {"country": "US"}}, signer=OFFICE)
         self.runner["wallet_credentials"].return_value = held(location)
         response = self.post("/api/assets/checklist/", {"asset_did": ASSET_DID, "wallets": {"User": WALLET}})
@@ -303,32 +408,45 @@ class ExposedDashboard(ViewTestCase):
             "publicKeyCredential": ("Session key", "automatic", "Session keys"),
         })
         self.assertTrue(body["ready"])
-        self.assertFalse(body["needs_project"])
 
-    def test_a_fact_about_a_project_asks_for_one(self):
-        self.runner["get_policy_requirements"].return_value = {"User": ["EthicsApprovalCredential"]}
-        ownership = vc("ProjectOwnershipCredential", "did:pdo:pi000001", {"Owns": "did:example:p1"}, signer=OFFICE)
-        self.runner["wallet_credentials"].return_value = held(ownership)
+    def test_the_checklist_is_of_a_way_the_requester_can_meet_the_graph(self):
+        self.runner["get_requirement_alternatives"].return_value = [
+            {"User": ["IRBClearanceCredential", "publicKeyCredential"]},
+            {"User": ["LocationCredential", "publicKeyCredential"]},
+        ]
+        location = vc("LocationCredential", WALLET_DID, {"locatedAt": {"country": "US"}}, signer=OFFICE)
+        self.runner["wallet_credentials"].return_value = held(location)
         body = self.post("/api/assets/checklist/", {"asset_did": ASSET_DID, "wallets": {"User": WALLET}}).json()
-        self.assertTrue(body["needs_project"])
-        self.assertEqual(body["projects"], ["did:example:p1"])
+        self.assertEqual([r["type"] for r in body["rows"]], ["LocationCredential", "publicKeyCredential"])
+        self.assertTrue(body["ready"])
 
-    def test_using_it_without_naming_the_project_is_refused(self):
-        self.runner["get_policy_requirements"].return_value = {"User": ["EthicsApprovalCredential"]}
-        runner = action_runners.build_runner(
-            user_name=OWNER, asset_did=ASSET_DID, metadata=self.registries.asset["metadata"],
-            wallets={"User": WALLET}, params={},
-        )
-        with self.assertRaisesRegex(ValueError, "name the project"):
-            runner.run()
+    def test_the_use_form_names_every_credential_some_way_needs(self):
+        self.runner["get_requirement_alternatives"].return_value = [
+            {"User": ["IRBClearanceCredential", "publicKeyCredential"]},
+            {"User": ["LocationCredential", "publicKeyCredential"]},
+        ]
+        body = self.post("/api/assets/use-form/", {"asset_did": ASSET_DID}).json()
+        self.assertEqual(body["roles"][0]["credential_types"],
+                         ["IRBClearanceCredential", "LocationCredential", "publicKeyCredential"])
+
+
+class Policies(ViewTestCase):
+    def test_every_card_of_the_catalog_is_drawn(self):
+        response = self.client.get("/policies/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([c["folder"] for c in response.context["cards"]],
+                         ["geographical-restriction", "institution-specific-restriction"])
+        self.assertContains(response, 'data-graph-of="geographical-restriction"')
+        self.assertContains(response, 'id="policy-catalog"')
 
 
 class Authorities(ViewTestCase):
-    def test_the_list_offers_only_facts_a_person_signs(self):
+    def test_the_list_offers_only_credentials_a_person_signs(self):
         response = self.client.get("/authorities/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual([t["template_type"] for t in response.context["attestable"]],
-                         ["LocationCredential", "EthicsApprovalCredential", "ProjectOwnershipCredential"])
+                         ["LocationCredential", "IRBClearanceCredential", "ProjectOwnershipCredential",
+                          "AffiliationCredential"])
         kinds = {a["contract_id"]: (a["kind"], a["fact_names"]) for a in response.context["authorities"]}
         self.assertEqual(kinds, {OFFICE: ("hand-signing", ["Location"]), EKA: ("system", ["Session key"])})
 

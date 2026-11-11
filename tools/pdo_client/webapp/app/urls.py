@@ -3,6 +3,7 @@ from django.urls import path
 from .views.assets import (
     AssetAcceptAuthorityEndpoint,
     AssetChecklistEndpoint,
+    AssetComposeEndpoint,
     AssetDashboardView,
     AssetExposeStreamView,
     AssetExposeView,
@@ -17,12 +18,9 @@ from .views.assets import (
 )
 from .views.authorities import (
     AuthoritiesListView,
-    AuthorityAcceptEndpoint,
     AuthorityDetailView,
-    AuthorityIssueEndpoint,
     AuthoritySignCredentialEndpoint,
     AuthorityUpdateNameEndpoint,
-    AuthorityWithdrawEndpoint,
 )
 from .views.config import ConfigPageView, IdentityProvisionView, IdentitySetView
 from .views.federated import (
@@ -33,6 +31,7 @@ from .views.federated import (
     FederatedSitesEndpoint,
     FederatedStartServerStreamView,
 )
+from .views.policies import PoliciesView
 from .views.wallets import (
     WalletAddVCEndpoint,
     WalletDetailView,
@@ -76,6 +75,8 @@ urlpatterns = [
         AssetExposeStreamView.as_view(),
         name="asset_expose_stream",
     ),
+    # Policies (page)
+    path("policies/", PoliciesView.as_view(), name="policies"),
     # Federated (page)
     path("federated/", FederatedPageView.as_view(), name="federated"),
     # Wallets (pages)
@@ -158,6 +159,11 @@ urlpatterns = [
         name="api_asset_update_policy_data",
     ),
     path(
+        "api/assets/<str:cid_url>/compose/",
+        AssetComposeEndpoint.as_view(),
+        name="api_asset_compose",
+    ),
+    path(
         "api/wallets/<str:cid_url>/add-vc/",
         WalletAddVCEndpoint.as_view(),
         name="api_wallet_add_vc",
@@ -181,20 +187,5 @@ urlpatterns = [
         "api/authorities/<str:cid_url>/sign-credential/",
         AuthoritySignCredentialEndpoint.as_view(),
         name="api_authority_sign_credential",
-    ),
-    path(
-        "api/authorities/<str:cid_url>/accept-authority/",
-        AuthorityAcceptEndpoint.as_view(),
-        name="api_authority_accept_authority",
-    ),
-    path(
-        "api/authorities/<str:cid_url>/withdraw-authority/",
-        AuthorityWithdrawEndpoint.as_view(),
-        name="api_authority_withdraw_authority",
-    ),
-    path(
-        "api/authorities/<str:cid_url>/issue/",
-        AuthorityIssueEndpoint.as_view(),
-        name="api_authority_issue",
     ),
 ]

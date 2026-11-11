@@ -8,6 +8,7 @@ from django.shortcuts import redirect, render
 
 from .. import (
     action_runners,
+    graphs,
     guardian_launcher,
     guardian_registry,
     ledger_client,
@@ -221,14 +222,6 @@ def _token_and_policy(did, user_name):
         raise ValidationError(str(e))
 
 
-def _facts_needing_authorities(modules, templates):
-    """The facts some module reads that an authority has to establish: all but
-    the self-asserted ones, which the requester signs and the policy checks
-    against their key."""
-    facts = {t for m in modules for types in m["requirements"].values() for t in types}
-    return sorted(f for f in facts if not templates[f]["self_asserted"])
-
-
 def _short_id(contract_id, n=12):
     return contract_id[:n]
 
@@ -422,10 +415,11 @@ class AssetDashboardView(BaseView):
     """GET-only: render the per-asset dashboard.
 
     Before the asset is exposed, the dashboard offers the Expose panel: the cards
-    that can sit in front of this asset's guardian, a parameter form per card,
-    and the authorities the owner accepts for each fact. Afterwards it shows the
-    cards attached, the accepted authorities by name and kind (with a way to
-    withdraw or add trust), and the policy data.
+    that can sit in front of this asset's guardian, the graph they compose into, a
+    parameter form per node, and the authorities the owner accepts for each
+    credential type it takes presented. Afterwards it draws the graph, lists what
+    requesters present to it and the accepted authorities by name and kind (with a
+    way to withdraw or add trust), and edits each node's parameters.
     """
 
     def get(self, request, cid_url):
@@ -473,50 +467,68 @@ class AssetDashboardView(BaseView):
         return render(request, "assets/dashboard.html", ctx)
 
     def _exposed(self, ctx, did, metadata, user_name):
+        """The asset's policy graph as the contract holds it, each node's policy data, and
+        the authorities accepted for each credential type it takes presented."""
         ctx["has_policy"] = True
         try:
             token_id, policy_id = _token_and_policy(did, user_name)
-            requirements = pdo_runner.get_policy_requirements(token_id, user_name)
+            alternatives = pdo_runner.get_requirement_alternatives(token_id, user_name)
             trusted = pdo_runner.list_trusted_issuers(policy_id, user_name)
             policy_data = pdo_runner.get_policy_data(policy_id, user_name)
             templates = registry_client.credential_templates_by_type()
-            modules = {t["name"]: t for t in registry_client.list_policy_templates()}
+            stored = pdo_runner.get_policy_graph(policy_id, user_name)
             directory = registry_client.list_authorities()
+            catalog = registry_client.get_catalog()
         except Exception as e:
             logger.exception("Failed to read the asset's policy")
             ctx["error"] = str(e)
             return
 
+        graph = stored["policy_graph"]
         names = {t: v["display_name"] for t, v in templates.items()}
-        facts = _facts_needing_authorities([{"requirements": requirements}], templates)
-        every_fact = {t for types in requirements.values() for t in types}
+        facts = sorted(t for t in graph["trusted_issuers"] if not templates[t]["self_asserted"])
+        presented = {t for bundle in alternatives for types in bundle.values() for t in types}
         ctx.update({
             "policy_contract_id": policy_id,
-            "cards": [
-                {
-                    **card,
-                    "parameters_schema": modules[card["name"]]["parameters_schema"],
-                    "values": policy_data[card["name"]],
-                }
-                for card in metadata["cards"]
-            ],
-            "delivery": modules[metadata["delivery"]]["title"],
+            "cards": metadata["cards"],
+            "graph_sha256": stored["sha256"],
             "trust_rows": trust.panel(facts, trusted, directory, names),
-            "self_asserted": [names[t] for t in sorted(every_fact - set(facts))],
+            "self_asserted": [names[t] for t in sorted(presented) if templates[t]["self_asserted"]],
+            "alternatives": [
+                [names[t] for types in bundle.values() for t in types] for bundle in alternatives
+            ],
+            "graph_policy": {
+                "graph": graph,
+                "catalog": catalog,
+                "nodes": [
+                    {
+                        "node": node_id,
+                        "name": catalog["components"][node["component"]]["name"],
+                        "schema": catalog["components"][node["component"]]["policy_data_schema"],
+                        "values": policy_data[node_id],
+                    }
+                    for node_id, node in graph["nodes"].items()
+                    if catalog["components"][node["component"]]["policy_data_schema"]
+                ],
+            },
         })
 
     def _expose_panel(self, ctx, guardian_type):
         try:
-            cards = registry_client.policy_templates_for(guardian_type, "policy")
-            delivery = registry_client.delivery_template(guardian_type)
+            cards = registry_client.policy_templates_for(guardian_type)
             credentials = registry_client.list_credential_templates()
+            catalog = registry_client.get_catalog()
+            # a card's own rule is its card component's Rego; the shared components are a library
+            rules = {
+                card["template"]: catalog["components"][card["component"]]["rego"]
+                for card in catalog["cards"].values()
+            }
             ctx["expose"] = {
                 "cards": [
-                    {k: c[k] for k in ("id", "name", "code", "title", "rule", "requirements",
-                                       "parameters_schema", "defaults", "readme", "rego_source")}
+                    {**{k: c[k] for k in ("id", "name", "code", "title", "rule", "readme", "graph")},
+                     "rego_source": rules[c["name"]]}
                     for c in cards
                 ],
-                "delivery": {k: delivery[k] for k in ("name", "title", "rule", "requirements")},
                 "facts": {
                     t["template_type"]: {
                         "name": t["display_name"],
@@ -528,29 +540,42 @@ class AssetDashboardView(BaseView):
                 "authorities": [trust.describe(a) for a in registry_client.list_authorities()],
                 "trust_lists": registry_client.list_trust_lists(),
             }
+            # what the cards' graphs are drawn with
+            ctx["catalog"] = catalog
         except Exception as e:
             logger.exception("Failed to load the expose panel")
             ctx["error"] = str(e)
 
 
-def _expose_steps(contract_id, did, user_name, payload):
-    """The steps that expose an asset: the chosen cards and the delivery module of
-    its guardian in one policy agent, each card's parameters under its own module
-    id, and the authorities accepted for each fact.
+def _composed(card_ids, guardian_type):
+    """The templates of the selected cards and the graph they compose into, for an asset
+    behind a guardian of ``guardian_type``."""
+    if not card_ids:
+        raise ValidationError("Select at least one policy.")
+    cards = [registry_client.get_policy_template(i) for i in card_ids]
+    unfit = [c["code"] for c in cards if guardian_type not in c["guardian_types"]]
+    if unfit:
+        raise ValidationError("These policies do not fit this guardian: " + ", ".join(unfit))
+    try:
+        return cards, graphs.compose([c["graph"] for c in cards])
+    except ValueError as e:
+        raise ValidationError(str(e))
 
-    ``payload`` is ``{cards: [template id, ...], parameters: {template id: {...}},
-    authorities: {fact: [authority DID, ...]}}``, with parameters for every card
-    and authorities for every fact an authority has to establish.
+
+def _expose_steps(contract_id, did, user_name, payload):
+    """The steps that expose an asset: the graphs of the chosen cards composed into one,
+    each node's parameters as its policy data, the components it uses, and the
+    authorities accepted for each credential type it may take presented.
+
+    ``payload`` is ``{cards: [template id, ...], parameters: {node: {...}}, authorities:
+    {credential type: [authority DID, ...]}}``, with parameters for every node and
+    authorities (possibly none) for every type the graph takes presented, the requester's
+    own excepted. At least one requirement alternative must be met by what is accepted.
     """
     for key, kind in (("cards", list), ("parameters", dict), ("authorities", dict)):
         if not isinstance(payload.get(key), kind):
             raise ValidationError(f"'{key}' must be a {kind.__name__}")
-    card_ids = [str(i) for i in payload["cards"]]
     parameters, choices = payload["parameters"], payload["authorities"]
-    if not card_ids:
-        raise ValidationError("Select at least one policy.")
-    if set(parameters) != set(card_ids):
-        raise ValidationError("'parameters' must hold the parameters of every selected policy")
 
     def load(ctx):
         asset = registry_client.get_asset_by_did(did)
@@ -558,46 +583,52 @@ def _expose_steps(contract_id, did, user_name, payload):
         host, port = meta["guardian_url"], meta["guardian_port"]
         if not host or not port:
             raise ValueError("Guardian URL/port missing on this asset.")
+        cards, graph = _composed([str(i) for i in payload["cards"]], action_runners.guardian_type_of(meta))
+        catalog = registry_client.get_catalog()
 
-        cards = [registry_client.get_policy_template(i) for i in card_ids]
-        delivery = registry_client.delivery_template(action_runners.guardian_type_of(meta))
-        # every module reads its own slice; the delivery module has no parameters
-        policy_data, problems = {delivery["name"]: {}}, []
-        for card in cards:
-            values = parameters[str(card["id"])]
-            for problem in schemas.errors(values, card["parameters_schema"]):
-                problems.append(f"{card['code']} {problem}")
-            policy_data[card["name"]] = values
+        if set(parameters) != set(graph["nodes"]):
+            raise ValueError("'parameters' must hold the policy data of every node: " + ", ".join(graph["nodes"]))
+        problems = []
+        for node_id, node in graph["nodes"].items():
+            component = catalog["components"][node["component"]]
+            if not component["policy_data_schema"]:
+                if parameters[node_id] != {}:
+                    problems.append(f"{component['name']} takes no policy data")
+            else:
+                for problem in schemas.errors(parameters[node_id], component["policy_data_schema"]):
+                    problems.append(f"{component['name']} {problem}")
+            node["policy_data"] = parameters[node_id]
         if problems:
             raise ValueError("Parameters do not fit: " + "; ".join(problems))
 
-        facts = _facts_needing_authorities(cards + [delivery], registry_client.credential_templates_by_type())
+        templates = registry_client.credential_templates_by_type()
+        self_asserted = {t for t, v in templates.items() if v["self_asserted"]}
+        facts = sorted(t for t in graph["trusted_issuers"] if t not in self_asserted)
         if set(choices) != set(facts):
             raise ValueError("'authorities' must name the accepted authorities of: " + ", ".join(facts))
-        unaccepted = [f for f in facts if not choices[f]]
-        if unaccepted:
-            raise ValueError("Accept at least one authority for: " + ", ".join(unaccepted))
+        alternatives = graphs.requirement_alternatives(graph, catalog)
+        if not graphs.satisfiable(alternatives, choices, self_asserted):
+            raise ValueError("Accept authorities for every credential of at least one way to meet the policy.")
 
+        components = {c["component_id"]: c["rego_source"] for c in registry_client.list_policy_components()}
         ctx.update({
-            "modules": [[c["name"], c["rego_source"]] for c in cards + [delivery]],
-            "policy_data": policy_data,
+            "graph": graph,
+            "components": {n["component"]: components[n["component"]] for n in graph["nodes"].values()},
+            "policy_data": parameters,
             "cards": [{"name": c["name"], "code": c["code"], "title": c["title"], "rule": c["rule"]} for c in cards],
-            "delivery": delivery["name"],
             "guardian": _guardian_url_port(host, port),
             "asset_name": asset["name"],
-            "registrations": trust.registrations({f: choices[f] for f in facts}),
+            "registrations": trust.registrations({f: choices[f] for f in facts if choices[f]}),
         })
-        return {"detail": f"{len(cards)} polic{'y' if len(cards) == 1 else 'ies'} and the {delivery['title'].lower()}"}
+        return {"detail": f"{len(graph['nodes'])} components from {len(cards)} polic{'y' if len(cards) == 1 else 'ies'}"}
 
     def create_policy(ctx):
         result = pdo_runner.create_asset_policy(
-            f"Policy for {ctx['asset_name']}", ctx["guardian"], user_name, ctx["modules"]
+            f"Policy for {ctx['asset_name']}", ctx["guardian"], user_name, ctx["graph"], ctx["components"]
         )
         ctx["policy_id"] = result["policy_contract_id"]
         ctx["token_id"] = result["token_contract_id"]
-
-    def set_data(ctx):
-        pdo_runner.set_policy_data(ctx["policy_id"], ctx["policy_data"], user_name)
+        ctx["graph_hash"] = result["graph_hash"]
 
     def accept_authorities(ctx):
         for issuer_id, path, facts in ctx["registrations"]:
@@ -609,15 +640,14 @@ def _expose_steps(contract_id, did, user_name, payload):
     def update_registry(ctx):
         registry_client.update_asset_metadata_by_did(did, {
             "policy_contract": make_did(ctx["token_id"]),
+            "graph_hash": ctx["graph_hash"],
             "policy_data": ctx["policy_data"],
             "cards": ctx["cards"],
-            "delivery": ctx["delivery"],
         })
 
     return [
-        ("load", "Loading the selected policies", load),
+        ("load", "Composing the selected policies", load),
         ("policy", "Creating the policy and token contracts", create_policy),
-        ("data", "Setting each policy's parameters", set_data),
         ("authorities", "Accepting the chosen authorities", accept_authorities),
         ("registry", "Updating the asset registry", update_registry),
     ]
@@ -677,6 +707,35 @@ class AssetExposeStreamView(BaseView):
 # ============================================================
 # JSON endpoints
 # ============================================================
+class AssetComposeEndpoint(JsonView):
+    """POST {cards: [template id, ...]} -- the graph the chosen cards compose into, what
+    requesters will present to it, and the nodes that take policy data."""
+
+    def handle(self, request, data, cid_url):
+        contract_id = decode_cid(cid_url)
+        user_name = AppConfig.get_instance().public_key
+        _require_user_asset(user_name, contract_id)
+        cards = data.get("cards")
+        if not isinstance(cards, list):
+            raise ValidationError("'cards' must be a list of template ids")
+        metadata = registry_client.get_asset_by_did(make_did(contract_id))["metadata"]
+        _, graph = _composed([str(i) for i in cards], action_runners.guardian_type_of(metadata))
+        catalog = registry_client.get_catalog()
+        return {
+            "ok": True,
+            "graph": graph,
+            "alternatives": graphs.requirement_alternatives(graph, catalog),
+            "nodes": [
+                {
+                    "node": node_id,
+                    "name": catalog["components"][node["component"]]["name"],
+                    "schema": catalog["components"][node["component"]]["policy_data_schema"],
+                }
+                for node_id, node in graph["nodes"].items()
+            ],
+        }
+
+
 class AssetUseEndpoint(JsonView):
     """POST {asset_did, wallet_id, ...} — run the action this asset's guardian
     supports and return its result.
@@ -745,7 +804,10 @@ class AssetUseFormEndpoint(JsonView):
                     "Asset has not been exposed (no policy_contract in registry)."
                 )
             token_id, _ = parse_did(token_did)
-            requirements = pdo_runner.get_policy_requirements(token_id, user_name)
+            requirements = {}
+            for alternative in pdo_runner.get_requirement_alternatives(token_id, user_name):
+                for role, types in alternative.items():
+                    requirements.setdefault(role, set()).update(types)
             templates = registry_client.credential_templates_by_type()
             roles = [
                 {
@@ -784,12 +846,7 @@ def checklist_for(asset_did, wallets, user_name):
         }
         for r in assessment["rows"]
     ]
-    return {
-        "rows": rows,
-        "ready": assessment["ready"],
-        "needs_project": assessment["needs_project"],
-        "projects": assessment["projects"],
-    }
+    return {"rows": rows, "ready": assessment["ready"]}
 
 
 class AssetChecklistEndpoint(JsonView):
@@ -809,7 +866,7 @@ class AssetChecklistEndpoint(JsonView):
 
 
 class AssetAcceptAuthorityEndpoint(JsonView):
-    """POST {did, credential_types} — accept an authority for some facts."""
+    """POST {did, credential_types} — accept an authority for some credential types."""
 
     def handle(self, request, data, cid_url):
         contract_id = decode_cid(cid_url)
@@ -834,7 +891,7 @@ class AssetAcceptAuthorityEndpoint(JsonView):
 
 class AssetWithdrawAuthorityEndpoint(JsonView):
     """POST {contract_id, credential_types} — stop accepting an authority for
-    some facts."""
+    some credential types."""
 
     def handle(self, request, data, cid_url):
         contract_id = decode_cid(cid_url)
@@ -852,42 +909,39 @@ class AssetWithdrawAuthorityEndpoint(JsonView):
 
 
 class AssetUpdatePolicyDataEndpoint(JsonView):
-    """POST {policy_data: {module_id: {...}}} — replace the parameters of every
-    card on the asset, each under its module id; the delivery module's slice stays
-    empty. Also mirrors it into the registry."""
+    """POST {node, policy_data} -- replace one node's policy data, checked against its
+    component's schema; also mirrors it into the registry."""
 
     def handle(self, request, data, cid_url):
         contract_id = decode_cid(cid_url)
         user_name = AppConfig.get_instance().public_key
         _require_user_asset(user_name, contract_id)
         did = make_did(contract_id)
-
-        policy_data = data.get("policy_data")
-        if not isinstance(policy_data, dict) or not all(isinstance(v, dict) for v in policy_data.values()):
-            raise ValidationError("'policy_data' must map each policy to an object of its parameters")
+        node_id = require(data, "node")
+        values = data.get("policy_data")
+        if not isinstance(values, dict):
+            raise ValidationError("'policy_data' must be an object")
 
         metadata = registry_client.get_asset_by_did(did)["metadata"]
-        cards = {card["name"] for card in metadata["cards"]}
-        if set(policy_data) != cards:
-            raise ValidationError("'policy_data' must hold the parameters of every policy on the asset: " + ", ".join(sorted(cards)))
-
-        templates = {t["name"]: t for t in registry_client.list_policy_templates()}
-        problems = [
-            f"{module_id} {problem}"
-            for module_id, values in policy_data.items()
-            for problem in schemas.errors(values, templates[module_id]["parameters_schema"])
-        ]
+        _, policy_id = _token_and_policy(did, user_name)
+        graph = pdo_runner.get_policy_graph(policy_id, user_name)["policy_graph"]
+        if node_id not in graph["nodes"]:
+            raise ValidationError(f"The policy has no node {node_id}.")
+        component = registry_client.get_catalog()["components"][graph["nodes"][node_id]["component"]]
+        if not component["policy_data_schema"]:
+            raise ValidationError(f"{component['name']} takes no policy data.")
+        problems = schemas.errors(values, component["policy_data_schema"])
         if problems:
             raise ValidationError("Parameters do not fit: " + "; ".join(problems))
-        policy_data = {**policy_data, metadata["delivery"]: {}}
 
-        _, policy_id = _token_and_policy(did, user_name)
-        pdo_runner.set_policy_data(policy_id, policy_data, user_name)
+        pdo_runner.set_node_policy_data(policy_id, node_id, values, user_name)
         try:
-            registry_client.update_asset_metadata_by_did(did, {"policy_data": policy_data})
+            registry_client.update_asset_metadata_by_did(
+                did, {"policy_data": {**metadata["policy_data"], node_id: values}}
+            )
         except Exception:
             logger.exception("Failed to mirror policy_data into registry metadata")
-        return {"ok": True, "message": "Policy data updated."}
+        return {"ok": True, "message": f"Policy data of {component['name']} updated."}
 
 
 # ============================================================

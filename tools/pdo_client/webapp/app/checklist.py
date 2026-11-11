@@ -1,22 +1,25 @@
-"""The requester's readiness checklist: for every fact an asset needs, whether
-the requester already has it, can get it on the way, or has someone to ask.
+"""The requester's readiness checklist: for every credential an asset's policy
+takes presented, whether the requester already has it, can get it on the way, or
+has someone to ask.
 
 Built only from public data -- the asset's requirements and trusted issuers, the
 directory of authorities, and the requester's own wallets -- so it can be shown
-before anything is submitted.
+before anything is submitted. A wallet holds credentials about its holder and
+copies of credentials about others (the PI's project ownership, say), and the
+policy's components read both, so any credential of the type counts.
 
 | Status | Meaning |
 |--------|---------|
 | held | in the wallet, signed by an authority the asset trusts for that type |
-| automatic | a trusted system or rule-based authority can issue it from what the wallet holds |
+| automatic | a trusted system authority issues it on the way |
 | ask | none can issue it on the way, but a hand-signing authority is accepted; the row names whom to ask |
 | held_not_accepted | held, but signed by an authority the asset does not trust |
 | unreachable | no accepted authority can issue it |
 
-A self-asserted fact (a script's ownership, say) has no authority: one of the
-requester's own identities signs it, and the policy checks the signature against
-that identity's key. It is held once signed, and otherwise the requester is asked
-to sign it.
+A self-asserted credential (a script's ownership, say) has no authority: one of
+the requester's own identities signs it, and the policy checks the signature
+against that identity's key. It is held once signed, and otherwise the requester
+is asked to sign it.
 """
 
 from .credentials import accepted, accepted_issuers, contract_id_of
@@ -30,7 +33,6 @@ UNREACHABLE = "unreachable"
 READY = (HELD, AUTOMATIC)
 
 HAND_SIGNING = "hand-signing"
-RULE_BASED = "rule-based"
 SYSTEM = "system"
 
 
@@ -38,26 +40,10 @@ def _by_contract(directory):
     return {contract_id_of(a["did"]): a for a in directory}
 
 
-def can_issue_now(authority, wallet_types):
-    """Whether an authority can issue from what the wallet holds: a system
-    authority needs nothing the requester could lack; a rule-based one needs a
-    credential of every input type it reads."""
-    if authority["kind"] == SYSTEM:
-        return True
-    if authority["kind"] == RULE_BASED:
-        needed = {t for types in authority["inputs"].values() for t in types}
-        return needed <= wallet_types
-    return False
-
-
-def row(role, fact, trusted_issuers, about_holder, in_wallet, directory, usable):
-    """One checklist row for one fact the asset needs under one role.
-
-    ``about_holder`` are the role's credentials about its holder; ``in_wallet``
-    everything the role's wallet holds, whoever it is about (an authority may
-    read copies of credentials about others).
-    """
-    of_type = [h for h in about_holder if h.type == fact]
+def row(role, fact, trusted_issuers, in_wallet, directory, usable):
+    """One checklist row for one credential type the asset needs under one role,
+    from everything the role's wallet holds."""
+    of_type = [h for h in in_wallet if h.type == fact]
     held = [h for h in of_type if accepted(h, trusted_issuers) and usable(h)]
 
     known = _by_contract(directory)
@@ -67,8 +53,8 @@ def row(role, fact, trusted_issuers, about_holder, in_wallet, directory, usable)
     names = [a["name"] for a in authorities] + unknown
 
     out = {"role": role, "type": fact, "authorities": names, "via": None, "self_asserted": False}
-    wallet_types = {h.type for h in in_wallet}
-    automatic = [a for a in authorities if can_issue_now(a, wallet_types)]
+    # a system authority needs nothing the requester could lack
+    automatic = [a for a in authorities if a["kind"] == SYSTEM]
 
     if held:
         out["status"] = HELD
@@ -85,11 +71,11 @@ def row(role, fact, trusted_issuers, about_holder, in_wallet, directory, usable)
     return out
 
 
-def self_asserted_row(role, fact, about_holder, own):
-    """A self-asserted fact is held when one of the requester's own identities
-    (``own``, their contract ids) signed it in its own name."""
+def self_asserted_row(role, fact, in_wallet, own):
+    """A self-asserted credential is held when one of the requester's own
+    identities (``own``, their contract ids) signed it in its own name."""
     signed = [
-        h for h in about_holder
+        h for h in in_wallet
         if h.type == fact and h.signer in own and contract_id_of(h.issuer) == h.signer
     ]
     return {
@@ -103,24 +89,24 @@ def self_asserted_row(role, fact, about_holder, own):
 
 
 def checklist(requirements, trusted_issuers, wallets, directory, usable, self_asserted):
-    """Rows for every fact an asset needs, in requirement order.
+    """Rows for every credential type an alternative of the asset's requirements
+    names, in requirement order.
 
     ``wallets`` maps every role to ``(holder_did, held_credentials)`` for the
     identity chosen for it, or to ``None`` while none is chosen. ``usable`` says
     whether a held credential can be presented from here; ``self_asserted`` are
-    the fact types the requester signs themselves.
+    the types the requester signs themselves.
     """
     own = {contract_id_of(chosen[0]) for chosen in wallets.values() if chosen is not None}
     rows = []
     for role, facts in requirements.items():
         chosen = wallets[role]
-        holder, in_wallet = chosen if chosen is not None else (None, [])
-        about_holder = [h for h in in_wallet if h.is_about(holder)]
+        in_wallet = chosen[1] if chosen is not None else []
         for fact in facts:
             if fact in self_asserted:
-                rows.append(self_asserted_row(role, fact, about_holder, own))
+                rows.append(self_asserted_row(role, fact, in_wallet, own))
             else:
-                rows.append(row(role, fact, trusted_issuers, about_holder, in_wallet, directory, usable))
+                rows.append(row(role, fact, trusted_issuers, in_wallet, directory, usable))
     return rows
 
 

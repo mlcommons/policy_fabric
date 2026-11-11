@@ -288,13 +288,14 @@ class FederatedRolesEndpoint(JsonView):
                 continue
             try:
                 token_id, _ = parse_did(token_did)
-                requirements = pdo_runner.get_policy_requirements(token_id, user_name)
+                alternatives = pdo_runner.get_requirement_alternatives(token_id, user_name)
             except Exception as e:
                 logger.exception("Failed to read policy requirements for %s", asset_did)
                 problems.append(f"{name}: {e}")
                 continue
-            for role, types in requirements.items():
-                roles.setdefault(role, set()).update(types)
+            for alternative in alternatives:
+                for role, types in alternative.items():
+                    roles.setdefault(role, set()).update(types)
 
         if problems and not roles:
             raise ValidationError("; ".join(problems))
@@ -317,7 +318,7 @@ class FederatedRolesEndpoint(JsonView):
 class FederatedChecklistEndpoint(JsonView):
     """POST {asset_dids, wallets} — each selected site's readiness checklist.
 
-    Every site's policy names its own facts and accepts its own authorities, so
+    Every site's policy names its own credentials and accepts its own authorities, so
     the requester sees one checklist per site; a site that is not ready would
     refuse its capability, and the round would run without it.
     """
@@ -345,20 +346,14 @@ class FederatedChecklistEndpoint(JsonView):
             except Exception as e:
                 logger.exception("Failed to build the checklist for %s", asset_did)
                 # a site whose checklist failed is not ready, and asks for nothing
-                site.update({"rows": [], "ready": False, "needs_project": False, "projects": [], "error": str(e)})
+                site.update({"rows": [], "ready": False, "error": str(e)})
             sites.append(site)
 
-        return {
-            "ok": True,
-            "sites": sites,
-            "needs_project": any(site["needs_project"] for site in sites),
-            "projects": sorted({p for site in sites for p in site["projects"]}),
-        }
+        return {"ok": True, "sites": sites}
 
 
 class FederatedRunStreamView(BaseView):
-    """POST {server_url, asset_dids, wallets, project?} — run one federated round,
-    streaming.
+    """POST {server_url, asset_dids, wallets} — run one federated round, streaming.
 
     The steps are emitted by hand rather than through ``stream_steps`` because the
     shape of this flow depends on what the requester selected: one capability step
@@ -438,7 +433,6 @@ class FederatedRunStreamView(BaseView):
                 asset_dids=asset_dids,
                 wallets=wallets,
                 script_did=script_did,
-                declared={"project": data["project"]} if "project" in data else {},
                 state=state,
             ),
             complete=lambda: {
@@ -455,7 +449,7 @@ class FederatedRunStreamView(BaseView):
         )
 
     # -----------------------------------------------------------------
-    def _events(self, *, user_name, server_url, asset_dids, wallets, script_did, declared, state):
+    def _events(self, *, user_name, server_url, asset_dids, wallets, script_did, state):
         """Yield one progress event per transition, in the order they happen."""
         names = {asset_did: self._name_of(asset_did) for asset_did in asset_dids}
 
@@ -493,7 +487,7 @@ class FederatedRunStreamView(BaseView):
         yield make_event(step, "done", label, f"{len(script)} bytes from {script_did}, {digest[:19]}…")
         # every capability is minted for this digest, the one each FL client will
         # measure the script by
-        params = {"script_digest": digest, **declared}
+        params = {"script_digest": digest}
 
         # ---- one capability per site, each from that site's own policy ------
         # Asked one at a time and independently. Nothing about this round is

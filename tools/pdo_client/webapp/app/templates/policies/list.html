@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Policies — PDO Client{% endblock %}
+
+{% block content %}
+<div class="container container-wide">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Policies</h1>
+            <p class="muted" style="margin:0">Every policy card, as the graph of policy components it is
+                made of. Cards change in the documentation site's Policy Composer, through a pull request.</p>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    {% for card in cards %}
+    <div class="card policy-card" data-card="{{ card.folder }}">
+        <div class="graph-meta">
+            <h2 style="margin:0">{{ card.name }}</h2>
+            <span class="badge badge-code">{{ card.duo }}</span>
+            <span class="muted did-display">{{ card.template }}</span>
+        </div>
+        <div class="graph-panel"><div class="policy-graph" data-graph-of="{{ card.folder }}"></div></div>
+    </div>
+    {% endfor %}
+</div>
+{% if catalog %}{{ catalog|json_script:"policy-catalog" }}{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/policy_ui/policy_graph.js"></script>
+<script src="/static/js/policies.js"></script>
+{% endblock %}

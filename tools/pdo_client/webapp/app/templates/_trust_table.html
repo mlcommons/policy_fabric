@@ -1,6 +1,6 @@
-<!-- Accepted authorities, fact by fact; wired by window.trustTable.wire. -->
+<!-- Accepted authorities, credential type by credential type; wired by window.trustTable.wire. -->
 <table class="data-table trust-table">
-    <thead><tr><th>Fact</th><th>Accepted</th><th>Add</th></tr></thead>
+    <thead><tr><th>Credential</th><th>Accepted</th><th>Add</th></tr></thead>
     <tbody>
         {% for row in trust_rows %}
         <tr data-fact="{{ row.type }}">

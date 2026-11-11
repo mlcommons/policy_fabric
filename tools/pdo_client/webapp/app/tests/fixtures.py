@@ -43,7 +43,5 @@ def authority(did, name, kind, facts, **fields):
         "facts": facts,
         "operator": "operator",
         "checks": "",
-        "inputs": {},
-        "sources": [],
         **fields,
     }

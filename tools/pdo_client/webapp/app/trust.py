@@ -1,15 +1,15 @@
-"""Accepted authorities, fact by fact.
+"""Accepted authorities, credential type by credential type.
 
-A policy agent -- or a rule-based authority, which is configured exactly like
-one -- trusts issuers per credential type. This module turns that map into what an
-owner reads and edits: one row per fact, with the authorities accepted for it (by
-name and kind, from the directory) and the ones the directory offers instead.
+An asset's policy agent trusts issuers per credential type. This module turns that
+map into what an owner reads and edits: one row per type, with the authorities
+accepted for it (by name and kind, from the directory) and the ones the directory
+offers instead.
 """
 
 from .credentials import contract_id_of, trusted_types
 from .did_utils import parse_did
 
-KIND_LABELS = {"hand-signing": "Hand-signing", "rule-based": "Rule-based", "system": "System"}
+KIND_LABELS = {"hand-signing": "Hand-signing", "system": "System"}
 
 
 def describe(authority):
@@ -22,8 +22,6 @@ def describe(authority):
         "facts": authority["facts"],
         "operator": authority["operator"],
         "checks": authority["checks"],
-        "inputs": authority["inputs"],
-        "sources": authority["sources"],
     }
 
 

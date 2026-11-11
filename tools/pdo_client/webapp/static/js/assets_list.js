@@ -4,15 +4,13 @@
 // a script asset. The roles come from the policy, so they are fetched when the
 // modal opens rather than rendered with the page.
 //
-// Once identities are chosen, the readiness checklist says, fact by fact, what
-// they hold, what will be obtained on the way, and whom to ask for the rest. Use
-// is enabled only when every fact is held or automatic. When a fact the asset
-// needs is about a project, the requester names the project this use is for.
+// Once identities are chosen, the readiness checklist says, credential by
+// credential, what they hold, what will be obtained on the way, and whom to ask
+// for the rest. Use is enabled only when every credential is held or automatic.
 
 (function () {
     var assetDid = '';
     var checking = 0;
-    var needsProject = false;
 
     function el(id) { return document.getElementById(id); }
 
@@ -48,18 +46,6 @@
         return wallets;
     }
 
-    function renderProjects(needed, projects) {
-        needsProject = needed;
-        var select = el('use-project');
-        var current = select.value;
-        select.innerHTML = '';
-        projects.forEach(function (p) {
-            select.appendChild(new Option(p, p, false, p === current));
-        });
-        el('use-project-none').classList.toggle('hidden', projects.length > 0);
-        el('use-project-group').classList.toggle('hidden', !needed);
-    }
-
     function refreshChecklist() {
         var submit = el('use-submit');
         var box = el('use-checklist');
@@ -80,8 +66,7 @@
             .then(function (info) {
                 if (token !== checking) return;
                 window.checklist.render(box, info.rows);
-                renderProjects(info.needs_project, info.projects);
-                submit.disabled = !info.ready || (info.needs_project && !info.projects.length);
+                submit.disabled = !info.ready;
             })
             .catch(function (e) {
                 if (token !== checking) return;
@@ -106,7 +91,6 @@
         // roles are never shown against this one.
         el('use-roles').innerHTML = '';
         el('use-checklist').classList.add('hidden');
-        renderProjects(false, []);
         el('use-modal').classList.remove('hidden');
 
         window.api.post('/api/assets/use-form/', { asset_did: assetDid })
@@ -142,7 +126,6 @@
         form.addEventListener('submit', function (e) {
             e.preventDefault();
             var payload = { asset_did: assetDid, wallets: collectWallets() };
-            if (needsProject) payload.project = el('use-project').value;
             window.progress.run('/api/assets/use/stream/', payload, {
                 title: 'Using the asset…',
                 onComplete: function (term) {

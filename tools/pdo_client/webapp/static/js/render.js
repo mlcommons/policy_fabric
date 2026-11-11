@@ -148,8 +148,11 @@
         return out;
     }
 
-    // A card's README and rule, in the shared #card-detail-modal.
-    function showCard(title, readme, source) {
+    // A card's graph, README and rule (its card component's Rego), in the shared
+    // #card-detail-modal; the graph is drawn with the page's #policy-catalog.
+    var drawnGraph = null;
+
+    function showCard(title, readme, source, graph) {
         var modal = document.getElementById('card-detail-modal');
         if (!modal) return;
         document.getElementById('card-detail-title').textContent = title;
@@ -157,8 +160,11 @@
             ? markdown(readme)
             : '<p class="md-empty">No description provided.</p>';
         document.getElementById('card-detail-rego').innerHTML = rego(source);
-        selectTab(modal, 'readme');
+        if (drawnGraph) drawnGraph.destroy();
         modal.classList.remove('hidden');
+        var catalog = JSON.parse(document.getElementById('policy-catalog').textContent);
+        selectTab(modal, 'graph');
+        drawnGraph = window.PolicyGraph.render(document.getElementById('card-detail-graph'), graph, catalog, 'light');
         modal.querySelector('.modal').scrollTop = 0;
     }
 
@@ -169,6 +175,8 @@
         modal.querySelectorAll('[data-card-panel]').forEach(function (p) {
             p.classList.toggle('active', p.dataset.cardPanel === name);
         });
+        // most graphs are wider than the popup, so it widens while the graph shows
+        modal.querySelector('.modal').classList.toggle('modal-wide', name === 'graph');
     }
 
     document.addEventListener('click', function (e) {

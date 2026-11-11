@@ -1,5 +1,4 @@
-// Authorities page: the creation form shows the fields of the kind chosen, and
-// an authority card can be read before it is chosen.
+// Authorities page: the creation form shows the fields of the kind chosen.
 
 (function () {
     function init() {
@@ -16,14 +15,6 @@
             radio.addEventListener('change', showKind);
         });
         showKind();
-
-        var templates = JSON.parse(document.getElementById('authority-templates-data').textContent);
-        form.addEventListener('click', function (e) {
-            var btn = e.target.closest('[data-view-template]');
-            if (!btn) return;
-            var t = templates[Number(btn.dataset.viewTemplate)];
-            window.render.showCard(t.title, t.readme, t.rego_source);
-        });
     }
 
     if (document.readyState === 'loading') {

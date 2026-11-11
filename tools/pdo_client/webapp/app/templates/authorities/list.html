@@ -6,9 +6,9 @@
     <div class="page-header">
         <div>
             <h1 class="page-title">Authorities</h1>
-            <p class="subtitle">An authority establishes facts: by hand, by a rule over other
-                facts, or from the system itself. Each one you create is listed in the
-                directory, where asset owners choose whom to accept.</p>
+            <p class="subtitle">An authority issues credentials: by hand, or from the system
+                itself. Each one you create is listed in the directory, where asset owners
+                choose whom to accept.</p>
         </div>
         <button type="button" class="btn btn-primary"
                 data-modal-open="create-authority-modal">+ Create Authority</button>
@@ -32,7 +32,7 @@
         {% endfor %}
     </div>
     {% else %}
-    <p class="empty-state">No authorities yet. Create one to start establishing facts.</p>
+    <p class="empty-state">No authorities yet. Create one to start issuing credentials.</p>
     {% endif %}
 </div>
 
@@ -57,10 +57,6 @@
                     <span><strong>Hand-signing</strong> — a person or office signs after its own review</span>
                 </label>
                 <label class="checkbox-item">
-                    <input type="radio" name="kind" value="rule-based">
-                    <span><strong>Rule-based</strong> — a locked rule issues the fact from other facts</span>
-                </label>
-                <label class="checkbox-item">
                     <input type="radio" name="kind" value="system">
                     <span><strong>System</strong> — session keys bound to wallets, and the wallet keys they rest on</span>
                 </label>
@@ -69,7 +65,7 @@
 
         <div data-kind-fields="hand-signing">
             <div class="form-group">
-                <label>Facts it attests</label>
+                <label>Credentials it signs</label>
                 <div class="checkbox-list">
                     {% for t in attestable %}
                     <label class="checkbox-item">
@@ -83,28 +79,6 @@
                 <label for="authority-checks">What it checks</label>
                 <input type="text" id="authority-checks" name="checks"
                        placeholder="e.g. Reviews each protocol before approving it.">
-            </div>
-        </div>
-
-        <div data-kind-fields="rule-based" class="hidden">
-            <div class="form-group">
-                <label>Authority card</label>
-                <div class="option-list">
-                    {% for t in authority_templates %}
-                    <div class="option-item" data-template="{{ t.name }}">
-                        <input type="radio" name="template" value="{{ t.id }}" id="authority-template-{{ t.id }}">
-                        <label for="authority-template-{{ t.id }}">
-                            <strong>{{ t.title }}</strong>
-                            <span class="option-rule">{{ t.rule }}</span>
-                            <small class="muted">Issues {{ t.issues_name }} from {{ t.input_names|join:", " }}. {{ t.presenters }}</small>
-                        </label>
-                        <button type="button" class="btn btn-sm" data-view-template="{{ forloop.counter0 }}">View</button>
-                    </div>
-                    {% empty %}
-                    <p class="muted">No authority cards available.</p>
-                    {% endfor %}
-                </div>
-                <small>Once created, accept authorities for its inputs on its page.</small>
             </div>
         </div>
 
@@ -122,11 +96,8 @@
     </form>
 </div>
 
-{{ authority_templates|json_script:"authority-templates-data" }}
-{% include "_card_detail_modal.html" %}
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/render.js"></script>
 <script src="/static/js/authorities_list.js"></script>
 {% endblock %}

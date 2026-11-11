@@ -35,7 +35,7 @@
                         <span class="did-display">{{ authority.did }}</span>
                         <button type="button" class="btn btn-sm" data-copy="{{ authority.did }}">Copy</button>
                     </td></tr>
-                <tr><td><strong>Establishes</strong></td><td>{{ authority.fact_names|join:", "|default:"—" }}</td></tr>
+                <tr><td><strong>Issues</strong></td><td>{{ authority.fact_names|join:", "|default:"—" }}</td></tr>
                 {% if authority.checks %}
                 <tr><td><strong>Checks</strong></td><td>{{ authority.checks }}</td></tr>
                 {% endif %}
@@ -43,49 +43,10 @@
         </table>
     </div>
 
-    {% if authority.kind == "rule-based" and rule %}
-    <div class="card">
-        <h2>Rule</h2>
-        <p class="muted">Issues <strong>{{ issued_name }}</strong> to the wallet that presents what the
-            rule reads. The rule is locked, so accepting this authority means accepting this rule.</p>
-        <pre class="code-viewer"><code class="rego-code" id="authority-rule">{{ rule.rego_module }}</code></pre>
-    </div>
-
-    <div class="card" id="trust-panel">
-        <h2>Accepted authorities for its inputs</h2>
-        <p class="muted">The rule only counts inputs signed by an authority it accepts.</p>
-        {% include "_trust_table.html" %}
-    </div>
-
-    <div class="card">
-        <h2>Issue to a wallet</h2>
-        <form id="issue-form" class="form-row" style="align-items:flex-end">
-            <div class="form-group" style="margin-bottom:0">
-                <label for="issue-wallet">Wallet</label>
-                <select id="issue-wallet" name="wallet_id" required>
-                    {% for w in wallets %}
-                    <option value="{{ w.contract_id }}">{{ w.name }}</option>
-                    {% empty %}
-                    <option value="">No wallets — create one first</option>
-                    {% endfor %}
-                </select>
-            </div>
-            {% if needs_project %}
-            <div class="form-group" style="margin-bottom:0">
-                <label for="issue-project">Project</label>
-                <input type="text" id="issue-project" name="project" placeholder="did:pdo:…" required>
-                <small>The fact this authority issues is about a project: name it.</small>
-            </div>
-            {% endif %}
-            <div class="form-actions" style="margin-top:0">
-                <button type="submit" class="btn btn-primary" {% if not wallets %}disabled{% endif %}>Issue</button>
-            </div>
-        </form>
-    </div>
-    {% elif authority.kind == "system" %}
+    {% if authority.kind == "system" %}
     <div class="card">
         <p class="muted" style="margin:0">Issues automatically, when a requester's checklist needs
-            one of its facts.</p>
+            one of its credentials.</p>
     </div>
     {% endif %}
 </div>
@@ -163,8 +124,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/render.js"></script>
 <script src="/static/js/schema_form.js"></script>
-<script src="/static/js/trust_table.js"></script>
 <script src="/static/js/authority_detail.js"></script>
 {% endblock %}

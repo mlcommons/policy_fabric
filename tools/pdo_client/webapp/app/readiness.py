@@ -1,16 +1,15 @@
 """What a requester needs before using an asset, and getting what can be got.
 
 ``assess`` builds the checklist (``app.checklist``) for an asset and the wallets
-chosen for its roles; ``obtain`` then gets every fact the checklist marks
+chosen for its roles; ``obtain`` then gets every credential the checklist marks
 automatic -- a session key from a session-key authority, a wallet key from a
-wallet key authority, a fact a rule-based authority issues from what the wallet
-holds -- and stores it in the wallet that needs it.
+wallet key authority -- and stores it in the wallet that needs it.
 """
 
 import logging
 
 from . import checklist, pdo_runner, registry_client, session_keys
-from .credentials import PROJECT_OWNERSHIP, PUBLIC_KEY, WALLET_KEY, accepted, contract_id_of
+from .credentials import PUBLIC_KEY, WALLET_KEY, accepted, contract_id_of
 from .did_utils import make_did
 
 logger = logging.getLogger(__name__)
@@ -27,62 +26,52 @@ def _usable(user_name):
     return usable
 
 
-def _projects(wallets, trusted_issuers):
-    """The projects the requester could declare: those their accepted facts are
-    about, and those named by the project ownerships their wallets hold copies of
-    (their PI's project, say, before any fact about it was issued to them)."""
-    projects = set()
-    for chosen in wallets.values():
-        if chosen is None:
-            continue
-        holder, held = chosen
-        for h in held:
-            if h.type == PROJECT_OWNERSHIP:
-                projects.add(h.claims["Owns"])
-            elif h.is_about(holder) and "project" in h.claims and accepted(h, trusted_issuers):
-                projects.add(h.claims["project"])
-    return sorted(projects)
-
-
 def assess(token_id, wallet_ids, user_name):
     """The checklist for using an asset with the wallets chosen so far.
 
-    Returns ``{policy_id, requirements, trusted, rows, ready, needs_project,
-    projects}``; each row also carries the fact's display name. ``needs_project``
-    says a fact the asset needs is about a project, so the request must name the
-    one this use is for.
+    The asset's policy graph lists the bundles of credentials that satisfy it, its
+    requirement alternatives: the full chain, say, or a credential an authority
+    issued in place of part of it. The checklist is the one of the first
+    alternative the requester is ready for, or else of the one that has the fewest
+    credentials no accepted authority can issue, then the fewest missing.
+
+    Returns ``{policy_id, requirements, trusted, rows, ready}``, ``requirements``
+    being the chosen alternative; each row also carries the credential's display
+    name.
     """
     policy_id = pdo_runner.resolve_policy_id(token_id, user_name)
-    requirements = pdo_runner.get_policy_requirements(token_id, user_name)
+    alternatives = pdo_runner.get_requirement_alternatives(token_id, user_name)
     trusted = pdo_runner.list_trusted_issuers(policy_id, user_name)
     directory = registry_client.list_authorities()
     templates = registry_client.credential_templates_by_type()
+    self_asserted = {t for t, v in templates.items() if v["self_asserted"]}
 
+    roles = sorted({role for alternative in alternatives for role in alternative})
     wallets = {
         role: (make_did(wallet_ids[role]), pdo_runner.wallet_credentials(wallet_ids[role], user_name))
         if role in wallet_ids else None
-        for role in requirements
+        for role in roles
     }
-    rows = checklist.checklist(
-        requirements,
-        trusted,
-        wallets,
-        directory,
-        _usable(user_name),
-        {t for t, v in templates.items() if v["self_asserted"]},
-    )
+    assessed = []
+    for alternative in alternatives:
+        rows = checklist.checklist(
+            alternative, trusted, {role: wallets[role] for role in alternative}, directory,
+            _usable(user_name), self_asserted,
+        )
+        assessed.append((alternative, rows))
+    requirements, rows = min(assessed, key=lambda a: (
+        sum(1 for row in a[1] if row["status"] == checklist.UNREACHABLE),
+        sum(1 for row in a[1] if row["status"] not in checklist.READY),
+    ))
     for row in rows:
         row["name"] = templates[row["type"]]["display_name"]
 
-    needed = {t for types in requirements.values() for t in types}
     return {
         "policy_id": policy_id,
         "requirements": requirements,
         "trusted": trusted,
         "rows": rows,
         "ready": checklist.ready(rows),
-        "needs_project": any("project" in templates[t]["json_schema"]["properties"] for t in needed),
-        "projects": _projects(wallets, trusted),
     }
 
 
@@ -96,10 +85,10 @@ def _bind_session_key(authority_id, wallet_id, user_name):
     return session_keys.keep(user_name, wallet_id, key_dir)
 
 
-def obtain(rows, wallet_ids, user_name, request):
-    """Get every fact the checklist marks automatic, asking rule-based authorities
-    with ``request``. A rule-based authority reads its inputs from the wallet the
-    fact is for. Returns what was obtained, as ``["<fact> from <authority>", ...]``."""
+def obtain(rows, wallet_ids, user_name):
+    """Get every credential the checklist marks automatic, from the system
+    authority it names, into the wallet it is for. Returns what was obtained, as
+    ``["<credential> from <authority>", ...]``."""
     obtained = []
     for row in rows:
         if row["status"] != checklist.AUTOMATIC:
@@ -113,9 +102,7 @@ def obtain(rows, wallet_ids, user_name, request):
         elif row["type"] == WALLET_KEY:
             pdo_runner.obtain_wallet_key_credential(authority_id, wallet_id, user_name)
         else:
-            inputs = {role: wallet_id for role in authority["inputs"]}
-            vc = pdo_runner.issue_credential(authority_id, inputs, user_name, request)
-            pdo_runner.wallet_add_vc(wallet_id, vc, user_name)
+            raise ValueError(f"{authority['name']} issues no {row['type']} on the way")
         obtained.append(f"{row['name']} from {authority['name']}")
     return obtained
 

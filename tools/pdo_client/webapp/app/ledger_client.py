@@ -134,17 +134,6 @@ def list_wallet_key_authority_ids(user_name):
     ]
 
 
-def list_policy_agent_ids(user_name):
-    """Contract IDs owned by ``user_name`` whose family is policy_agent: the
-    policies of the assets they exposed, and the rule-based authorities they
-    operate. The directory of authorities says which are authorities."""
-    return [
-        e["contract_id"]
-        for e in get_user_contracts(user_name)
-        if e["contract_family"] == FAMILY_POLICY_AGENT
-    ]
-
-
 def user_owns_contract(user_name, contract_id):
     """True iff ``contract_id`` appears in the user's on-ledger contract list."""
     return any(e["contract_id"] == contract_id for e in get_user_contracts(user_name))

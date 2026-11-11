@@ -1,0 +1,152 @@
+/* Policy graph shapes: credentials, Policy Components, the capability, wires and legend, shared by the webapp views
+   and the docs composer (policy_graph.js draws them).
+
+   Everything is scoped to a .pf-graph wrapper so it neither leaks into nor picks up the host page's styles.
+   Theme: the wrapper follows prefers-color-scheme unless the host sets data-theme="light" or "dark" on it.
+   The webapp has no dark theme, so it sets data-theme="light"; the docs composer follows the docs site. */
+
+.pf-graph {
+  --pf-surface: #ffffff;
+  --pf-sunk: #eef1f6;
+  --pf-line: #d0d5dd;
+  --pf-ink: #1f2933;
+  --pf-ink-2: #536070;
+  --pf-ink-3: #6f7b8c;
+  --pf-accent: #1e7abf;
+  --pf-accent-soft: #e2eff9;
+  --pf-ok: #1f803a;            /* a switch that is on */
+  --pf-switch-off: #aab4c2;
+  --pf-grant: #94580a;         /* the capability */
+  --pf-logic: #1e3a5f;         /* Policy Component border, tab and rule */
+  --pf-logic-ink: #ffffff;     /* text on the tab */
+  --pf-logic-name: #1e3a5f;    /* the component's name */
+  --pf-shadow: 0 1px 2px rgba(16, 32, 56, .07), 0 3px 10px rgba(16, 32, 56, .07);
+  --pf-font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --pf-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-family: var(--pf-font-ui);
+  color: var(--pf-ink);
+}
+.pf-graph[data-theme="dark"] {
+  --pf-surface: #162030; --pf-sunk: #111a27; --pf-line: #2d3b50;
+  --pf-ink: #e5eaf1; --pf-ink-2: #a7b2c1; --pf-ink-3: #8794a6;
+  --pf-accent: #5aa7e3; --pf-accent-soft: #15304a; --pf-ok: #5cc672; --pf-switch-off: #4a5a70;
+  --pf-grant: #eeb15a; --pf-logic: #3d6596; --pf-logic-ink: #ffffff; --pf-logic-name: #dbe6f5;
+  --pf-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 3px 10px rgba(0, 0, 0, .3);
+}
+@media (prefers-color-scheme: dark) {
+  .pf-graph:not([data-theme="light"]) {
+    --pf-surface: #162030; --pf-sunk: #111a27; --pf-line: #2d3b50;
+    --pf-ink: #e5eaf1; --pf-ink-2: #a7b2c1; --pf-ink-3: #8794a6;
+    --pf-accent: #5aa7e3; --pf-accent-soft: #15304a; --pf-ok: #5cc672; --pf-switch-off: #4a5a70;
+    --pf-grant: #eeb15a; --pf-logic: #3d6596; --pf-logic-ink: #ffffff; --pf-logic-name: #dbe6f5;
+    --pf-shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 3px 10px rgba(0, 0, 0, .3);
+  }
+}
+
+.pf-graph, .pf-graph *, .pf-graph *::before, .pf-graph *::after { box-sizing: border-box; }
+
+/* who a credential is about: one colour per kind of subject; the subject word is always written as well */
+.pf-graph .s-requester { --c: #2a78d6; }
+.pf-graph .s-project { --c: #008300; }
+.pf-graph .s-pi { --c: #e87ba4; }
+.pf-graph .s-institution, .pf-graph .s-committee { --c: #eda100; }
+.pf-graph .s-script { --c: #e34948; }
+.pf-graph .s-compute { --c: #64748b; }
+.pf-graph .s-document { --c: #78716c; }
+.pf-graph[data-theme="dark"] .s-requester { --c: #3987e5; }
+.pf-graph[data-theme="dark"] .s-pi { --c: #d55181; }
+.pf-graph[data-theme="dark"] .s-institution, .pf-graph[data-theme="dark"] .s-committee { --c: #c98500; }
+.pf-graph[data-theme="dark"] .s-script { --c: #e66767; }
+.pf-graph[data-theme="dark"] .s-compute { --c: #94a3b8; }
+.pf-graph[data-theme="dark"] .s-document { --c: #a8a29e; }
+@media (prefers-color-scheme: dark) {
+  .pf-graph:not([data-theme="light"]) .s-requester { --c: #3987e5; }
+  .pf-graph:not([data-theme="light"]) .s-pi { --c: #d55181; }
+  .pf-graph:not([data-theme="light"]) .s-institution, .pf-graph:not([data-theme="light"]) .s-committee { --c: #c98500; }
+  .pf-graph:not([data-theme="light"]) .s-script { --c: #e66767; }
+  .pf-graph:not([data-theme="light"]) .s-compute { --c: #94a3b8; }
+  .pf-graph:not([data-theme="light"]) .s-document { --c: #a8a29e; }
+}
+
+/* ---------- credential: seal on the top-left corner, type, subject, claims */
+.pf-graph :where(.vw) { --c: var(--pf-ink-3); }
+.pf-graph .vw { flex: none; position: relative; width: var(--vw, 176px); }
+.pf-graph .seal { position: absolute; left: -10px; top: -10px; z-index: 2; width: 23px; height: 23px; border-radius: 50%;
+  border: 2px solid var(--pf-surface); background: var(--c); color: #fff; display: flex; align-items: center;
+  justify-content: center; pointer-events: none; }
+.pf-graph .vc { position: relative; border: 1.5px solid var(--c); border-radius: 8px; background: var(--pf-surface);
+  box-shadow: var(--pf-shadow); overflow: hidden; text-align: left; }
+.pf-graph .vc::after { content: ""; position: absolute; top: -1px; right: -1px; width: 15px; height: 15px;
+  background: linear-gradient(225deg, var(--pf-surface) 0 50%, color-mix(in srgb, var(--c) 55%, var(--pf-surface)) 50% 100%);
+  border-bottom-left-radius: 3px; }
+.pf-graph .vc-h { padding: 7px 17px 6px 15px; background: color-mix(in srgb, var(--c) 15%, var(--pf-surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--c) 40%, var(--pf-surface)); }
+.pf-graph .vc-t { min-width: 0; font-family: var(--pf-font-mono); font-size: 10px; font-weight: 700; color: var(--pf-ink); line-height: 1.3; }
+.pf-graph .vc-id { display: block; font-family: var(--pf-font-ui); font-weight: 500; color: var(--pf-ink-3); font-size: 10px; }
+.pf-graph .vc-sub { display: block; font-family: var(--pf-font-ui); font-size: 9.5px; font-weight: 700; color: var(--pf-grant);
+  text-transform: uppercase; letter-spacing: .5px; }
+.pf-graph .sec { padding: 5px 9px 7px; }
+.pf-graph .vc .sec + .sec { border-top: 1px solid color-mix(in srgb, var(--c) 28%, var(--pf-surface)); }
+.pf-graph .subj { font-size: 10.5px; line-height: 1.35; color: var(--pf-ink-2); }
+.pf-graph .subj b { font-weight: 600; color: var(--pf-ink); }
+.pf-graph .lbl { display: flex; align-items: center; gap: 5px; font-size: 10px; line-height: 1.3; letter-spacing: .3px; color: var(--pf-ink-3); }
+.pf-graph .lbl svg { flex: none; }
+.pf-graph .cl { list-style: none; margin: 0; padding: 0; font-family: var(--pf-font-mono); font-size: 10.5px; line-height: 1.4;
+  color: var(--pf-ink-2); overflow-wrap: anywhere; }
+.pf-graph .cl li { margin: 0; padding-left: 1.8em; text-indent: -1.8em; }
+.pf-graph .cl li::before { content: "\00b7\00a0\00a0"; color: var(--pf-ink-3); }
+.pf-graph .sec .cl { padding-top: 3px; color: var(--pf-ink); }
+.pf-graph .new { display: inline-block; text-indent: 0; font-family: var(--pf-font-ui); font-size: 9.5px; font-weight: 700;
+  color: var(--pf-accent); background: var(--pf-accent-soft); border-radius: 999px; padding: 0 5px; }
+/* read-only: a produced credential that its reader also accepts presented; the words wrap on a card
+   narrowed to fit its panel */
+.pf-graph .ap { display: flex; align-items: center; gap: 5px; padding: 5px 6px 6px;
+  border-top: 1px dashed color-mix(in srgb, var(--c) 45%, var(--pf-surface)); font-size: 10px; font-weight: 600;
+  line-height: 1.2; color: var(--pf-ok); }
+.pf-graph .ap-track { position: relative; flex: none; width: 22px; height: 13px; border-radius: 999px; background: var(--pf-switch-off); }
+.pf-graph .ap-thumb { position: absolute; top: 2px; left: 2px; width: 9px; height: 9px; border-radius: 50%; background: var(--pf-surface); }
+.pf-graph .ap.on .ap-track { background: var(--pf-ok); }
+.pf-graph .ap.on .ap-thumb { transform: translateX(9px); }
+
+/* ---------- capability: solid amber header with a key, no seal, no fold */
+.pf-graph .vc.cap { flex: none; width: var(--vw, 176px); --c: var(--pf-grant); border-width: 2px; }
+.pf-graph .vc.cap .vc-h { display: flex; align-items: flex-start; gap: 5px; padding: 7px 10px 6px 7px; background: var(--pf-grant);
+  border-bottom-color: var(--pf-grant); }
+.pf-graph .vc.cap .vc-h svg { flex: none; margin-top: 1px; }
+.pf-graph .vc.cap .vc-h svg, .pf-graph .vc.cap .vc-t, .pf-graph .vc.cap .vc-sub { color: var(--pf-surface); }
+.pf-graph .vc.cap::after { display: none; }
+.pf-graph .vc.cap .cl { padding: 5px 8px 7px; }
+
+/* ---------- Policy Component: folder tab, name band, policy data (or "no policy data"); the same for every component */
+.pf-graph .pcw { flex: none; width: var(--pcw, 200px); }
+.pf-graph .pc-tab { display: inline-block; margin-left: 8px; padding: 4px 10px 3px; background: var(--pf-logic); color: var(--pf-logic-ink);
+  font-size: 10px; font-weight: 700; letter-spacing: .2px; line-height: 1.2; white-space: nowrap;
+  clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 100%, 0 100%); }
+.pf-graph .pc { border: 4px solid var(--pf-logic); border-radius: 12px; background: var(--pf-surface); box-shadow: var(--pf-shadow);
+  overflow: hidden; text-align: left; }
+.pf-graph .pc-nm { padding: 8px 11px 7px; background: color-mix(in srgb, var(--pf-logic) 10%, var(--pf-surface));
+  border-bottom: 2px solid var(--pf-logic); color: var(--pf-logic-name); font-weight: 700; font-size: 12px; line-height: 1.3;
+  overflow-wrap: anywhere; }
+.pf-graph .pc .sec { padding: 7px 11px 10px; }
+
+/* ---------- layout and wires (read-only views); past the minimum widths the panel scrolls sideways, never the page */
+.pf-graph .pf-panel { overflow-x: auto; }
+.pf-graph .graph { position: relative; width: max-content; min-width: 100%; display: flex; flex-direction: row; justify-content: center;
+  align-items: stretch; gap: var(--colgap, 36px); padding: 14px 8px 4px 16px; }
+.pf-graph .graph > svg { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; overflow: visible; }
+.pf-graph .layer { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 14px; }
+.pf-graph .edge { fill: none; stroke: var(--pf-ink-3); stroke-width: 1.4; opacity: .8; }
+.pf-graph .edge.out { stroke: var(--pf-grant); opacity: .95; }
+
+/* ---------- legend: only what is on screen */
+.pf-graph .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; padding-top: 4px; font-size: 12px; color: var(--pf-ink-2); }
+.pf-graph .legend span { display: inline-flex; align-items: center; gap: 6px; }
+.pf-graph .lg { display: inline-block; flex: none; }
+.pf-graph .lg-vc { position: relative; width: 17px; height: 12px; margin-left: 3px; border: 1.5px solid var(--c); border-radius: 3px;
+  background: color-mix(in srgb, var(--c) 20%, var(--pf-surface)); }
+.pf-graph .lg-vc::before { content: ""; position: absolute; left: -5px; top: -5px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--c); box-shadow: 0 0 0 1.5px var(--pf-surface); }
+.pf-graph .lg-card { position: relative; width: 18px; height: 12px; margin-top: 3px; border: 3px solid var(--pf-logic); border-radius: 3px; }
+.pf-graph .lg-card::before { content: ""; position: absolute; left: 1px; top: -6px; width: 8px; height: 3px; background: var(--pf-logic); }
+.pf-graph .lg-cap { width: 17px; height: 12px; border: 2px solid var(--pf-grant); border-radius: 3px;
+  background: linear-gradient(var(--pf-grant) 0 45%, var(--pf-surface) 45%); }

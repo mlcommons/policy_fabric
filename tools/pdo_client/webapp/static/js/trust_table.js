@@ -1,5 +1,5 @@
-// Accept or withdraw authorities fact by fact, in the table templates/_trust_table.html
-// renders: for an asset's policy, and for a rule-based authority's inputs.
+// Accept or withdraw authorities credential type by credential type, in the table
+// templates/_trust_table.html renders for an asset's policy.
 //
 //   window.trustTable.wire(panel, baseUrl)
 //
