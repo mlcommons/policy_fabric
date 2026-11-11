@@ -6,13 +6,13 @@ from pathlib import Path
 from django.core.management import call_command
 from django.test import TestCase
 
-from .models import AuthorityTemplate, CredentialTemplate, PolicyTemplate
+from .models import CredentialTemplate, PolicyComponent, PolicyTemplate
 
 FABRIC = Path(__file__).resolve().parents[3]
 CARD_FOLDERS = {
     "CREDENTIALS_DIR": FABRIC / "credentials",
     "POLICY_CARDS_DIR": FABRIC / "policy_cards",
-    "AUTHORITY_CARDS_DIR": FABRIC / "authority_cards",
+    "POLICY_COMPONENTS_DIR": FABRIC / "policy_components",
 }
 for variable, folder in CARD_FOLDERS.items():
     os.environ.setdefault(variable, str(folder))
@@ -24,62 +24,80 @@ class SeededFromTheRepository(TestCase):
         call_command("seed_templates", stdout=io.StringIO())
 
     def test_every_card_and_credential_is_seeded(self):
-        policy_cards = list((FABRIC / "policy_cards").rglob("card.json"))
-        authority_cards = list((FABRIC / "authority_cards").rglob("card.json"))
+        cards = list((FABRIC / "policy_cards").rglob("graph.json"))
         schemas = list((FABRIC / "credentials").glob("*.schema.json"))
-        self.assertEqual(PolicyTemplate.objects.count(), len(policy_cards))
-        self.assertEqual(AuthorityTemplate.objects.count(), len(authority_cards))
+        self.assertEqual(PolicyTemplate.objects.count(), len(cards))
         self.assertEqual(CredentialTemplate.objects.count(), len(schemas))
 
-    def test_a_card_on_a_template_runs_the_templates_rule(self):
-        gso = PolicyTemplate.objects.get(name="GENETIC-STUDIES-ONLY")
-        template = FABRIC / "policy_cards" / "templates" / "purpose-allowed" / "policy.rego"
-        self.assertEqual(gso.rego_source, template.read_text())
-        self.assertEqual(gso.defaults, {"allowedPurposes": ["GSO"]})
-
-    def test_a_card_carries_its_manifest(self):
+    def test_a_card_carries_its_manifest_and_graph(self):
         irb = PolicyTemplate.objects.get(name="ETHICS-APPROVAL-REQUIRED")
-        self.assertEqual(irb.kind, "policy")
-        self.assertEqual(irb.code, "IRB")
-        self.assertEqual(irb.requirements, {"User": ["EthicsApprovalCredential"]})
-        self.assertEqual(irb.guardian_types, ["download", "inference"])
+        folder = FABRIC / "policy_cards" / "ethics-approval-required"
+        self.assertEqual((irb.code, irb.title), ("IRB", "Ethics approval required"))
         self.assertTrue(irb.rule)
-        self.assertIn("EthicsApprovalCredential", irb.readme)
+        self.assertEqual(irb.guardian_types, ["download"])
+        self.assertEqual(irb.graph, json.loads((folder / "graph.json").read_text()))
+        self.assertEqual(irb.readme, (folder / "README.md").read_text())
+        fl = PolicyTemplate.objects.get(name="FL-INFERENCE-DISEASE-SPECIFIC-RESEARCH")
+        self.assertEqual((fl.code, fl.guardian_types), ("FL-DS", ["inference"]))
 
-    def test_delivery_modules_name_their_operation(self):
-        download = PolicyTemplate.objects.get(name="DELIVERY-DOWNLOAD")
-        self.assertEqual((download.kind, download.operation), ("delivery", "do_download"))
-
-    def test_credentials_carry_their_fact_metadata(self):
-        approval = CredentialTemplate.objects.get(template_type="EthicsApprovalCredential")
-        self.assertEqual(approval.display_name, "Ethics approval")
-        self.assertEqual(approval.subject_kinds, ["wallet"])
-        self.assertEqual(approval.json_schema["required"], ["project", "approvedBy"])
-        self.assertEqual(approval.claims_schema["project"], "string")
+    def test_credentials_carry_their_metadata(self):
+        approval = CredentialTemplate.objects.get(template_type="IRBApprovalCredential")
+        self.assertEqual(approval.display_name, "IRB approval")
+        self.assertEqual(approval.subject_kinds, ["project"])
+        self.assertEqual(approval.json_schema["required"], ["isApprovedByEthicsCommittee", "purposes"])
+        self.assertEqual(approval.claims_schema["purposes"], ["string"])
         self.assertFalse(approval.self_asserted)
         self.assertTrue(CredentialTemplate.objects.get(template_type="ScriptOwnershipCredential").self_asserted)
 
-    def test_policies_are_listed_by_guardian_type_and_kind(self):
-        inference = self.client.get("/api/policies/", {"guardian_type": "inference", "kind": "policy"}).json()
-        codes = {t["code"] for t in inference}
-        self.assertIn("FL-DS", codes)
-        self.assertIn("IRB", codes)
-        download = self.client.get("/api/policies/", {"guardian_type": "download"}).json()
-        self.assertNotIn("FL-DS", {t["code"] for t in download})
-        self.assertEqual(
-            [t["operation"] for t in download if t["kind"] == "delivery"], ["do_download"]
-        )
-
-    def test_authorities_are_listed_with_the_fact_they_issue(self):
-        listed = {a["name"]: a for a in self.client.get("/api/authorities/").json()}
-        check = listed["ACCREDITED-COMMITTEE-CHECK"]
-        self.assertEqual(check["issues"], "EthicsApprovalCredential")
-        self.assertIn("IRBApprovalCredential", check["requirements"]["User"])
-        detail = self.client.get(f"/api/authorities/{check['id']}/").json()
-        self.assertTrue(detail["rego_source"].startswith("# Accredited-committee check"))
+    def test_policies_are_listed_by_guardian_type(self):
+        inference = {t["code"] for t in self.client.get("/api/policies/", {"guardian_type": "inference"}).json()}
+        self.assertEqual(inference, {"FL-DS", "FL-IS"})
+        download = {t["code"] for t in self.client.get("/api/policies/", {"guardian_type": "download"}).json()}
+        self.assertIn("IRB", download)
+        self.assertNotIn("FL-DS", download)
 
     def test_reseeding_changes_nothing(self):
         before = json.dumps(self.client.get("/api/policies/").json(), sort_keys=True)
         call_command("seed_templates", stdout=io.StringIO())
         after = json.dumps(self.client.get("/api/policies/").json(), sort_keys=True)
         self.assertEqual(before, after)
+
+    def test_components_are_seeded_with_their_rego_and_policy_data_schema(self):
+        folders = sorted(p.parent.name for p in (FABRIC / "policy_components").glob("*/component.json"))
+        self.assertEqual(sorted(PolicyComponent.objects.values_list("component_id", flat=True)), folders)
+        listed = {c["component_id"]: c for c in self.client.get("/api/components/").json()}
+        membership = listed["project_membership"]
+        self.assertEqual(membership["package"], "pf.components.project_membership")
+        self.assertTrue(membership["rego_source"].startswith("package pf.components.project_membership"))
+        self.assertEqual(membership["metadata"]["group"], "shared")
+        self.assertEqual(membership["policy_data_schema"], {})
+        disease = listed["disease_specific_research"]["policy_data_schema"]
+        self.assertEqual(disease["required"], ["allowedDiseases"])
+
+    def test_only_presentable_credentials_may_be_issued(self):
+        presentable = dict(CredentialTemplate.objects.values_list("template_type", "presentable"))
+        self.assertTrue(presentable["TeamCredential"])
+        self.assertTrue(presentable["ProjectMembershipCredential"])
+        self.assertTrue(presentable["IRBClearanceCredential"])
+        self.assertFalse(presentable["DownloadGrantCredential"])
+        self.assertFalse(presentable["InstitutionalIRBApprovalCredential"])
+
+    def test_the_catalog_holds_every_card_and_component(self):
+        catalog = self.client.get("/api/catalog/").json()
+        self.assertEqual(len(catalog["cards"]), PolicyTemplate.objects.count())
+        self.assertEqual(set(catalog["components"]), set(PolicyComponent.objects.values_list("component_id", flat=True)))
+        self.assertEqual(catalog["cards"]["FL/inference-disease-specific-research"]["template"],
+                         "FL-INFERENCE-DISEASE-SPECIFIC-RESEARCH")
+
+    def test_a_posted_template_needs_a_valid_graph(self):
+        graph = json.loads((FABRIC / "policy_cards" / "geographical-restriction" / "graph.json").read_text())
+        missing = self.client.post("/api/policies/", {"name": "NO-GRAPH"}, content_type="application/json")
+        self.assertEqual(missing.status_code, 400)
+        broken = json.loads(json.dumps(graph))
+        broken["nodes"]["grant_download"]["inputs"].pop("key")
+        refused = self.client.post("/api/policies/", {"name": "BROKEN", "graph": broken}, content_type="application/json")
+        self.assertEqual(refused.status_code, 400)
+        self.assertTrue(any("binds" in p for p in refused.json()["problems"]))
+        saved = self.client.post("/api/policies/", {"name": "GEO-COPY", "graph": graph}, content_type="application/json")
+        self.assertEqual(saved.status_code, 201)
+        self.assertEqual(saved.json()["graph"], graph)

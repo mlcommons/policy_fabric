@@ -4,33 +4,25 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import AuthorityTemplate, CredentialTemplate, PolicyTemplate
+from . import catalog
+from .models import CredentialTemplate, PolicyComponent, PolicyTemplate
 
 POLICY_FIELDS = (
     "name",
-    "kind",
     "code",
     "title",
     "rule",
     "guardian_types",
-    "requirements",
-    "parameters_schema",
-    "defaults",
-    "operation",
-    "rego_source",
     "readme",
+    "graph",
 )
 
-AUTHORITY_FIELDS = (
-    "name",
-    "title",
-    "rule",
-    "issues",
-    "presenters",
-    "requirements",
-    "parameters_schema",
+COMPONENT_FIELDS = (
+    "component_id",
+    "package",
     "rego_source",
-    "readme",
+    "metadata",
+    "policy_data_schema",
 )
 
 CREDENTIAL_FIELDS = (
@@ -41,6 +33,7 @@ CREDENTIAL_FIELDS = (
     "self_asserted",
     "json_schema",
     "claims_schema",
+    "presentable",
 )
 
 
@@ -64,14 +57,11 @@ def _detail(model, fields, pk):
 
 @csrf_exempt
 def policies_list_create(request):
-    """GET lists policy and delivery templates, filtered by ``kind`` and by
-    ``guardian_type`` (the templates that can sit in front of that guardian).
-    POST creates one."""
+    """GET lists policy templates, filtered by ``guardian_type`` (the templates
+    that can sit in front of that guardian). POST creates one, whose graph is
+    checked first."""
     if request.method == "GET":
         templates = PolicyTemplate.objects.all().order_by("pk")
-        kind = request.GET.get("kind")
-        if kind:
-            templates = templates.filter(kind=kind)
         guardian_type = request.GET.get("guardian_type")
         out = [_to_dict(t, POLICY_FIELDS) for t in templates]
         if guardian_type:
@@ -89,6 +79,11 @@ def policies_list_create(request):
             return JsonResponse(
                 {"error": "A policy template with this name already exists"}, status=409
             )
+        if not isinstance(data.get("graph"), dict):
+            return JsonResponse({"error": "graph is required"}, status=400)
+        problems = catalog.graph_problems(name, data["graph"])
+        if problems:
+            return JsonResponse({"error": "The graph is not valid", "problems": problems}, status=400)
         values = {f: data[f] for f in POLICY_FIELDS if f in data and f != "name"}
         tpl = PolicyTemplate.objects.create(name=name, **values)
         return JsonResponse(_to_dict(tpl, POLICY_FIELDS), status=201)
@@ -104,16 +99,21 @@ def policy_detail(request, pk):
 
 @csrf_exempt
 @require_http_methods(["GET"])
-def authorities_list(request):
-    """GET lists every rule-based authority template."""
-    templates = AuthorityTemplate.objects.all().order_by("pk")
-    return JsonResponse([_to_dict(t, AUTHORITY_FIELDS) for t in templates], safe=False)
+def components_list(request):
+    """GET lists every policy component: its Rego, its component.json and the JSON Schema
+    of its policy data."""
+    components = PolicyComponent.objects.all().order_by("component_id")
+    return JsonResponse([_to_dict(c, COMPONENT_FIELDS) for c in components], safe=False)
 
 
 @csrf_exempt
 @require_http_methods(["GET"])
-def authority_detail(request, pk):
-    return _detail(AuthorityTemplate, AUTHORITY_FIELDS, pk)
+def catalog_detail(request):
+    """GET the policy catalog of the seeded folders, which the webapp draws graphs from."""
+    try:
+        return JsonResponse(catalog.catalog())
+    except ValueError as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 @csrf_exempt

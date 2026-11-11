@@ -14,4 +14,4 @@ bash template_registry/run_docker.sh \
     --port 8002 \
     --credentials-dir "$TMP_POLICIES_DIR/credentials" \
     --policy-cards-dir "$TMP_POLICIES_DIR/policy_cards" \
-    --authority-cards-dir "$TMP_POLICIES_DIR/authority_cards" &
+    --policy-components-dir "$TMP_POLICIES_DIR/policy_components" &

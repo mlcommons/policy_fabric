@@ -104,7 +104,7 @@ def asset_by_did(request):
 # ============================================================
 # Directory: authorities and trust lists
 # ============================================================
-AUTHORITY_FIELDS = ("did", "name", "kind", "operator", "facts", "checks", "inputs", "sources", "metadata")
+AUTHORITY_FIELDS = ("did", "name", "kind", "operator", "facts", "checks", "metadata")
 TRUST_LIST_FIELDS = ("name", "maintainer", "description", "entries")
 
 
