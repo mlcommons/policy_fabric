@@ -162,7 +162,7 @@ def run_workflow(runner):
         tabs = runner.driver.execute_script(
             "return Array.from(document.querySelectorAll('#card-detail-modal [data-card-tab]')).map(b => b.textContent);"
         )
-        if tabs != ["Graph", "Overview", "Rule"]:
+        if tabs != ["Graph", "Overview", "Rego"]:
             raise StepFailed(f"the popup's tabs are {tabs}")
         if "modal-wide" not in runner.driver.find_element(By.CSS_SELECTOR, "#card-detail-modal .modal").get_attribute("class"):
             raise StepFailed("the popup does not widen for its graph")

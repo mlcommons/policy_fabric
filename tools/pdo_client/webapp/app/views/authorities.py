@@ -4,7 +4,7 @@ Two kinds of authority, which a policy cannot tell apart:
 
 * **hand-signing** -- a person or office signs after its own review
   (a signature_authority, signing from one fixed context);
-* **system** -- ledger or cryptographic facts: the session-key authority and the
+* **system** -- from the ledger or a cryptographic check: the session-key authority and the
   wallet key authority created with it.
 
 Every authority is recorded in the directory (the asset registry) when it is
@@ -152,7 +152,7 @@ class AuthoritiesListView(BaseView):
 
         return render(request, "authorities/list.html", {
             "authorities": authorities,
-            # what a person can sign for: not the facts the system establishes, nor
+            # what a person can sign for: not the credentials the system issues, nor
             # the ones requesters sign about themselves, nor what only a policy
             # component produces (a download grant, say)
             "attestable": [
@@ -174,7 +174,7 @@ class AuthoritiesListView(BaseView):
                 checks = request.POST.get("checks", "").strip()
                 if not facts:
                     return redirect_with_msg(
-                        "/authorities/", "Choose the facts this authority attests.", "error"
+                        "/authorities/", "Choose the credentials this authority signs.", "error"
                     )
                 if not checks:
                     return redirect_with_msg("/authorities/", "Say what this authority checks.", "error")
@@ -243,8 +243,8 @@ class AuthorityUpdateNameEndpoint(JsonView):
 
 class AuthoritySignCredentialEndpoint(JsonView):
     """POST {template_type, subject_did, holder_did, claims} -- a hand-signing
-    authority signs one of the facts it attests, after checking the claims against
-    the fact's schema, and delivers it to the wallet that should hold it: the
+    authority signs one of the credential types it attests, after checking the claims
+    against the type's schema, and delivers it to the wallet that should hold it: the
     subject's own, or another (a member holding a copy of a credential about their
     PI, say). The subject may be any DID; the holder is a PDO wallet.
     """
@@ -265,7 +265,7 @@ class AuthoritySignCredentialEndpoint(JsonView):
             raise ValidationError("'claims' must be a JSON object")
         problems = schemas.errors(claims, registry_client.credential_templates_by_type()[fact]["json_schema"])
         if problems:
-            raise ValidationError("The claims do not fit the fact: " + "; ".join(problems))
+            raise ValidationError("The claims do not fit the credential: " + "; ".join(problems))
 
         if not subject_did.startswith("did:"):
             raise ValidationError("'subject_did' must be a DID")

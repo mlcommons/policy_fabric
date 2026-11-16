@@ -116,7 +116,7 @@ class WalletDetailView(BaseView):
             logger.exception("Failed to list the wallet's credentials")
             error = str(e)
 
-        # A wallet signs only the facts a requester asserts about themselves
+        # A wallet signs only the credentials a requester asserts about themselves
         # (see WalletSignCredentialEndpoint).
         own_claims = [
             {"type": t, "name": v["display_name"], "meaning": v["meaning"], "schema": v["json_schema"]}
@@ -184,13 +184,13 @@ class WalletSignCredentialEndpoint(JsonView):
             raise ValidationError("'claims' must be a JSON object")
         templates = registry_client.credential_templates_by_type()
         if template_type not in templates:
-            raise ValidationError(f"unknown fact: {template_type}")
+            raise ValidationError(f"unknown credential type: {template_type}")
         template = templates[template_type]
         if not template["self_asserted"]:
             raise ValidationError(f"{template_type} is established by an authority, not by the wallet itself.")
         problems = schemas.errors(claims, template["json_schema"])
         if problems:
-            raise ValidationError("The claims do not fit the fact: " + "; ".join(problems))
+            raise ValidationError("The claims do not fit the credential: " + "; ".join(problems))
 
         subject_contract_id, _ = parse_did(subject_did)
         credential = {
