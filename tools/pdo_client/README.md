@@ -47,20 +47,20 @@ and `docker/run_*.sh` just mounts the host files and invokes the very same
 runs identically on host and in Docker.
 
 User keys are a **prerequisite** for the python test (generate them up front
-with `../generate_user_keys.sh`); the runners only run tests, never generate
+with `scripts/generate_user_keys.sh`, or `docker/generate_user_keys.sh`); the runners only run tests, never generate
 keys (which keeps them runnable inside the container, where there is no docker).
 
 ## Docker flow
 
 ```bash
-docker/build.sh -i mlcommons/pdo_client:latest -r <repo_url> -b <branch> -f "<families>"
+./build.sh -i mlcommons/pdo_client:latest -r <repo_url> -b <branch> -f "<families>"
 # or, to run unpushed contract changes: rebuild the identity, authority and rego
 # families from a local checkout on top of a released image
 ./build_local.sh -i mlcommons/pdo_base_client:v3 -B mlcommons/pdo_base_client:v2 -c ~/pdo-contracts
 # (start ledger + services first)
 docker/run_cli.sh -i <image> -c <cert> -s <site.toml> -H <host> -l <ledger_url> -e <eservice_url>
 # python test also needs a guardian running and pre-generated user keys:
-../generate_user_keys.sh -k <keys_folder>
+docker/generate_user_keys.sh -i <image> -k <keys_folder>
 docker/run_python.sh -i <image> -c <cert> -s <site.toml> -H <host> -l <ledger_url> -k <keys_folder>
 ```
 
@@ -74,7 +74,7 @@ export PDO_INSTALL_ROOT=/path/to/pdo_install PDO_CONTRACTS_ROOT=/path/to/pdo-con
 setup/setup.sh -f "exchange-contract identity-contract rego-contract"
 # run tests (start ledger + services, and guardian for the python test)
 scripts/run_cli.sh    -c <cert> -s <site.toml> -H <host> -l <ledger_url> -e <eservice_url>
-../generate_user_keys.sh -k <keys_folder>   # python test prerequisite
+scripts/generate_user_keys.sh -k <keys_folder>   # python test prerequisite
 scripts/run_python.sh -c <cert> -s <site.toml> -H <host> -l <ledger_url> -k <keys_folder>
 scripts/run_legacy.sh -c <cert> -s <site.toml> -H <host>
 ```

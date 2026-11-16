@@ -26,7 +26,7 @@ work:
 | --- | --- | --- |
 | **Asset** | `tools/asset_registry/` | a dataset or a script, named by a DID (`did:pdo:<contract_id>`), listed in a registry anyone can read |
 | **Guardian** | `tools/guardians/` | the service standing in front of an asset. It acts only against a *capability*: a download guardian releases the bytes encrypted; an inference guardian holds no bytes and only answers whether a script may run over data its FL client holds |
-| **Policy** | `policy_cards/` | a Rego module, provisioned into a `rego_policy_agent` contract, that reads credentials and decides |
+| **Policy** | `policy_cards/`, `policy_components/` | a graph of Rego policy components (a card's `graph.json`; the components in `policy_components/`), set on a `rego_policy_agent` contract with `set_policy_graph`, that reads credentials and decides |
 | **Credential** | `credentials/` | a signed statement about a subject — a person, a wallet, or a script |
 | **Capability** | pdo-contracts | what a policy's approval turns into: a sealed instruction to one guardian to perform one operation |
 | **Webapp** | `tools/pdo_client/webapp/` | a Django app driving a PDO client, and the only UI |
@@ -57,7 +57,8 @@ Read these, in order. They are short and each one is the entry point to a layer.
    file, under one lock. Together with `ledger_client.py` (the user's contracts,
    read off CCF) and `pdo_state.py` (the client state they share), this is the
    whole seam between the two checkouts — those three files are the only ones
-   that import `pdo.*`.
+   that call into PDO. `graphs.py` also imports `pdo.rego.graph.requirements`,
+   which works out a graph's requirement alternatives without any contract.
 5. `tools/pdo_client/webapp/app/views/federated.py` — the federated round: how
    sites are discovered, how each one is asked separately, how the capabilities
    are handed over together.
@@ -78,6 +79,7 @@ Do not try to read it all. The webapp touches four families; follow them from
 | --- | --- | --- |
 | `rego-contract/` | `pdo/rego/decentralized/rego_token.py`, `pdo/rego/plugins/rego_token.py` | `create_capability` vs `do_operation` — the first mints a capability and hands it back, the second redeems it inline. The federated flow needs the first, because someone else contacts the guardian |
 | `rego-contract/` | `pdo/rego/decentralized/rego_policy_agent.py` | the contract of an asset's policy: `set_policy_graph` (the graph and its components, once), `get_requirement_alternatives`, `set_node_policy_data`, `issue_policy_credential` (with the requester's `request`), `register_trusted_issuer` / `unregister_trusted_issuer`. The graph mode is specified in `rego-contract/docs/policy_graph.md` |
+| `rego-contract/` | `pdo/rego/graph/` | the graph reference implementation: `requirements.py` (requirement alternatives, which the webapp computes before a policy exists), and the validator, planner and vectors the card tests run |
 | `identity-contract/` | `pdo/identity/decentralized/{identity,signature_authority}.py` | wallets are `identity.identity`, holding several credentials per type, keyed by digest; asset identities and hand-signing authorities are `signature_authority`. `sign_with_contract_key` is what lets a wallet vouch for something in its own name |
 | `authority-contract/` | `pdo/authority/decentralized/external_key_authority.py` | `bind_external_key`, and the wallet key authority created alongside it |
 | `common-contract/` | `pdo/contracts/guardian/wsgi/{info,process_capability}.py` | the two endpoints every guardian serves. `process_capability` decrypts the operation out of the capability and dispatches to a handler |
@@ -229,11 +231,12 @@ both registries, the FL server container and the webapp, then drives
 ```bash
 cd <workspace>/policy_fabric
 PYTHON=<workspace>/venv/bin/python bash tools/tests/run_webui_inference_test.sh
-# the ethics approval tutorial instead
+# the ethics approval or the download tutorial instead
 PYTHON=<workspace>/venv/bin/python bash tools/tests/run_webui_inference_test.sh -t irb
+PYTHON=<workspace>/venv/bin/python bash tools/tests/run_webui_inference_test.sh -t download
 ```
 
-About twenty minutes. `-k` leaves the stack up, `-p PORT` moves the webapp, `-n`
+About fifteen minutes each. `-k` leaves the stack up, `-p PORT` moves the webapp, `-n`
 skips setup and drives whatever is already running (useful while iterating on the
 test itself).
 
@@ -310,7 +313,10 @@ Tear down with `bash tools/stop_all.sh && bash tools/docker_stop_all.sh`.
 | the FL server's API | `tools/fl_server/server.py` **and** `webapp/app/fl_client.py` **and** `guardians/inference/fl_framework/client.py` — three ends of one protocol |
 | a policy | `policy_cards/<name>/graph.json` + `graph_vectors.json` + `card.json` (draw it in the docs site's Policy Composer); `policy_components/run_tests.sh` |
 | a policy component | `policy_components/<id>/component.rego` + `component_test.rego` + `component.json`; `policy_components/run_tests.sh` |
-| the Expose panel, the trust panel, the checklist | `webapp/app/views/assets.py`, `webapp/app/{trust,checklist,readiness}.py`, `static/js/asset_dashboard.js`; `webapp/run_tests.sh` |
+| the Expose panel, the trust panel, the checklist | `webapp/app/views/assets.py`, `webapp/app/{graphs,trust,checklist,readiness}.py`, `static/js/asset_dashboard.js`; `webapp/run_tests.sh` |
+| how graphs are drawn, the Policies page | `webapp/static/policy_ui/` (shared with the docs composer), `webapp/app/views/policies.py`, `templates/policies/list.html`, `static/js/policies.js` |
+| the docs site's Policy Composer | `docs/composer/`, `docs/hooks/policy_catalog.py`, `docs/docs/composer.md`; `tools/tests/policy_ui/e2e_composer.py` |
+| what the catalog checks | `tools/policy_catalog/build_catalog.py` (rebuild the template registry image after changing it) |
 | what a tutorial says | `docs/docs/tutorial_*.md` **and** `tools/tests/webui_*_test.py`, which automate them. They drift apart silently; change both |
 
 ### Things that have bitten people here

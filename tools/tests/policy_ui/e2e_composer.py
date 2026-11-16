@@ -8,10 +8,9 @@ It serves the built site over HTTP (a page opened from file:// cannot fetch cata
     equal to policy_cards/ethics-approval-required/graph.json, and Download saves that file;
   - Load followed by Download gives back each card's graph.json byte for byte, even after values are typed on
     the Simulate tab, whose values never reach the JSON;
-and the interactions of the composer mock's test (reference/composer/e2e_v4.py of the handoff): the details
-popup, wiring, accept presented, Simulate, Arrange, several outputs into one input, a local graph.json, the
-draft kept on reload, the docs page that frames the app and its theme, and phone width. It takes light and
-dark screenshots.
+and the interactions: the details popup, wiring, accept presented, Simulate, Arrange, several outputs into one
+input, a local graph.json, the draft kept on reload, the docs page that frames the app and its theme, and phone
+width. It takes light and dark screenshots.
 
 usage: python3 e2e_composer.py <built site dir> <screenshots dir>
 Build the site first (mkdocs build --strict -f docs/mkdocs.yml writes it to docs/site). Needs Playwright for
@@ -35,7 +34,7 @@ IRB = "ethics-approval-required"
 IRB_ORDER = ["project_membership", "institutional_irb_approval", "irb_clearance", "ethics_approval_required", "grant_download"]
 IRB_SHORTCUTS = [("irb_clearance", "membership"), ("ethics_approval_required", "clearance")]
 DS = "disease-specific-research"
-GROUPS = [["Shared", 3], ["Cards", 23], ["Grants", 2]]   # HANDOFF.md, "Done when"
+GROUPS = [["Shared", 3], ["Cards", 23], ["Grants", 2]]   # the library: policy_components/README.md
 AMBER = "rgb(148, 88, 10)"                               # --pf-grant, light
 DARK_SUNK = "rgb(17, 26, 39)"                            # --pf-sunk, dark
 JARGON = re.compile(r"\b(facts?|slots?|bindings?|planners?|parity|AccessCondition)\b", re.I)
