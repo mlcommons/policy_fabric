@@ -1,8 +1,8 @@
 """Every card's graph decides its vectors through the graph reference implementation, as the
-contract would; and, unless the card changes meaning on purpose, as the card did when it was
-one Rego module.
+contract would; and, unless the card changes meaning on purpose or was added since, as the card
+did when it was one Rego module.
 
-The comparison with the old module (from policy_fabric's first commit, through git) allows
+The comparison with the old Rego file (at commit 760742d, read through git) allows
 for what the graph does differently everywhere: the operation may carry fewer parameters (an
 inference capability no longer carries a channel key), and only credentials of the types the
 graph reads are compared with what the old module flagged. A vector that presents a type a
@@ -34,6 +34,15 @@ def checked_graph(card):
     if problems:
         raise AssertionError(f"{card}: " + "; ".join(problems))
     return g, components, interfaces
+
+
+def legacy_cards():
+    """The cards that had a Rego file at LEGACY_COMMIT; a card added since has no old decisions."""
+    listing = subprocess.run(
+        ["git", "-C", str(FABRIC), "ls-tree", "-r", "--name-only", LEGACY_COMMIT, "policy_cards"],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    return {path.split("/", 1)[1].rsplit("/", 1)[0] for path in listing.splitlines() if path.endswith("/policy.rego")}
 
 
 def legacy_source(card):
@@ -122,9 +131,10 @@ def as_before_test(card):
     return test
 
 
+LEGACY_CARDS = legacy_cards()
 for card_folder in card_folders():
     setattr(Cards, f"test_{name_of(card_folder)}_vectors", vectors_test(card_folder))
-    if card_folder not in CHANGED_ON_PURPOSE:
+    if card_folder in LEGACY_CARDS and card_folder not in CHANGED_ON_PURPOSE:
         setattr(Cards, f"test_{name_of(card_folder)}_as_before", as_before_test(card_folder))
 
 

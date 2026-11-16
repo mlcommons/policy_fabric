@@ -1,7 +1,7 @@
 {
   "name": "CollaborationRequired",
   "group": "card",
-  "summary": "The card component of Collaboration Required (DUO_0000020). It reads ProjectMembershipCredential, AffiliationCredential, ScopedAgreementCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "summary": "The card component of Collaboration Required (DUO_0000020). The requester's institution agreed to terms with the Collaboration obligation, scoped to the owner's dataset and the requester's project. Outputs the DownloadGrantCredential that Grant download takes.",
   "inputs": {
     "projectMembership": {
       "type": "ProjectMembershipCredential",
@@ -52,6 +52,6 @@
   "card": "collaboration-required",
   "duo": "DUO_0000020",
   "changes_from_today": [
-    "Changed from the card's Rego module: the AffiliationCredential is the requester's; the module read the PI's."
+    "Changed from the card's original Rego (commit 760742d): the AffiliationCredential is the requester's; the original read the PI's."
   ]
 }

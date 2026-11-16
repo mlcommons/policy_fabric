@@ -4,7 +4,7 @@
 
 **Rule:** The requester's research studies a disease within your scope.
 
-It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
+The requester's project intends to use the data for a disease the owner allows, and the requester accepted the terms. Outputs the DownloadGrantCredential that Grant download takes.
 
 The card is a graph of policy components. Each takes credentials, from the requester's presentation or
 from the components before it, and outputs a credential of its own; the last, Grant download, issues
@@ -13,7 +13,7 @@ from the components before it, and outputs a credential of its own; the last, Gr
 | Policy Component | What it checks |
 |---|---|
 | ProjectMembership | The requester is on the team of a PI who owns a project. Checks that the ProjectOwnershipCredential is about the PI the TeamCredential names (MemberOfTeamOf); outputs the project, for the requester. |
-| DiseaseSpecificResearch | It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes. |
+| DiseaseSpecificResearch | The requester's project intends to use the data for a disease the owner allows, and the requester accepted the terms. Outputs the DownloadGrantCredential that Grant download takes. |
 | Grant download | The end of every download card. Issues do_download to the holder of the key when the card granted that same person: the publicKeyCredential and the DownloadGrantCredential must be about the same subject. The channel key is the key in the publicKeyCredential. |
 
 **Presented credentials**, each from an authority the asset's owner accepts for its type:

@@ -63,16 +63,40 @@ which end in Grant inference and read credentials about the script a requester b
 
 ## Writing a card
 
-Draw it in the [Policy Composer](../docs/docs/composer.md) of the docs site: load a card or
-start from the component library, wire each output to an input of the same credential
-type, check it, and download its `graph.json`. A new card component goes in
-`policy_components/` with its `component.rego`, unit tests and `component.json`.
+1. **Its card component.** A card's own rule is a card component; write it first, as
+   [`../policy_components/README.md`](../policy_components/README.md#writing-a-component)
+   says, with `card` naming the folder you are about to create.
+2. **`graph.json`.** Draw it in the [Policy Composer](../docs/docs/composer.md) of the docs
+   site (to run it locally, see [`../docs/README.md`](../docs/README.md)): load a card or start
+   from the component library, wire each output to an input of the same credential type, turn
+   on accept presented where a registry may issue the joined credential, check it, and
+   download it. Save it as `<folder>/graph.json`, or `FL/<folder>/graph.json` for an inference
+   card. The committed graph lists `[]` for every type in `trusted_issuers` and leaves every
+   node's `policy_data` empty: the owner chooses both when exposing an asset.
+3. **`card.json`**: `code` (the DUO abbreviation), `name` and `rule`, the one-line rule shown
+   to the owner, as [`card.schema.json`](card.schema.json) says.
+4. **`graph_vectors.json`**: the decisions the graph must reach. Start from a card's: every
+   credential type the graph reads is a key of `registry`, every node has its `policy_data`,
+   and there is an allow for each requirement alternative and a deny for each thing a
+   component checks. The format is in pdo-contracts' `rego-contract/pdo/rego/graph/vectors.py`,
+   and the denial reasons in `rego-contract/docs/policy_graph.md`.
+5. **`README.md`** and **`policy_card.md`**, written by hand from an existing card: the README
+   lists the graph's components, the presented credentials and the parameters, and
+   `policy_card.md` is the full Policy Card. The tests find cards by their `policy_card.md`.
+   Add the card to the table above.
+6. **Check it**, with `python3 tools/policy_catalog/build_catalog.py --repo . --out /tmp/catalog.json`
+   and `policy_components/run_tests.sh` (see below).
+7. **Serve it.** The template registry seeds from this folder each time it starts
+   (`tools/docker_start_registries.sh` mounts it), so restarting the registry offers the card
+   on the webapp's Expose form and Policies page. A change to `tools/policy_catalog/` needs the
+   registry image rebuilt, since the image copies it.
 
 ## Tests
 
 [`../policy_components/run_tests.sh`](../policy_components/run_tests.sh) runs every card's
 vectors through the graph reference implementation of pdo-contracts (`pdo.rego.graph`),
-after the components' own tests, and compares each card with its single Rego module on
-`main`. [`../tools/policy_catalog/build_catalog.py`](../tools/policy_catalog/build_catalog.py)
+after the components' own tests, and compares each card that existed at commit `760742d`
+with its Rego file there, from before cards became graphs.
+[`../tools/policy_catalog/build_catalog.py`](../tools/policy_catalog/build_catalog.py)
 checks the graphs, components, manifests and credential types against each other. CI runs
 both.

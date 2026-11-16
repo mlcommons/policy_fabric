@@ -1,7 +1,7 @@
 {
   "name": "DiseaseSpecificResearch",
   "group": "card",
-  "summary": "The card component of Disease Specific Research (DUO_0000007). It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "summary": "The card component of Disease Specific Research (DUO_0000007). The requester's project intends to use the data for a disease the owner allows, and the requester accepted the terms. Outputs the DownloadGrantCredential that Grant download takes.",
   "inputs": {
     "projectMembership": {
       "type": "ProjectMembershipCredential",
