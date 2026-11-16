@@ -6,7 +6,8 @@
 |-----------------------|-----------------------------------------------------------------------|
 | `pdo_client/`         | the webapp and the PDO client it drives                               |
 | `asset_registry/`     | toy asset registry                                                    |
-| `template_registry/`  | toy policy card and credential schema registry                        |
+| `template_registry/`  | toy registry of policy cards, policy components and credential types, and the policy catalog |
+| `policy_catalog/`     | `build_catalog.py`: checks credentials, components and cards against each other and builds the catalog the registry, the webapp and the docs composer read |
 | `policy_engine/`      | ledger and PDO services                                               |
 | `guardians/`          | the guardians an asset can be put behind; see its own README          |
 | `fl_server/`          | toy FL server the webapp submits federated rounds to                  |
@@ -31,11 +32,12 @@ registering any asset behind an inference guardian. The guardian's FL client
 announces itself to that server as soon as it comes up, and a site that
 never announced is a site no round can be addressed to.
 
-`make_tutorial_files.sh` writes the files both tutorials register as assets, and
-prints the script digest the inference tutorial asks for.
+`make_tutorial_files.sh` writes the files the three tutorials register as assets,
+and prints the script digest the inference tutorial asks for.
 
 `tests/run_webui_inference_test.sh` does the whole of the above and then drives
-the inference tutorial through a browser, recording it.
+the inference tutorial through a browser, recording it; `-t download` or `-t irb`
+drives the download or the ethics approval tutorial instead.
 
 ## How an inference asset is used
 

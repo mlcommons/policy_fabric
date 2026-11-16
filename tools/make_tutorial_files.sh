@@ -1,6 +1,6 @@
 set -e
 #
-# Create the files the two tutorials register as assets, and print the digest
+# Create the files the tutorials register as assets, and print the digest
 # the inference tutorial asks for.
 #
 # The download tutorial needs one file to hand out. The inference tutorial needs

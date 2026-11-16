@@ -1,7 +1,7 @@
 set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 INTERFACE="$(hostname -I | awk '{print $1}')"
-# The template registry seeds from the shared credential and card folders at
+# The template registry seeds from the credential, card and component folders at
 # the top of the policy_fabric tree (one level above this tools/ directory).
 TMP_POLICIES_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
 bash asset_registry/run_docker.sh \

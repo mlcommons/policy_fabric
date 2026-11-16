@@ -79,7 +79,7 @@ A policy object is described by a Policy Card. A Policy Card acts as a documenta
 
 ![Bespoke policy logic in each platform fragments governance; a shared Policy Card layer restores interoperability.](assets/images/figure-2-policy-card-layer.png)
 
-*Figure 1. Bespoke policy logic in each platform fragments governance; a shared Policy Card layer restores interoperability.*
+*Figure 2. Bespoke policy logic in each platform fragments governance; a shared Policy Card layer restores interoperability.*
 
 #### Policy Card Anatomy
 
@@ -88,14 +88,14 @@ A Policy Card is composed of its identification, the scope it governs, the rules
 | Section | Description |
 | --- | --- |
 | Identification | id, version, status, title, description, author, contact. Stable identifier and semantic version — so a card is reviewed, tested, and versioned independently of any infrastructure — plus its lifecycle status and human-readable summary. |
-| Scope & Target | target.asset and target.operations: the asset type the card governs — a dataset, model artifact, or workflow step — and the operations permitted on it (e.g. download), with any out-of-scope notes. |
+| Scope & Target | target.asset and target.guardians: the asset type the card governs — a dataset, model artifact, or workflow step — and the guardian type it is used with (download or inference), with any out-of-scope notes. |
 | Version History | How the card evolved: version, date, author, status, and a summary of each change. |
 | Summary & Intent | Plain-language statement of what is governed and the governance objective, for reviewers and the rendered docs. |
 | Declarative Representation *(optional)* | A human-readable structured statement of the permission and the conditions under which it is granted, such as ODRL. |
 | Associated Credentials | The credential types that must be presented and the claims drawn from each. |
 | Reference Values Schema | The owner-configured values the rules evaluate evidence against (e.g. allowed countries or institutions), so one card is reused across datasets by re-parameterization. |
 | Capability Granted | operation + parameters: what success produces — the capability package the Asset Guardian enforces without any policy logic of its own. |
-| Codified Representation | The executable rules (e.g. Rego) evaluated against the presented evidence and reference values to reach the allow/deny decision. |
+| Codified Representation | The card's `graph.json`, a graph of Rego policy components evaluated against the presented evidence and reference values to reach the allow/deny decision, and the `graph_vectors.json` decisions it must reach. |
 | Legal & Disclaimers | Legal & Disclaimers |
 
 ### Credentials
@@ -119,7 +119,7 @@ Therefore, below is the flow of a policy evaluation:
 
 A Credential in Policy Fabric is a verifiable attestation produced by an evidence source — an external service, a piece of hardware, or a traditional authority such as a human-resources department. Concrete examples include a data steward's cryptographic signature, a payment receipt from a trusted service, an attestation token from a trusted execution environment (TEE), and institutional credentials. Credentials are modeled on the [W3C Verifiable Credentials Data](https://www.w3.org/TR/vc-data-model-2.0/) Model, giving each one a clear issuer, subject, and claims structure.
 
-We define a set of credential types in Policy Fabric. Each type's claims structure is described by a JSON Schema, which also says what the credential means, how people read its name, and what kind of thing its subject is (a wallet, a script, a project, ...). Here is the AffiliationCredential schema:
+We define a set of credential types in Policy Fabric. Each type's claims structure is described by a JSON Schema, which also says what the credential means, how people read its name, and what kind of thing its subject is (a wallet, a script, a project, ...). Here is the AffiliationCredential schema (`selfAsserted` says whether the holder's own wallet may sign it):
 
 ```json
 {
@@ -129,6 +129,7 @@ We define a set of credential types in Policy Fabric. Each type's claims structu
   "displayName": "Affiliation",
   "meaning": "The holder is a member of an organization.",
   "subjectKinds": ["wallet"],
+  "selfAsserted": false,
   "description": "The assignee is a member of an organization; issuer claims the subject is a member of the organization.",
   "type": "object",
   "properties": {
@@ -164,7 +165,7 @@ An **authority** issues the credentials a policy reads. The asset owner chooses,
 | Kind | How it issues a credential | Example |
 | --- | --- | --- |
 | Hand-signing | A person or office signs after its own review | A university's records office signs a team membership |
-| System | Ledger or cryptographic facts | A session-key authority binds a fresh key to a wallet whose ledger key signs for it |
+| System | From the ledger or a cryptographic check | A session-key authority binds a fresh key to a wallet whose ledger key signs for it |
 
 A wallet holds credentials about its holder and copies of credentials about others — the PI's project ownership, say — delivered to it by the authority that signed them, and the policy's components read both.
 

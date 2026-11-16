@@ -30,7 +30,7 @@ Then **EthicsApprovalRequired**, the card's own component, checks that every use
 
 | Persona | Identity | What they do |
 | --- | --- | --- |
-| The offices | `vc_issuer` | Run three hand-signing authorities: a records office and an ethics registry that sign the chain, and the IRB office. In real life these are different organizations; here one identity runs them all. |
+| The offices | `vc_issuer` | Run three hand-signing authorities (a records office and an ethics registry that sign the chain, and the IRB office) and the `Session keys` system authority. In real life these are different organizations; here one identity runs them all. |
 | Dataset Owner | `data_owner` | Exposes the dataset behind the ethics approval card, accepting the offices for each credential the graph reads. |
 | Requester | `data_user` | Rana. Checks what she needs, and downloads the dataset. |
 
