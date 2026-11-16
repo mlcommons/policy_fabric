@@ -5,7 +5,8 @@
 //   PolicyGraph.shapes                                               the shapes, for the composer
 //
 // graph is a policy graph (version 2) and catalog the catalog tools/policy_catalog builds. theme is
-// "light", "dark", or "auto" to follow prefers-color-scheme. The look is design/VISUAL_SPEC.md's.
+// "light", "dark", or "auto" to follow prefers-color-scheme. policy_graph.css holds the look, the docs
+// composer's too.
 
 (function (root) {
     'use strict';
@@ -48,7 +49,7 @@
             '<div class="sec subj">subject: <b>' + esc(subjects[about].word) + '</b></div>' +
             claimsSection(claims, newClaims) +
             (acceptedPresented
-                ? '<div class="ap on"><span class="ap-track"><span class="ap-thumb"></span></span>accepted presented</div>'
+                ? '<div class="ap on"><span class="ap-track"><span class="ap-thumb"></span></span>accept presented</div>'
                 : '') +
             '</div></div>';
     }

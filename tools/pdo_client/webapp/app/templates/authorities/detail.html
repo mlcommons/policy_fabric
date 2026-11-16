@@ -80,12 +80,12 @@
                     data-modal-close="sign-credential-modal">&times;</button>
         </div>
         <div class="form-group">
-            <label for="sign-fact">Fact</label>
+            <label for="sign-fact">Credential</label>
             <select id="sign-fact" name="template_type" required>
                 {% for t in sign_templates %}
                 <option value="{{ t.type }}">{{ t.name }}</option>
                 {% empty %}
-                <option value="">This authority attests no facts</option>
+                <option value="">This authority signs no credential types</option>
                 {% endfor %}
             </select>
             <small id="sign-fact-meaning"></small>

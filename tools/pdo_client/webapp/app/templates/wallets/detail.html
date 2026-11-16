@@ -42,7 +42,7 @@
         <div class="alert alert-error">{{ error }}</div>
         {% elif credentials %}
         <table class="data-table credentials-table">
-            <thead><tr><th>Fact</th><th>About</th><th>Signed by</th><th>Claims</th></tr></thead>
+            <thead><tr><th>Credential</th><th>About</th><th>Signed by</th><th>Claims</th></tr></thead>
             <tbody>
                 {% for c in credentials %}
                 <tr data-fact="{{ c.type }}">
@@ -104,7 +104,7 @@
     </form>
 </div>
 
-<!-- A wallet signs in its own name, with its own contract key, only the facts a
+<!-- A wallet signs in its own name, with its own contract key, only the credentials a
      requester asserts about themselves; a policy checks them against a key an
      authority attested for this wallet. -->
 <div id="sign-credential-modal" class="modal-backdrop hidden">
