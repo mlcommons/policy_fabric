@@ -1,6 +1,6 @@
 # Policy Card — DUO_0000007 DS (Disease-Specific Research)
 
-Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt`).
+Authored against the Policy Fabric Policy Card template: the numbered sections below.
 
 ---
 
@@ -27,12 +27,12 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 | Version | Date       | Author    | Status   | Summary of change                                      |
 |---------|------------|-----------|----------|--------------------------------------------------------|
 | 1.0.0   | 2026-07-15 | MLCommons | released | Initial policy card authored from the DS policy.       |
-| 2.0.0   | 2026-10-02 | MLCommons | released | Reads one fact per holder; evidence chains and delivery moved out. |
+| 2.0.0   | 2026-10-02 | MLCommons | released | One Rego file reading one credential per holder; rule-based authorities joined the chains, and a delivery module issued the capability. |
 | 3.0.0   | 2026-11-10 | MLCommons | released | A graph of policy components: the chain is joined in the policy, and a joined credential an owner accepts may be presented instead. |
 
 ## 4  Summary & Intent
 
-It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
+The requester's project intends to use the data for a disease the owner allows, and the requester accepted the terms. Outputs the DownloadGrantCredential that Grant download takes.
 
 The card is a graph of policy components: each takes credentials, presented or produced by the
 components before it, and outputs one of its own, until Grant download issues the capability.
@@ -47,7 +47,7 @@ Permission: use the target dataset through its guardian
   Assignee:  the requester
   Conditions (all must hold), as the graph's components check them:
     - ProjectMembership: The requester is on the team of a PI who owns a project.
-    - DiseaseSpecificResearch: It reads ProjectMembershipCredential, IntendedDataUseCredential and AgreementCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.
+    - DiseaseSpecificResearch: The requester's project intends to use the data for a disease the owner allows, and the requester accepted the terms.
     - Grant download: every card granted the holder of the session key
     - each presented credential is from an authority the owner accepts for its type
   On grant:  do_download, encrypted to the requester's session key (the key in their publicKeyCredential)
@@ -83,13 +83,14 @@ every card granted it.
 ## 9  Codified Representation
 
 The card is [`graph.json`](graph.json), a graph of the components in
-[`policy_components/`](../../policy_components/), each a Rego module with its
-own unit tests. [`graph_vectors.json`](graph_vectors.json) states the decisions the graph must reach; the
-contract, the reference implementation in pdo-contracts (`pdo.rego.graph`) and the card tests run them.
+[`policy_components/`](../../policy_components/), each a Rego component with
+its own unit tests and `component.json`. [`graph_vectors.json`](graph_vectors.json) states the decisions the
+graph must reach; the contract, the reference implementation in pdo-contracts (`pdo.rego.graph`) and the card
+tests run them.
 
 ## 10  Legal & Disclaimers
 
-Reference-implementation status: this card and its Rego policy are a reference
+Reference-implementation status: this card, its graph and its components are a reference
 implementation provided as-is. You are responsible for verifying its accuracy and
 fitness for your use case before relying on it — it is not a certified or legally
 reviewed compliance control. Do not use this card or policy to protect sensitive

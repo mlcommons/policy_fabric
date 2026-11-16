@@ -1,6 +1,6 @@
 # Policy Card — FL-IS Institution-Specific Restriction, for inference
 
-Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt`).
+Authored against the Policy Fabric Policy Card template: the numbered sections below.
 
 ---
 
@@ -26,8 +26,8 @@ Authored against the Policy Fabric Policy Card template (`duos/policy_schema.txt
 | Version | Date       | Author    | Status   | Summary of change                                      |
 |---------|------------|-----------|----------|--------------------------------------------------------|
 | 1.0.0   | 2026-08-20 | MLCommons | draft    | Initial card, adapting DUO_0000028 IS to inference runs. |
-| 2.0.0   | 2026-10-02 | MLCommons | draft    | Reads one fact per holder; evidence chains and delivery moved out. |
-| 3.0.0   | 2026-11-10 | MLCommons | released | A graph of policy components: the chain is joined in the policy, and a joined credential an owner accepts may be presented instead. |
+| 2.0.0   | 2026-10-02 | MLCommons | draft    | One Rego file reading one credential per holder; rule-based authorities joined the chains, and a delivery module issued the capability. |
+| 3.0.0   | 2026-11-10 | MLCommons | draft | A graph of policy components. |
 
 ## 4  Summary & Intent
 
@@ -47,7 +47,7 @@ Permission: use the target dataset through its guardian
   Conditions (all must hold), as the graph's components check them:
     - InstitutionSpecificRestrictionForInference: The requester is a member of an allowed institution and owns the script: the ScriptOwnershipCredential is signed by the requester's own wallet, and checked against the key its WalletVerifyingKeyCredential attests.
     - Grant inference: every card granted the script the request names, with that digest
-    - each presented credential is from an authority the owner accepts for its type
+    - each presented credential is from an authority the owner accepts for its type, except the one the requester's own wallet signs, checked against its attested key
   On grant:  do_inference for the digest of the script the request names
   Otherwise: deny
 ```
@@ -76,13 +76,14 @@ every card granted it.
 ## 9  Codified Representation
 
 The card is [`graph.json`](graph.json), a graph of the components in
-[`policy_components/`](../../../policy_components/), each a Rego module with its
-own unit tests. [`graph_vectors.json`](graph_vectors.json) states the decisions the graph must reach; the
-contract, the reference implementation in pdo-contracts (`pdo.rego.graph`) and the card tests run them.
+[`policy_components/`](../../../policy_components/), each a Rego component with
+its own unit tests and `component.json`. [`graph_vectors.json`](graph_vectors.json) states the decisions the
+graph must reach; the contract, the reference implementation in pdo-contracts (`pdo.rego.graph`) and the card
+tests run them.
 
 ## 10  Legal & Disclaimers
 
-Reference-implementation status: this card and its Rego policy are a reference
+Reference-implementation status: this card, its graph and its components are a reference
 implementation provided as-is. You are responsible for verifying its accuracy and
 fitness for your use case before relying on it — it is not a certified or legally
 reviewed compliance control. Do not use this card or policy to protect sensitive

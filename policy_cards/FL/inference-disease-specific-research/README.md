@@ -4,7 +4,7 @@
 
 **Rule:** The script declares a use within your disease scope.
 
-It reads IntendedDataUseCredential and ScriptHashCredential, compares them with its policy data, and outputs the InferenceGrantCredential that Grant inference takes.
+The script declares a use for a disease the owner allows. Outputs the InferenceGrantCredential that Grant inference takes.
 
 The card is a graph of policy components. Each takes credentials, from the requester's presentation or
 from the components before it, and outputs a credential of its own; the last, Grant inference, issues
@@ -12,7 +12,7 @@ from the components before it, and outputs a credential of its own; the last, Gr
 
 | Policy Component | What it checks |
 |---|---|
-| DiseaseSpecificResearchForInference | It reads IntendedDataUseCredential and ScriptHashCredential, compares them with its policy data, and outputs the InferenceGrantCredential that Grant inference takes. |
+| DiseaseSpecificResearchForInference | The script declares a use for a disease the owner allows. Outputs the InferenceGrantCredential that Grant inference takes. |
 | Grant inference | The end of every federated learning card. Issues do_inference for the script digest the request names, when every card on the asset granted that script, with that digest. |
 
 **Presented credentials**, each from an authority the asset's owner accepts for its type:

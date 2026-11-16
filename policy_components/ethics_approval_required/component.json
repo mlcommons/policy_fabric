@@ -30,7 +30,7 @@
   "card": "ethics-approval-required",
   "duo": "DUO_0000021",
   "changes_from_today": [
-    "Changed from the card's Rego module: the AffiliationCredential is the requester's; the module read the PI's.",
+    "Changed from the card's original Rego (commit 760742d): the AffiliationCredential is the requester's; the original read the PI's.",
     "New claim: IRBApprovalCredential.purposes, the purposes the IRB approved. InstitutionalIRBApprovalCredential and IRBClearanceCredential carry it on."
   ]
 }

@@ -1,7 +1,7 @@
 {
   "name": "GeographicalRestriction",
   "group": "card",
-  "summary": "The card component of Geographical Restriction (DUO_0000022). It reads LocationCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "summary": "The card component of Geographical Restriction (DUO_0000022). The requester's organisation is located in a country the owner allows. Outputs the DownloadGrantCredential that Grant download takes.",
   "inputs": {
     "location": {
       "type": "LocationCredential",

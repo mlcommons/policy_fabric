@@ -1,10 +1,10 @@
 # Policy components
 
-A policy card can be a graph of small Rego components that pass credentials to each other
-(its `graph.json`). Each component reads one or more credentials and outputs credentials of
-one type; the root, a grant, issues the capability. The `rego_policy_agent` contract runs a
-graph set with `set_policy_graph`: a trusted planner decides per request which components run,
-and whether a presented credential stands in for a component's output. pdo-contracts'
+A policy card is a graph of small Rego components that pass credentials to each other (its
+`graph.json`). Each component reads one or more credentials and outputs credentials of one
+type; the root, a grant, issues the capability. The `rego_policy_agent` contract runs a graph
+set with `set_policy_graph`: a trusted planner decides per request which components run, and
+whether a presented credential stands in for a component's output. pdo-contracts'
 `rego-contract/docs/policy_graph.md` is the spec.
 
 | Folder | Holds |
@@ -12,7 +12,7 @@ and whether a presented credential stands in for a component's output. pdo-contr
 | `<id>/component.rego` | `package pf.components.<id>`: the `interface` (inputs by type and role, output type, policy data schema) and the `output` rule |
 | `<id>/component.json` | what the views show: name, group, summary, who each credential is about and the claims it reads, the policy data |
 | `<id>/component_test.rego` | its unit tests |
-| `tests/` | every component against its `component.json` on OPA and regorus, and every card's graph against its `graph_vectors.json` and against the card's original Rego module |
+| `tests/` | every component against its `component.json` on OPA and regorus, and every card's graph against its `graph_vectors.json` and against the card's Rego file before cards became graphs |
 
 A component reads `{inputs: {<input>: [credential]}, policy_data, request}` and returns a list
 of `{type, subject, claims, evidence}`, where evidence lists the presented credentials the
@@ -37,9 +37,51 @@ folder and the DUO term.
 every card on the asset granted that key's holder; `grant_inference` issues `do_inference`
 for the script digest the request names, when every card granted that script.
 
-A ProjectMembershipCredential or an IRBClearanceCredential may also be presented, when a
-trusted registry issues it directly (their schemas say `"x-presentable": true`): a graph input
-that accepts it presented skips the components that would produce it.
+A ProjectMembershipCredential or an IRBClearanceCredential may also be presented, when an
+authority the owner accepts issues it directly (their schemas say `"x-presentable": true`): a
+graph input that accepts it presented skips the components that would produce it.
+
+## Writing a component
+
+1. **Its output type.** A component outputs one credential type, with a JSON Schema in
+   `credentials/` (`displayName`, `meaning`, `subjectKinds`, `selfAsserted` and the claims, like
+   the others). Add `"x-presentable": true` only when an authority may also issue it directly; a
+   type no component outputs is always presentable.
+2. **`<id>/component.rego`**, in `package pf.components.<id>`, `<id>` being the folder name:
+   - `interface`, a static rule: `{output: <type>, inputs: {<name>: {type, role}}, policy_data_schema}`.
+     `role` is the presentation the credential comes from (`User`, or `Script` for the FL
+     cards). Mark an input `"supplied_key": true` when the component checks its credential
+     against a key it supplies rather than against an accepted authority (FL-IS's
+     self-signed script ownership); such an input must be presented.
+   - `output`, a list comprehension over `input.inputs`, `input.policy_data` and, for a grant,
+     `input.request`. Each credential has exactly `{type, subject, claims, evidence}`; a
+     component with a `supplied_key` input also returns `key_checks: [{index, key, key_type}]`
+     on every credential, naming the key to check each such credential against. Anything else
+     is an error, not a denial. Build outputs; never pass a presented credential through (it
+     carries an `issuer`).
+   - Keep to what regorus accepts: no comprehension in a rule head that uses body variables, no
+     comprehension nested in another, no `time.*`, and no rule head reading a field the value may
+     lack.
+3. **`<id>/component_test.rego`**, in `package pf.components.<id>_test`, with credentials shaped
+   as the component receives them (`{type, issuer, subject, claims, evidence}`).
+4. **`<id>/component.json`**, what the views draw, which the tests check against the Rego:
+
+   | Key | Holds |
+   | --- | --- |
+   | `name` | the name drawn on the Policy Component, such as `GeographicalRestriction` |
+   | `group` | `shared`, `card` or `grant` |
+   | `summary` | what it checks, in a sentence or two; the card's README and Policy Card repeat it |
+   | `inputs` | `{<name>: {type, about, role, claims}}`, the same names, types and roles as the interface, and `supplied_key: true` where it has it. `about` says who the credential is about: `requester`, `project`, `pi`, `institution`, `committee`, `script`, `compute` or `document`. `claims` lists the claims it reads (dotted paths); `new_claims` lists any the plan adds to the type |
+   | `output` | `{type, about, claims}`; for a grant, `{capability, parameters}` |
+   | `policy_data` | `{<key>: {type, description}}`, `type` being `string`, `string (ISO-8601 datetime)` or `array of strings`. The interface's `policy_data_schema` must say the same |
+   | `changes_from_today` | how its card's decisions differ from the card's Rego before cards became graphs; `[]` for none |
+   | `card`, `duo` | card components only: the card folder under `policy_cards/` and the DUO term |
+
+5. Run the tests below and `python3 tools/policy_catalog/build_catalog.py --repo . --out /tmp/catalog.json`,
+   which checks components, cards and credential types against each other.
+
+A new card that uses the component is a graph of it: see
+[`../policy_cards/README.md`](../policy_cards/README.md#writing-a-card).
 
 ## Tests
 
@@ -47,11 +89,21 @@ that accepts it presented skips the components that would produce it.
 PDO_CONTRACTS_ROOT=~/pdo-contracts ./run_tests.sh
 ```
 
-Needs `opa`, python3 with jsonschema and the regorus bindings (built as
+It runs `opa test` on every component, then `tests/test_components.py` (every component's
+interface on OPA and on regorus, against its `component.json`) and `tests/test_cards.py`
+(every card's graph against its `graph_vectors.json`, through pdo-contracts' reference
+implementation, and against the card's Rego file at commit `760742d`, before cards became
+graphs). It needs `opa`, python3 with `jsonschema` and the regorus bindings (built as
 `rego-contract/pdo/rego/graph/engine.py` says), a pdo-contracts checkout with the graph
-reference implementation, and this repository's history (the original card modules are read
-from its first commit). `-k <card or component>` on the unittest line runs one.
+reference implementation, and this repository's history back to `760742d`.
+
+To run one component's or one card's tests:
+
+```bash
+cd policy_components/tests
+PYTHONPATH=$PDO_CONTRACTS_ROOT/rego-contract:../../tools/policy_catalog python3 -m unittest -v test_cards -k geographical
+```
 
 The cards that change meaning on purpose (Ethics Approval Required, Collaboration Required and
 Publication Required read the requester's affiliation, not the PI's) are not compared with
-their original module.
+their Rego file at `760742d`.

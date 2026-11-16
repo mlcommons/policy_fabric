@@ -43,7 +43,7 @@ jobs:
   components:
     runs-on: ubuntu-latest
     steps:
-      # the cards' original Rego modules are read from the repository's first commit
+      # the cards' Rego files before they became graphs are read from commit 760742d
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0

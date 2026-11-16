@@ -1,7 +1,7 @@
 {
   "name": "DiseaseSpecificResearchForInference",
   "group": "card",
-  "summary": "The card component of Disease Specific Research for inference (DUO_0000007). It reads IntendedDataUseCredential and ScriptHashCredential, compares them with its policy data, and outputs the InferenceGrantCredential that Grant inference takes.",
+  "summary": "The card component of Disease Specific Research for inference (DUO_0000007). The script declares a use for a disease the owner allows. Outputs the InferenceGrantCredential that Grant inference takes.",
   "inputs": {
     "intendedDataUse": {
       "type": "IntendedDataUseCredential",

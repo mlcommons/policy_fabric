@@ -1,7 +1,7 @@
 {
   "name": "TimeLimitOnUse",
   "group": "card",
-  "summary": "The card component of Time Limit on Use (DUO_0000025). It reads AgreementCredential and ComputeEnvironmentCredential, compares them with its policy data, and outputs the DownloadGrantCredential that Grant download takes.",
+  "summary": "The card component of Time Limit on Use (DUO_0000025). The requester accepted the owner's terms document, and a compute node is attested to shut down no later than the owner's deadline. Outputs the DownloadGrantCredential that Grant download takes.",
   "inputs": {
     "agreement": {
       "type": "AgreementCredential",
