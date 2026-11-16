@@ -33,16 +33,11 @@ class InferenceOperation:
     """
 
     # -----------------------------------------------------------------
-    # Only the digest is required. The channel key is optional because this
-    # operation does not read it (see __call__) and because a policy is entitled
-    # not to produce one: the FL policies stand on their own, and one that only
-    # governs the code -- FL-DS -- says nothing about the requester and so has no
-    # channel key to carry. Requiring it here would make such a policy
-    # unsatisfiable for a reason that has nothing to do with what it decides.
+    # The capability carries only the digest Grant inference approved: nothing
+    # leaves this guardian but the answer, so there is no key to encrypt to.
     __schema__ = {
         "type": "object",
         "properties": {
-            "channel_key": {"type": "string"},
             "script_digest": {"type": "string"},
         },
         "required": ["script_digest"],
@@ -77,8 +72,6 @@ class InferenceOperation:
             )
             return None
 
-        # The channel key, when a policy carried one, is not used. Nothing leaves
-        # this guardian but the answer, so there is nothing to encrypt to it.
         logger.info("allowed: script %s", authorized_digest)
         return {
             "allowed": True,

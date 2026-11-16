@@ -16,7 +16,7 @@ dataset. What it gets, per job, is the capability package and the digest the FL
 client computed over the script it actually holds:
 
 ```
-capability parameters   { "script_digest": "sha256:...", "channel_key": "..." }   authenticated
+capability parameters   { "script_digest": "sha256:..." }                         authenticated
 request context         { "calculated_script_digest": "sha256:..." }              from the caller
 ```
 
@@ -44,11 +44,9 @@ The request context reaches the operation through the `request_context` field on
 `process_capability`, which every capability request carries — an operation with
 nothing to check against it simply ignores it.
 
-Only the digest is required. The channel key is carried when a policy produces
-one, but is not used: nothing leaves this guardian but the answer. A policy that
-governs the code alone (FL-DS) says nothing about the requester and so has no
-channel key to carry; requiring one here would make such a policy unsatisfiable
-for a reason unrelated to what it decides.
+The capability carries only the digest, which Grant inference -- the policy
+component every inference card ends in -- issues for the script the request names.
+There is no channel key: nothing leaves this guardian but the answer.
 
 ## `fl_framework`
 
