@@ -8,6 +8,7 @@ on:
       - 'policy_cards/**'
       - 'tools/policy_catalog/**'
       - 'tools/pdo_client/webapp/static/policy_ui/**'
+      - 'tools/pdo_client/webapp/app/requirements.py'
       - 'docs/**'
       - '.github/workflows/policy-checks.yml'
   push:
@@ -18,6 +19,7 @@ on:
       - 'policy_cards/**'
       - 'tools/policy_catalog/**'
       - 'tools/pdo_client/webapp/static/policy_ui/**'
+      - 'tools/pdo_client/webapp/app/requirements.py'
       - 'docs/**'
       - '.github/workflows/policy-checks.yml'
 
