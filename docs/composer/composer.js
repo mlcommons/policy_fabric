@@ -356,6 +356,11 @@ function credCard(type, about, claims, fresh, sub, extra) {
 function capCard(c, extra) {
   return addToCard(PolicyGraph.shapes.capability(c.output.capability, c.output.parameters, ""), "", extra);
 }
+/* A wired input takes the credential drawn at the other end of its wire, so it is a socket, not a second copy
+   of that credential: its name, how many wires, its status and its accept presented switch. */
+function socketCard(type, about, sub, extra) {
+  return `<div class="vc socket s-${esc(about)}" title="Takes the ${esc(type)} wired into it"><div class="vc-h"><div class="vc-t"><span class="vc-id">${sub}</span></div></div>${extra}</div>`;
+}
 
 /* ---------- library ---------- */
 function libSub(c) {
@@ -419,7 +424,8 @@ function nodeHtml(n, sim, live) {
     const how = ws.length > 1 ? ` · ${ws.length} wires` : ws.length ? "" : !CAT.credentials[inp.type].presentable ? " · needs a wire" : "supplied_key" in inp ? " · presented, checked by key" : " · presented";
     return `<div class="n-in" data-node="${nid}" data-input="${iid}" data-type="${esc(inp.type)}">
         <button type="button" class="port in${ws.length ? " filled" : ""}" data-port="in" data-node="${nid}" data-input="${iid}" aria-label="${esc(name)} input ${iid}, takes ${esc(inp.type)}"></button>
-        ${credCard(inp.type, inputSubj(n, iname), inp.claims, newClaims(inp), iid + how, status + toggle)}
+        ${ws.length ? socketCard(inp.type, inputSubj(n, iname), iid + how, status + toggle)
+                    : credCard(inp.type, inputSubj(n, iname), inp.claims, newClaims(inp), iid + how, status + toggle)}
       </div>`;
   }).join("");
   let outCard;

@@ -144,8 +144,10 @@ def toast(page):
 
 
 def wire_by_clicks(page, src, dst, inp):
+    """Click the source's output, then the input's header: a wired input is a short socket whose middle is
+    its accept presented switch."""
     page.locator(f'.n-out[data-node="{src}"] .vc').click()
-    page.locator(f'.n-in[data-node="{dst}"][data-input="{inp}"] .vc').click()
+    page.locator(f'.n-in[data-node="{dst}"][data-input="{inp}"] .vc-h').click()
     page.wait_for_timeout(60)
 
 

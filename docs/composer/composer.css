@@ -112,6 +112,9 @@ svg.wires { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overfl
 .n-in, .n-out { position: relative; }
 .pf-graph .n-in .vw, .pf-graph .n-out .vw, .pf-graph .n-out .vc.cap { width: 100%; }
 .n-in .vc { cursor: pointer; }
+/* a wired input: the credential is drawn once, at the output the wire comes from */
+.pf-graph .n-in .vc.socket .vc-h { padding: 5px 10px 5px 12px; }
+.pf-graph .n-in .vc.socket .vc-id { font-size: 10.5px; color: var(--pf-ink-2); }
 .n-out { flex: none; width: 142px; }
 .n-out .vc { cursor: crosshair; }
 .node.grant .n-out .vc { cursor: default; }
