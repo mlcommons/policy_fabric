@@ -3,7 +3,7 @@
 A policy card is a graph of small Rego components that pass credentials to each other (its
 `graph.json`). Each component reads one or more credentials and outputs credentials of one
 type; the root, a grant, issues the capability. The `rego_policy_agent` contract runs a graph
-set with `set_policy_graph`: a trusted planner decides per request which components run, and
+set with `set_rego_policy`: a trusted planner decides per request which components run, and
 whether a presented credential stands in for a component's output. pdo-contracts'
 `rego-contract/docs/policy_graph.md` is the spec.
 
@@ -91,17 +91,23 @@ PDO_CONTRACTS_ROOT=~/pdo-contracts ./run_tests.sh
 
 It runs `opa test` on every component, then `tests/test_components.py` (every component's
 interface on OPA and on regorus, against its `component.json`) and `tests/test_cards.py`
-(every card's graph against its `graph_vectors.json`, through pdo-contracts' reference
-implementation, and against the card's Rego file at commit `760742d`, before cards became
-graphs). It needs `opa`, python3 with `jsonschema` and the regorus bindings (built as
-`rego-contract/pdo/rego/graph/engine.py` says), a pdo-contracts checkout with the graph
-reference implementation, and this repository's history back to `760742d`.
+(every card's graph against its `graph_vectors.json`, and against the card's Rego file at
+commit `760742d`, before cards became graphs). It needs `opa`, python3 with `jsonschema` and
+the regorus bindings (built as `tests/engine.py` says), a pdo-contracts checkout, and this
+repository's history back to `760742d`.
+
+The cards are decided by `tests/policy_graph.py`, which does in Python what the
+`rego_policy_agent` does on-chain: it runs the contract's own validator and planner, read
+from `$PDO_CONTRACTS_ROOT/rego-contract/src/rego/`, and each component on regorus, the engine
+the contract embeds. `tests/vectors.py` reads a card's `graph_vectors.json` and checks each
+decision, and the requirement alternatives come from the webapp's `app/requirements.py`, the
+expansion the Expose form shows.
 
 To run one component's or one card's tests:
 
 ```bash
 cd policy_components/tests
-PYTHONPATH=$PDO_CONTRACTS_ROOT/rego-contract:../../tools/policy_catalog python3 -m unittest -v test_cards -k geographical
+PYTHONPATH=../../tools/pdo_client/webapp:../../tools/policy_catalog python3 -m unittest -v test_cards -k geographical
 ```
 
 The cards that change meaning on purpose (Ethics Approval Required, Collaboration Required and

@@ -11,8 +11,8 @@ import unittest
 import jsonschema
 
 from build_catalog import policy_data_schema
+from engine import eval_rule
 from library import COMPONENTS, component_ids, component_json, opa_eval
-from pdo.rego.graph.engine import eval_rule
 
 
 def without_descriptions(schema):

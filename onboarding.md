@@ -26,7 +26,7 @@ work:
 | --- | --- | --- |
 | **Asset** | `tools/asset_registry/` | a dataset or a script, named by a DID (`did:pdo:<contract_id>`), listed in a registry anyone can read |
 | **Guardian** | `tools/guardians/` | the service standing in front of an asset. It acts only against a *capability*: a download guardian releases the bytes encrypted; an inference guardian holds no bytes and only answers whether a script may run over data its FL client holds |
-| **Policy** | `policy_cards/`, `policy_components/` | a graph of Rego policy components (a card's `graph.json`; the components in `policy_components/`), set on a `rego_policy_agent` contract with `set_policy_graph`, that reads credentials and decides |
+| **Policy** | `policy_cards/`, `policy_components/` | a graph of Rego policy components (a card's `graph.json`; the components in `policy_components/`), set on a `rego_policy_agent` contract with `set_rego_policy`, that reads credentials and decides |
 | **Credential** | `credentials/` | a signed statement about a subject — a person, a wallet, or a script |
 | **Capability** | pdo-contracts | what a policy's approval turns into: a sealed instruction to one guardian to perform one operation |
 | **Webapp** | `tools/pdo_client/webapp/` | a Django app driving a PDO client, and the only UI |
@@ -57,8 +57,8 @@ Read these, in order. They are short and each one is the entry point to a layer.
    file, under one lock. Together with `ledger_client.py` (the user's contracts,
    read off CCF) and `pdo_state.py` (the client state they share), this is the
    whole seam between the two checkouts — those three files are the only ones
-   that call into PDO. `graphs.py` also imports `pdo.rego.graph.requirements`,
-   which works out a graph's requirement alternatives without any contract.
+   that call into PDO. `graphs.py` works out a graph's requirement alternatives
+   without any contract, with `requirements.py`.
 5. `tools/pdo_client/webapp/app/views/federated.py` — the federated round: how
    sites are discovered, how each one is asked separately, how the capabilities
    are handed over together.
@@ -78,8 +78,8 @@ Do not try to read it all. The webapp touches four families; follow them from
 | Family | Read | Why |
 | --- | --- | --- |
 | `rego-contract/` | `pdo/rego/decentralized/rego_token.py`, `pdo/rego/plugins/rego_token.py` | `create_capability` vs `do_operation` — the first mints a capability and hands it back, the second redeems it inline. The federated flow needs the first, because someone else contacts the guardian |
-| `rego-contract/` | `pdo/rego/decentralized/rego_policy_agent.py` | the contract of an asset's policy: `set_policy_graph` (the graph and its components, once), `get_requirement_alternatives`, `set_node_policy_data`, `issue_policy_credential` (with the requester's `request`), `register_trusted_issuer` / `unregister_trusted_issuer`. The graph mode is specified in `rego-contract/docs/policy_graph.md` |
-| `rego-contract/` | `pdo/rego/graph/` | the graph reference implementation: `requirements.py` (requirement alternatives, which the webapp computes before a policy exists), and the validator, planner and vectors the card tests run |
+| `rego-contract/` | `pdo/rego/decentralized/rego_policy_agent.py` | the contract of an asset's policy: `set_rego_policy` (the graph and its components, once), `get_requirements` (the alternatives), `set_policy_data` (one node's), `issue_policy_credential` (with the requester's `request`), `register_trusted_issuer` / `unregister_trusted_issuer`. Its policy graphs are specified in `rego-contract/docs/policy_graph.md` |
+| `rego-contract/` | `src/rego/graph_validator.rego`, `graph_planner.rego` | the contract's trusted validator and planner, which the card tests (`policy_components/tests/policy_graph.py`) also run, so that a card decides there as it does on-chain |
 | `identity-contract/` | `pdo/identity/decentralized/{identity,signature_authority}.py` | wallets are `identity.identity`, holding several credentials per type, keyed by digest; asset identities and hand-signing authorities are `signature_authority`. `sign_with_contract_key` is what lets a wallet vouch for something in its own name |
 | `authority-contract/` | `pdo/authority/decentralized/external_key_authority.py` | `bind_external_key`, and the wallet key authority created alongside it |
 | `common-contract/` | `pdo/contracts/guardian/wsgi/{info,process_capability}.py` | the two endpoints every guardian serves. `process_capability` decrypts the operation out of the capability and dispatches to a handler |

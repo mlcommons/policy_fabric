@@ -413,9 +413,9 @@ def create_asset_policy(description, guardian_url_port, user_name, graph, compon
         with _op_lock:
             policy_id = rego_policy_agent.create_rego_policy_agent(state, user_name, description=description)
             time.sleep(1)
-            rego_policy_agent.set_policy_graph(state, policy_id, user_name, graph=graph_path, components=components_dir)
+            rego_policy_agent.set_rego_policy(state, policy_id, user_name, graph=graph_path, components=components_dir)
             time.sleep(1)
-            stored = _as_json(rego_policy_agent.get_policy_graph(state, policy_id, user_name))
+            stored = _as_json(rego_policy_agent.get_rego_policy(state, policy_id, user_name))
     finally:
         _safe_unlink(graph_path)
         shutil.rmtree(components_dir, ignore_errors=True)
@@ -438,7 +438,7 @@ def get_policy_graph(agent_id, user_name):
     """``{policy_graph, components, sha256}`` of an asset's policy."""
     state = get_state()
     with _op_lock:
-        return _as_json(rego_policy_agent.get_policy_graph(state, agent_id, user_name))
+        return _as_json(rego_policy_agent.get_rego_policy(state, agent_id, user_name))
 
 
 def set_node_policy_data(agent_id, node, policy_data, user_name):
@@ -447,7 +447,7 @@ def set_node_policy_data(agent_id, node, policy_data, user_name):
     data_path = _tmp_json(policy_data)
     try:
         with _op_lock:
-            rego_policy_agent.set_node_policy_data(state, agent_id, user_name, node=node, data=data_path)
+            rego_policy_agent.set_policy_data(state, agent_id, user_name, node=node, data=data_path)
     finally:
         _safe_unlink(data_path)
 
@@ -479,7 +479,7 @@ def get_requirement_alternatives(token_id, user_name):
     state = get_state()
     with _op_lock:
         policy_id = _resolve_policy_id(state, token_id, user_name)
-        return _as_json(rego_policy_agent.get_requirement_alternatives(state, policy_id, user_name))["alternatives"]
+        return _as_json(rego_policy_agent.get_requirements(state, policy_id, user_name))
 
 
 def _issue_policy_decision(state, wallet_ids, token_id, user_name, issued_path, request, requirements):

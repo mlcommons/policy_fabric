@@ -1,7 +1,8 @@
 """The component library and the card graphs, as the tests read them.
 
-The graph reference implementation (pdo.rego.graph) comes from a pdo-contracts checkout:
-run_tests.sh puts $PDO_CONTRACTS_ROOT/rego-contract on the path.
+Cards are decided by policy_graph.py, with the contract's validator and planner from the
+pdo-contracts checkout at PDO_CONTRACTS_ROOT and the requirement alternatives from the webapp's
+app/requirements.py, which run_tests.sh puts on the path.
 """
 
 import json

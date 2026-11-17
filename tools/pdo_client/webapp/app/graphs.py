@@ -6,14 +6,14 @@ describes the components, whose ``component.json`` mirrors each Rego interface. 
 here: the contract validates the graph when it is set.
 """
 
-from pdo.rego.graph.requirements import alternatives
+from .requirements import alternatives
 
 # the input of a grant that takes the cards' grants
 GRANT_INPUT = "grant"
 
 
 def interfaces(graph, catalog):
-    """The interfaces of the graph's components, as set_policy_graph evaluates them."""
+    """The interfaces of the graph's components, as set_rego_policy evaluates them."""
     out = {}
     for node in graph["nodes"].values():
         c = catalog["components"][node["component"]]
