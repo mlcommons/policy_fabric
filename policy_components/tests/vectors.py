@@ -1,0 +1,132 @@
+"""Golden test vectors for a policy graph, a card's graph_vectors.json, run by test_cards.py.
+
+A vector file names its credentials once and builds each case from them:
+
+    {
+      "registry":    {<type>: [<signer DID>, ...]},      whom the contract trusts, per type
+      "request":     {...},                               what the requester declares
+      "policy_data": {<node>: {...}},                     every node's policy data
+      "credentials": {<name>: {"type", "issuer", "signer", "subject", "claims"}},
+      "vectors": [
+        {"name": "...",
+         "present": {<role>: [<credential name>, ...]},
+         "change":  {<credential name>: <JSON merge patch>},       {} for none
+         "expect":  {"decision": true, "subject", "operation", "evidence": [<name>], "verified": [<name>]}
+                 or {"decision": false, "missing": [{"node", "input"}]}
+                 or {"decision": false, "reason": "<why>"}}
+      ]
+    }
+
+A credential is trusted, as the contract computes it, when its issuer is its signer and the
+registry lists that signer for its type; every type a credential has must be a key of
+"registry" (``[]`` when no signer is trusted for it). A credential a component checks against
+a key it supplies also has "signing_key", a name standing for the key wherever a claim or the
+policy data carries it: the key check passes when the key is ``"ec"``, the credential's issuer
+is its signer, and the supplied key is that name. (pdo-contracts' on-chain test,
+``rego-contract/test/python/policy_graph_test.py``, signs such a credential with a real key and
+puts its PEM wherever the name appears.)
+
+An allow compares the subject and operation the root issued, its "evidence" (the presented
+credentials the root's capabilities cite, as the union of their evidence) and its "verified"
+(every presented credential bound to a node that ran), as sets of names. A denial compares
+"missing" as a set, or "reason" exactly. Indices are given in presentation order, roles sorted.
+"""
+
+import copy
+import json
+
+from policy_graph import evaluate
+
+
+def merge_patch(target, patch):
+    """RFC 7386."""
+    if not isinstance(patch, dict):
+        return copy.deepcopy(patch)
+    out = copy.deepcopy(target) if isinstance(target, dict) else {}
+    for key, value in patch.items():
+        if value is None:
+            out.pop(key, None)
+        else:
+            out[key] = merge_patch(out.get(key), value)
+    return out
+
+
+def resolve(suite, vector):
+    """The vector's presentation as the contract would view it, ``{role: [view]}``, and the
+    credential names by index."""
+    credentials = {
+        name: merge_patch(cred, vector["change"][name]) if name in vector["change"] else cred
+        for name, cred in suite["credentials"].items()
+    }
+    unknown = set(vector["change"]) - set(credentials)
+    if unknown:
+        raise KeyError(f"{vector['name']}: change names unknown credentials {sorted(unknown)}")
+    presented, names = {}, []
+    for role in sorted(vector["present"]):
+        presented[role] = []
+        for name in vector["present"][role]:
+            cred = credentials[name]
+            presented[role].append({
+                "type": cred["type"],
+                "issuer": cred["issuer"],
+                "signer": cred["signer"],
+                "trusted": cred["issuer"] == cred["signer"] and cred["signer"] in suite["registry"][cred["type"]],
+                "subject": cred["subject"],
+                "claims": cred["claims"],
+                "index": len(names),
+                "proof_value": "",
+            })
+            names.append(name)
+    return presented, names, credentials
+
+
+class VectorVerifier:
+    """Signature checks for vectors: a registry check passes for a trusted credential; a key
+    check passes when the supplied key is the credential's signing key."""
+
+    def __init__(self, credentials, names):
+        self.credentials = credentials
+        self.names = names
+
+    def registry(self, view):
+        return view["trusted"]
+
+    def key(self, view, key, key_type):
+        cred = self.credentials[self.names[view["index"]]]
+        return view["issuer"] == view["signer"] and key_type == "ec" and key == cred["signing_key"]
+
+
+def outcome(result, names):
+    """What a vector's expect compares with."""
+    if not result["decision"]:
+        if "missing" in result:
+            return {"decision": False, "missing": [{"node": m["node"], "input": m["input"]} for m in result["missing"]]}
+        return {"decision": False, "reason": result["reason"]}
+    return {
+        "decision": True,
+        "subject": result["subject"],
+        "operation": result["operation"],
+        "evidence": [names[i] for i in result["evidence"]],
+        "verified": [names[i] for i in result["verified"]],
+    }
+
+
+def normalized(expect):
+    out = copy.deepcopy(expect)
+    for key in ("evidence", "verified"):
+        if key in out:
+            out[key] = sorted(out[key])
+    if "missing" in out:
+        out["missing"] = sorted(out["missing"], key=json.dumps)
+    return out
+
+
+def run(graph, components, interfaces, suite):
+    """Yield ``(vector, expected, got, result)`` for each vector of the suite."""
+    for vector in suite["vectors"]:
+        presented, names, credentials = resolve(suite, vector)
+        result = evaluate(
+            graph, components, interfaces, presented, suite["request"], suite["policy_data"],
+            VectorVerifier(credentials, names),
+        )
+        yield vector, normalized(vector["expect"]), normalized(outcome(result, names)), result

@@ -1,11 +1,11 @@
 set -e
 
 # pdo-contracts revision the client image (and therefore the compiled contract
-# binaries) is built from. It must carry the rego_policy_agent's policy graphs
-# (set_policy_graph, get_requirement_alternatives, set_node_policy_data), on top
-# of the authority contracts, the request the policy reads, per-type trusted
-# issuers and the digest-keyed wallet store. Pin it to the merged commit once
-# that branch is merged into main.
+# binaries) is built from. Its rego_policy_agent must take a policy graph
+# (set_rego_policy, get_requirements, set_policy_data per node), on top of the
+# authority contracts, the request the policy reads, per-type trusted issuers and
+# the digest-keyed wallet store. Pin it to the merged commit once that branch is
+# merged into main.
 REPOSITORY=https://github.com/mlcommons/pdo-contracts
 BRANCH=policy-components
 

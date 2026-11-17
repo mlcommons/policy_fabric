@@ -118,7 +118,7 @@ the graph.
 | `static/policy_ui/` | the graph renderer, shared with the docs site's Policy Composer: `PolicyGraph.layout` and `PolicyGraph.render` |
 | `views/policies.py`, `templates/policies/list.html`, `static/js/policies.js` | the **Policies** page: every card drawn as its graph |
 | `templates/_card_detail_modal.html`, `static/js/render.js` | a card's popup (`window.render.showCard`): its graph, its README, and its card component's Rego |
-| `app/graphs.py` | composes the graphs of the cards an owner picks, and works out their requirement alternatives with pdo-contracts' `pdo.rego.graph.requirements` |
+| `app/graphs.py`, `app/requirements.py` | composes the graphs of the cards an owner picks, and works out their requirement alternatives the way the contract's `set_rego_policy` expands them |
 | `views/assets.py`, `static/js/asset_dashboard.js` | Expose (cards, each node's parameters, the authorities accepted per credential type) and an asset's dashboard |
 | `app/trust.py` | the authorities offered and registered per credential type |
 | `app/checklist.py`, `app/readiness.py` | the requester's checklist, and the credentials system authorities issue on the way |
@@ -131,7 +131,7 @@ the graph.
 - every card must end in the same grant ("The policies end in different grants" otherwise); its
   `grant` input takes every card's grant, and it issues the capability only when every card granted it;
 - every type a card trusts is listed with no issuer; the owner's choice of authorities per type is
-  registered with `register_trusted_issuer` after `set_policy_graph`.
+  registered with `register_trusted_issuer` after `set_rego_policy`.
 
 Exposing is refused unless every type of at least one requirement alternative is accepted from some
 authority, or signed by the requester's own wallet.

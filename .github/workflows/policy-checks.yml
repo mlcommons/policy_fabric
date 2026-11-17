@@ -25,8 +25,8 @@ permissions:
   contents: read
 
 env:
-  # the contracts' graph reference implementation, and the regorus revision their engine is
-  # built from (rego-contract/src/packages/regorus/build.sh)
+  # the contract whose graph validator and planner the card tests run, and the regorus revision
+  # its engine is built from (rego-contract/src/packages/regorus/build.sh)
   PDO_CONTRACTS_REF: policy-components
   REGORUS_COMMIT: acf7f7a25ec718be7c0d58eb2bd8dd1e6c0163df
 

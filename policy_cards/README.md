@@ -17,7 +17,7 @@ capability the asset's guardian redeems.
 
 A data owner selects one or more cards when exposing an asset. Their graphs compose into
 one under a single grant, sharing the components they have in common, and the webapp sets
-it on the asset's `rego_policy_agent` with `set_policy_graph`. The contract validates the
+it on the asset's `rego_policy_agent` with `set_rego_policy`. The contract validates the
 graph against its components' interfaces, plans per request which components run, runs
 them, and issues the capability only after verifying every credential they read.
 
@@ -78,8 +78,9 @@ which end in Grant inference and read credentials about the script a requester b
 4. **`graph_vectors.json`**: the decisions the graph must reach. Start from a card's: every
    credential type the graph reads is a key of `registry`, every node has its `policy_data`,
    and there is an allow for each requirement alternative and a deny for each thing a
-   component checks. The format is in pdo-contracts' `rego-contract/pdo/rego/graph/vectors.py`,
-   and the denial reasons in `rego-contract/docs/policy_graph.md`.
+   component checks. The format is in
+   [`../policy_components/tests/vectors.py`](../policy_components/tests/vectors.py), and the
+   denial reasons in pdo-contracts' `rego-contract/docs/policy_graph.md`.
 5. **`README.md`** and **`policy_card.md`**, written by hand from an existing card: the README
    lists the graph's components, the presented credentials and the parameters, and
    `policy_card.md` is the full Policy Card. The tests find cards by their `policy_card.md`.
@@ -94,8 +95,9 @@ which end in Grant inference and read credentials about the script a requester b
 ## Tests
 
 [`../policy_components/run_tests.sh`](../policy_components/run_tests.sh) runs every card's
-vectors through the graph reference implementation of pdo-contracts (`pdo.rego.graph`),
-after the components' own tests, and compares each card that existed at commit `760742d`
+vectors through `policy_components/tests/policy_graph.py`, which runs the contract's own
+validator and planner from a pdo-contracts checkout, after the components' own tests, and
+compares each card that existed at commit `760742d`
 with its Rego file there, from before cards became graphs.
 [`../tools/policy_catalog/build_catalog.py`](../tools/policy_catalog/build_catalog.py)
 checks the graphs, components, manifests and credential types against each other. CI runs

@@ -85,8 +85,8 @@ every card granted it.
 The card is [`graph.json`](graph.json), a graph of the components in
 [`policy_components/`](../../policy_components/), each a Rego component with
 its own unit tests and `component.json`. [`graph_vectors.json`](graph_vectors.json) states the decisions the
-graph must reach; the contract, the reference implementation in pdo-contracts (`pdo.rego.graph`) and the card
-tests run them.
+graph must reach; the contract and the card tests (`policy_components/run_tests.sh`) run
+them.
 
 ## 10  Legal & Disclaimers
 

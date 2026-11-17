@@ -86,7 +86,7 @@ The DIDs of Dr. Alice, the project, the committee and the university are plain e
           - **Session key:** `Session keys` is already checked.
 3. **Review** lists the ways a requester can meet the graph, the shortest first: *IRB clearance + Intended data use + Session key; or …* — down to the whole chain. One way ends *(no authority accepted for all)*: it needs a project membership, and you accepted no one for it. Click **Expose**.
 
-*What's happening:* the policy is the card's graph, set on the asset's `rego_policy_agent` with `set_policy_graph`. The contract validates it against its components, and lists its **requirement alternatives**: every bundle of credentials that satisfies it. A presented IRB clearance from an authority you accept stands in for ProjectMembership, InstitutionalIRBApproval and IRBClearance together. A clearance from an authority you do not accept does not count, and then the components walk the chain instead.
+*What's happening:* the policy is the card's graph, set on the asset's `rego_policy_agent` with `set_rego_policy`. The contract validates it against its components, and lists its **requirement alternatives**: every bundle of credentials that satisfies it. A presented IRB clearance from an authority you accept stands in for ProjectMembership, InstitutionalIRBApproval and IRBClearance together. A clearance from an authority you do not accept does not count, and then the components walk the chain instead.
 
 ---
 

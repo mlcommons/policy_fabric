@@ -16,7 +16,7 @@ in the same order:
 * once the owner allows only another country, the same request is refused.
 
 What the run proves: two cards composed into one graph of policy components under one
-Grant download, set with set_policy_graph and run by the contract, and a node's policy
+Grant download, set with set_rego_policy and run by the contract, and a node's policy
 data changed on its own.
 
 Run it through ``run_webui_inference_test.sh -t download``, which brings the stack up

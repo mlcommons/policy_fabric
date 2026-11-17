@@ -1,5 +1,5 @@
-"""Every card's graph decides its vectors through the graph reference implementation, as the
-contract would; and, unless the card changes meaning on purpose or was added since, as the card
+"""Every card's graph decides its vectors through policy_graph.py, which runs the contract's
+validator and planner, as the contract would; and, unless the card changes meaning on purpose or was added since, as the card
 did when it was one Rego module.
 
 The comparison with the old Rego file (at commit 760742d, read through git) allows
@@ -16,8 +16,8 @@ import unittest
 from pathlib import Path
 
 from library import CARDS, FABRIC, card_folders, component_json, graph, opa_eval, vectors
-from pdo.rego.graph.policy_graph import load_components, validate
-from pdo.rego.graph.vectors import VectorVerifier, resolve, run
+from policy_graph import load_components, validate
+from vectors import VectorVerifier, resolve, run
 
 LEGACY_COMMIT = "760742d"
 CHANGED_ON_PURPOSE = {
