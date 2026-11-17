@@ -21,7 +21,7 @@ Options:
   -p, --port PORT          Host port to publish (required)
   -s, --sservice-port PORT Host storage-service port to publish (required)
   -g, --guardian-host URL            Guardian Host (required)
-  -d, --data-path PATH     Host data file to serve (optional). Mounted into the
+  -d, --data-path PATH     Host data file to serve (required). Mounted into the
                            container and exposed as GUARDIAN_DATA_PATH.
   -h, --help               Show this help and exit
 EOF
