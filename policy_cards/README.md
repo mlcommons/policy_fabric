@@ -30,9 +30,8 @@ presents one.
 ## Folders
 
 Every card folder holds its `graph.json`, the `graph_vectors.json` that states the
-decisions the graph must reach, a `card.json` with its code, name and one-line rule (see
-[`card.schema.json`](card.schema.json)), the `README.md` shown to owners, and
-`policy_card.md`, the full Policy Card.
+decisions the graph must reach, a `card.json` with its code, name and one-line rule, the
+`README.md` shown to owners, and `policy_card.md`, the full Policy Card.
 
 | Card | Folder | Credentials it takes presented, besides the session key |
 |------|--------|---------------------------------------------------------|
@@ -73,8 +72,8 @@ which end in Grant inference and read credentials about the script a requester b
    download it. Save it as `<folder>/graph.json`, or `FL/<folder>/graph.json` for an inference
    card. The committed graph lists `[]` for every type in `trusted_issuers` and leaves every
    node's `policy_data` empty: the owner chooses both when exposing an asset.
-3. **`card.json`**: `code` (the DUO abbreviation), `name` and `rule`, the one-line rule shown
-   to the owner, as [`card.schema.json`](card.schema.json) says.
+3. **`card.json`**: exactly `code` (the DUO abbreviation), `name` and `rule`, the one-line
+   rule shown to the owner; `build_catalog.py` checks the keys.
 4. **`graph_vectors.json`**: the decisions the graph must reach. Start from a card's: every
    credential type the graph reads is a key of `registry`, every node has its `policy_data`,
    and there is an allow for each requirement alternative and a deny for each thing a
