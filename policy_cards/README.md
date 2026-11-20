@@ -33,6 +33,11 @@ Every card folder holds its `graph.json`, the `graph_vectors.json` that states t
 decisions the graph must reach, a `card.json` with its code, name and one-line rule, and
 `policy_card.md`, the full Policy Card, which the webapp shows owners.
 
+A card's `graph.json` is a template, so every node's `policy_data` is `{}` and every
+`trusted_issuers` list is `[]`: the owner picks both when exposing an asset. The webapp
+writes the owner's values into the asset's graph, and the contract stores each node's
+`policy_data` apart from the graph, which it keeps with every `policy_data` empty.
+
 | Card | Folder | Credentials it takes presented, besides the session key |
 |------|--------|---------------------------------------------------------|
 | DUO_0000020 COL | [`collaboration-required/`](collaboration-required/) | Accepted terms, Affiliation, Project membership, Project ownership, Scoped agreement, Team membership |
