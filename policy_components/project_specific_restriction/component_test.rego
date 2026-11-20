@@ -13,7 +13,7 @@ use := {"type": "IntendedDataUseCredential", "issuer": "did:example:dac", "subje
 agreement := {"type": "AgreementCredential", "issuer": "did:example:platform", "subject": "did:example:user",
 	"claims": {"agreementInfo": {"documentID": "did:example:terms", "documentVersion": "1.0"}}, "evidence": [3]}
 
-grant(memberships, uses, agreements) := out if {
+condition(memberships, uses, agreements) := out if {
 	out := project_specific_restriction.output with input as {
 		"inputs": {"projectMembership": memberships, "intendedDataUse": uses, "agreement": agreements},
 		"policy_data": {"approvedProjects": ["did:example:project", "did:example:other-project"]}, "request": {},
@@ -21,18 +21,18 @@ grant(memberships, uses, agreements) := out if {
 }
 
 test_a_project_the_owner_approved if {
-	grant([membership], [use], [agreement]) == [{"type": "DownloadGrantCredential", "subject": "did:example:user", "claims": {}, "evidence": [0, 1, 2, 3]}]
+	condition([membership], [use], [agreement]) == [{"type": "DataUseConditionCredential", "subject": "did:example:user", "claims": {}, "evidence": [0, 1, 2, 3]}]
 }
 
 test_a_project_the_owner_did_not_approve if {
 	other := object.union(membership, {"claims": {"project": "did:example:unapproved-project"}})
-	grant([other], [object.union(use, {"subject": "did:example:unapproved-project"})], [agreement]) == []
+	condition([other], [object.union(use, {"subject": "did:example:unapproved-project"})], [agreement]) == []
 }
 
 test_the_use_of_another_project if {
-	grant([membership], [object.union(use, {"subject": "did:example:other-project"})], [agreement]) == []
+	condition([membership], [object.union(use, {"subject": "did:example:other-project"})], [agreement]) == []
 }
 
 test_the_agreement_of_someone_else if {
-	grant([membership], [use], [object.union(agreement, {"subject": "did:example:other"})]) == []
+	condition([membership], [use], [object.union(agreement, {"subject": "did:example:other"})]) == []
 }

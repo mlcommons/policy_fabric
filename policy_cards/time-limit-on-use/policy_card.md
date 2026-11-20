@@ -36,10 +36,11 @@ Authored against the Policy Fabric Policy Card template: the numbered sections b
 
 **Rule:** The requester accepted your terms and computes in an environment that shuts down by your deadline.
 
-The requester accepted the owner's terms document, and a compute node is attested to shut down no later than the owner's deadline. Outputs the DownloadGrantCredential that Grant download takes.
+The requester accepted the owner's terms document, and a compute node is attested to shut down no later than the owner's deadline. Outputs a DataUseConditionCredential about the requester.
 
 The card is a graph of policy components: each takes credentials, presented or produced by the
-components before it, and outputs one of its own, until Grant download issues the capability.
+components before it, and outputs one of its own. The graph's capability issues `do_download` when the
+card's component holds.
 
 - **Governance objective:** limit how long the asset can be used.
 
@@ -48,9 +49,9 @@ components before it, and outputs one of its own, until Grant download issues th
 ```text
 Permission: use the target dataset through its guardian
   Assignee:  the requester
-  Conditions (all must hold), as the graph's components check them:
+  Conditions (all must hold), as the graph checks them:
     - TimeLimitOnUse: The requester accepted the owner's terms document, and a compute node is attested to shut down no later than the owner's deadline.
-    - Grant download: every card granted the holder of the session key
+    - the requester holds the session key the request names: a publicKeyCredential about them carries it
     - each presented credential is from an authority the owner accepts for its type
   On grant:  do_download, encrypted to the requester's session key (the key in their publicKeyCredential)
   Otherwise: deny
@@ -73,9 +74,9 @@ Every type resolves to a schema in [`credentials/`](../../credentials/).
 
 ## 8  Capability Granted
 
-`do_download`, encrypted to the requester's session key (the key in their `publicKeyCredential`), issued by Grant download. With several cards on one
-asset, their graphs compose into one under that component, which issues the capability only when
-every card granted it.
+`do_download`, encrypted to the requester's session key (the key in their `publicKeyCredential`), issued by the graph's capability. With several cards on one
+asset, their graphs compose into one whose capability requires every card's component, so it issues
+`do_download` only when every card holds for the same requester.
 
 ## 9  Codified Representation
 
@@ -85,8 +86,7 @@ its own unit tests and `component.json`:
 
 | Policy Component | What it checks |
 |---|---|
-| TimeLimitOnUse | The requester accepted the owner's terms document, and a compute node is attested to shut down no later than the owner's deadline. Outputs the DownloadGrantCredential that Grant download takes. |
-| Grant download | The end of every download card. Issues do_download to the holder of the key when the card granted that same person: the publicKeyCredential and the DownloadGrantCredential must be about the same subject. The channel key is the key in the publicKeyCredential. |
+| TimeLimitOnUse | The requester accepted the owner's terms document, and a compute node is attested to shut down no later than the owner's deadline. Outputs a DataUseConditionCredential about the requester. |
 
 [`graph_tests.json`](graph_tests.json) states the decisions the
 graph must reach; the contract and the card tests (`policy_components/run_tests.sh`) run

@@ -12,7 +12,7 @@ A graph tests file names its credentials once and builds each test from them:
          "present": {<role>: [<credential name>, ...]},
          "change":  {<credential name>: <JSON merge patch>},       {} for none
          "expect":  {"decision": true, "subject", "operation", "evidence": [<name>], "verified": [<name>]}
-                 or {"decision": false, "missing": [{"node", "input"}]}
+                 or {"decision": false, "missing": [{"node", "input"} or {"parameter"}]}
                  or {"decision": false, "reason": "<why>"}}
       ]
     }
@@ -26,9 +26,10 @@ is its signer, and the supplied key is that name. (pdo-contracts' on-chain test,
 ``rego-contract/test/python/policy_graph_test.py``, signs such a credential with a real key and
 puts its PEM wherever the name appears.)
 
-An allow compares the subject and operation the root issued, its "evidence" (the presented
-credentials the root's capabilities cite, as the union of their evidence) and its "verified"
-(every presented credential bound to a node that ran), as sets of names. A denial compares
+An allow compares the decision's subject and operation, its "evidence" (the presented
+credentials the outputs of the required nodes cite, and the one each parameter is read from)
+and its "verified" (every presented credential bound to a node that ran or offered to a
+parameter), as sets of names. A denial compares
 "missing" as a set, or "reason" exactly. Indices are given in presentation order, roles sorted.
 """
 
@@ -96,11 +97,18 @@ class GraphTestVerifier:
         return view["issuer"] == view["signer"] and key_type == "ec" and key == cred["signing_key"]
 
 
+def missing(entry):
+    """A missing input or parameter, as a test names it."""
+    if "parameter" in entry:
+        return {"parameter": entry["parameter"]}
+    return {"node": entry["node"], "input": entry["input"]}
+
+
 def outcome(result, names):
     """What a test's expect compares with."""
     if not result["decision"]:
         if "missing" in result:
-            return {"decision": False, "missing": [{"node": m["node"], "input": m["input"]} for m in result["missing"]]}
+            return {"decision": False, "missing": [missing(m) for m in result["missing"]]}
         return {"decision": False, "reason": result["reason"]}
     return {
         "decision": True,

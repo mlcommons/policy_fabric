@@ -7,9 +7,9 @@ import rego.v1
 # and an intended use names no purpose the owner treats as commercial.
 #   legalDesignation  LegalDesignationCredential  about the requester, hasLegalForm
 #   intendedDataUse   IntendedDataUseCredential   about the project, useOnlyFor.purposes
-# -> DownloadGrantCredential about the requester.
+# -> DataUseConditionCredential about the requester.
 interface := {
-	"output": "DownloadGrantCredential",
+	"output": "DataUseConditionCredential",
 	"inputs": {
 		"legalDesignation": {"type": "LegalDesignationCredential", "role": "User"},
 		"intendedDataUse": {"type": "IntendedDataUseCredential", "role": "User"},
@@ -32,13 +32,13 @@ interface := {
 	},
 }
 
-output := [grant |
+output := [condition |
 	some designation in input.inputs.legalDesignation
 	designation.claims.hasLegalForm in input.policy_data.nonprofitLegalForms
 	some use in input.inputs.intendedDataUse
 	non_commercial(use.claims.useOnlyFor.purposes, input.policy_data.prohibitedPurposes)
-	grant := {
-		"type": "DownloadGrantCredential",
+	condition := {
+		"type": "DataUseConditionCredential",
 		"subject": designation.subject,
 		"claims": {},
 		"evidence": evidence([designation, use]),

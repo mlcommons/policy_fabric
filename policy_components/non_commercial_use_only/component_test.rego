@@ -13,7 +13,7 @@ use := {"type": "IntendedDataUseCredential", "issuer": "did:example:dac", "subje
 agreement := {"type": "AgreementCredential", "issuer": "did:example:platform", "subject": "did:example:user",
 	"claims": {"agreementInfo": {"documentID": "did:example:terms", "documentVersion": "1.0"}}, "evidence": [3]}
 
-grant(uses, agreements) := out if {
+condition(uses, agreements) := out if {
 	out := non_commercial_use_only.output with input as {
 		"inputs": {"projectMembership": [membership], "intendedDataUse": uses, "agreement": agreements},
 		"policy_data": {"prohibitedPurposes": ["commercial"]}, "request": {},
@@ -21,11 +21,11 @@ grant(uses, agreements) := out if {
 }
 
 test_no_purpose_the_owner_prohibits if {
-	grant([use], [agreement]) == [{"type": "DownloadGrantCredential", "subject": "did:example:user", "claims": {}, "evidence": [0, 1, 2, 3]}]
+	condition([use], [agreement]) == [{"type": "DataUseConditionCredential", "subject": "did:example:user", "claims": {}, "evidence": [0, 1, 2, 3]}]
 }
 
 test_a_purpose_the_owner_prohibits if {
-	grant([object.union(use, {"claims": {"useOnlyFor": {"purposes": ["HMB", "commercial"]}}})], [agreement]) == []
+	condition([object.union(use, {"claims": {"useOnlyFor": {"purposes": ["HMB", "commercial"]}}})], [agreement]) == []
 }
 
 test_policy_data_without_the_prohibited_purposes if {
@@ -36,9 +36,9 @@ test_policy_data_without_the_prohibited_purposes if {
 }
 
 test_the_use_of_another_project if {
-	grant([object.union(use, {"subject": "did:example:other-project"})], [agreement]) == []
+	condition([object.union(use, {"subject": "did:example:other-project"})], [agreement]) == []
 }
 
 test_the_agreement_of_someone_else if {
-	grant([use], [object.union(agreement, {"subject": "did:example:other"})]) == []
+	condition([use], [object.union(agreement, {"subject": "did:example:other"})]) == []
 }

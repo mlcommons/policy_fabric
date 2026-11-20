@@ -1,7 +1,6 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "Institution Specific Restriction for inference",
-  "root": "grant_inference",
   "nodes": {
     "institution_specific_restriction_for_inference": {
       "component": "institution_specific_restriction_for_inference",
@@ -14,23 +13,22 @@
         },
         "scriptOwnership": {
           "from": "presented"
-        },
-        "scriptHash": {
-          "from": "presented"
         }
       },
       "policy_data": {}
-    },
-    "grant_inference": {
-      "component": "grant_inference",
-      "inputs": {
-        "grant": {
-          "from": "node",
-          "node": "institution_specific_restriction_for_inference",
-          "accept_presented": false
-        }
-      },
-      "policy_data": {}
+    }
+  },
+  "capability": {
+    "operation": "do_inference",
+    "requires": [
+      "institution_specific_restriction_for_inference"
+    ],
+    "parameters": {
+      "script_digest": {
+        "type": "ScriptHashCredential",
+        "role": "Script",
+        "claim": "scriptHash"
+      }
     }
   },
   "trusted_issuers": {

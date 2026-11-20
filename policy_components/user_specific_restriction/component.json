@@ -1,7 +1,7 @@
 {
   "name": "UserSpecificRestriction",
   "group": "card",
-  "summary": "The card component of User Specific Restriction (DUO_0000026). The requester's platform account belongs to an approved user, is of an allowed account type, or has a profile status the owner accepts. Outputs the DownloadGrantCredential that Grant download takes.",
+  "summary": "The card component of User Specific Restriction (DUO_0000026). The requester's platform account belongs to an approved user, is of an allowed account type, or has a profile status the owner accepts. Outputs a DataUseConditionCredential about the requester.",
   "inputs": {
     "userPlatform": {
       "type": "UserPlatformCredential",
@@ -15,7 +15,7 @@
     }
   },
   "output": {
-    "type": "DownloadGrantCredential",
+    "type": "DataUseConditionCredential",
     "about": "requester",
     "claims": []
   },

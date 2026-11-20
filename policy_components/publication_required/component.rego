@@ -9,9 +9,9 @@ import rego.v1
 #   affiliation        AffiliationCredential        about the requester, isMemberOf
 #   scopedAgreement    ScopedAgreementCredential    about the terms, agreementInfo.scope
 #   agreement          AgreementCredential          about the institution, agreementInfo.documentID
-# -> DownloadGrantCredential about the requester.
+# -> DataUseConditionCredential about the requester.
 interface := {
-	"output": "DownloadGrantCredential",
+	"output": "DataUseConditionCredential",
 	"inputs": {
 		"projectMembership": {"type": "ProjectMembershipCredential", "role": "User"},
 		"affiliation": {"type": "AffiliationCredential", "role": "User"},
@@ -28,7 +28,7 @@ interface := {
 	},
 }
 
-output := [grant |
+output := [condition |
 	some membership in input.inputs.projectMembership
 	some affiliation in input.inputs.affiliation
 	affiliation.subject == membership.subject
@@ -39,8 +39,8 @@ output := [grant |
 	some agreement in input.inputs.agreement
 	agreement.subject == affiliation.claims.isMemberOf
 	agreement.claims.agreementInfo.documentID == scoped.subject
-	grant := {
-		"type": "DownloadGrantCredential",
+	condition := {
+		"type": "DataUseConditionCredential",
 		"subject": membership.subject,
 		"claims": {},
 		"evidence": evidence([membership, affiliation, scoped, agreement]),

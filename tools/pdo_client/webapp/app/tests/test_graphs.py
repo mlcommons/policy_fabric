@@ -5,19 +5,18 @@ import unittest
 
 from app import graphs
 
-from .test_views import CATALOG, GS_GRAPH, IS_GRAPH
+from .test_views import CATALOG, DOWNLOAD_PARAMETERS, GS_GRAPH, IS_GRAPH
 
 
 class Compose(unittest.TestCase):
     def test_one_card_is_its_own_graph(self):
         self.assertEqual(graphs.compose([GS_GRAPH])["nodes"], GS_GRAPH["nodes"])
 
-    def test_several_cards_feed_one_grant(self):
+    def test_several_cards_require_one_capability(self):
         graph = graphs.compose([GS_GRAPH, IS_GRAPH])
         self.assertEqual(graph["name"], "Geographical Restriction + Institution Specific Restriction")
-        self.assertEqual([s["node"] for s in graph["nodes"]["grant_download"]["inputs"]["grant"]],
-                         ["geographical_restriction", "institution_specific_restriction"])
-        self.assertEqual(graph["nodes"]["grant_download"]["inputs"]["key"], {"from": "presented"})
+        self.assertEqual(graph["capability"]["requires"], ["geographical_restriction", "institution_specific_restriction"])
+        self.assertEqual(graph["capability"]["parameters"], DOWNLOAD_PARAMETERS)
 
     def test_a_shared_node_is_kept_once(self):
         other = copy.deepcopy(IS_GRAPH)
@@ -31,10 +30,10 @@ class Compose(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "differently"):
             graphs.compose([GS_GRAPH, other])
 
-    def test_cards_ending_in_different_grants_are_refused(self):
+    def test_cards_issuing_different_operations_are_refused(self):
         other = copy.deepcopy(IS_GRAPH)
-        other["root"] = "grant_inference"
-        with self.assertRaisesRegex(ValueError, "different grants"):
+        other["capability"]["operation"] = "do_inference"
+        with self.assertRaisesRegex(ValueError, "different operations"):
             graphs.compose([GS_GRAPH, other])
 
 

@@ -1,7 +1,6 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "Publication Moratorium",
-  "root": "grant_download",
   "nodes": {
     "publication_moratorium": {
       "component": "publication_moratorium",
@@ -14,20 +13,19 @@
         }
       },
       "policy_data": {}
-    },
-    "grant_download": {
-      "component": "grant_download",
-      "inputs": {
-        "key": {
-          "from": "presented"
-        },
-        "grant": {
-          "from": "node",
-          "node": "publication_moratorium",
-          "accept_presented": false
-        }
-      },
-      "policy_data": {}
+    }
+  },
+  "capability": {
+    "operation": "do_download",
+    "requires": [
+      "publication_moratorium"
+    ],
+    "parameters": {
+      "channel_key": {
+        "type": "publicKeyCredential",
+        "role": "User",
+        "claim": "key"
+      }
     }
   },
   "trusted_issuers": {

@@ -9,15 +9,13 @@ import rego.v1
 #   affiliation         AffiliationCredential         about the requester, isMemberOf
 #   walletVerifyingKey  WalletVerifyingKeyCredential  about the requester, verifying_key
 #   scriptOwnership     ScriptOwnershipCredential     about the script, ownedBy, signed by the requester
-#   scriptHash          ScriptHashCredential          about the script, scriptHash
-# -> InferenceGrantCredential about the script, {script_digest}.
+# -> DataUseConditionCredential about the script.
 interface := {
-	"output": "InferenceGrantCredential",
+	"output": "DataUseConditionCredential",
 	"inputs": {
 		"affiliation": {"type": "AffiliationCredential", "role": "User"},
 		"walletVerifyingKey": {"type": "WalletVerifyingKeyCredential", "role": "User"},
 		"scriptOwnership": {"type": "ScriptOwnershipCredential", "role": "Script", "supplied_key": true},
-		"scriptHash": {"type": "ScriptHashCredential", "role": "Script"},
 	},
 	"policy_data_schema": {
 		"type": "object",
@@ -30,7 +28,7 @@ interface := {
 	},
 }
 
-output := [grant |
+output := [condition |
 	some affiliation in input.inputs.affiliation
 	affiliation.claims.isMemberOf in input.policy_data.allowedInstitutions
 	some wallet_key in input.inputs.walletVerifyingKey
@@ -38,13 +36,11 @@ output := [grant |
 	some ownership in input.inputs.scriptOwnership
 	ownership.issuer == affiliation.subject
 	ownership.claims.ownedBy == affiliation.subject
-	some hash in input.inputs.scriptHash
-	hash.subject == ownership.subject
-	grant := {
-		"type": "InferenceGrantCredential",
-		"subject": hash.subject,
-		"claims": {"script_digest": hash.claims.scriptHash},
-		"evidence": evidence([affiliation, wallet_key, ownership, hash]),
+	condition := {
+		"type": "DataUseConditionCredential",
+		"subject": ownership.subject,
+		"claims": {},
+		"evidence": evidence([affiliation, wallet_key, ownership]),
 		"key_checks": [{"index": ownership.evidence[0], "key": wallet_key.claims.verifying_key, "key_type": "ec"}],
 	}
 ]

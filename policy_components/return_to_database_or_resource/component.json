@@ -1,7 +1,7 @@
 {
   "name": "ReturnToDatabaseOrResource",
   "group": "card",
-  "summary": "The card component of Return to Database or Resource (DUO_0000029). It reads AgreementCredential and ComputeEnvironmentCredential: the agreement must be to the terms document its policy data names, and the compute environment must attest SecureHandlingOfResults. It outputs the DownloadGrantCredential that Grant download takes.",
+  "summary": "The card component of Return to Database or Resource (DUO_0000029). It reads AgreementCredential and ComputeEnvironmentCredential: the agreement must be to the terms document its policy data names, and the compute environment must attest SecureHandlingOfResults. It outputs a DataUseConditionCredential about the requester.",
   "inputs": {
     "agreement": {
       "type": "AgreementCredential",
@@ -21,7 +21,7 @@
     }
   },
   "output": {
-    "type": "DownloadGrantCredential",
+    "type": "DataUseConditionCredential",
     "about": "requester",
     "claims": []
   },

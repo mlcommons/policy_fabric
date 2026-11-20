@@ -123,13 +123,14 @@ the graph.
 | `app/trust.py` | the authorities offered and registered per credential type |
 | `app/checklist.py`, `app/readiness.py` | the requester's checklist, and the credentials system authorities issue on the way |
 
-**Composing cards.** The cards on one asset become one graph under one grant:
+**Composing cards.** The cards on one asset become one graph under one capability:
 
 - node ids are component ids, so a component two cards share, such as ProjectMembership, is one node,
   with one set of parameters, and must be wired the same way in both cards ("The policies use
   `<node>` differently." otherwise);
-- every card must end in the same grant ("The policies end in different grants" otherwise); its
-  `grant` input takes every card's grant, and it issues the capability only when every card granted it;
+- every card must issue the same operation with the same parameters ("The policies issue different
+  operations" otherwise); the capability requires every card's nodes, so it issues the operation only
+  when every card holds for the same subject;
 - every type a card trusts is listed with no issuer; the owner's choice of authorities per type is
   registered with `register_trusted_issuer` after `set_rego_policy`.
 

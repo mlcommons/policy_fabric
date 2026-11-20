@@ -8,7 +8,7 @@ policy_fabric tree:
 |--------|-------|-----|
 | `credentials/` | one `CredentialTemplate` per JSON Schema, with its display name, meaning, subject kinds and whether requesters assert it themselves | `/api/credentials/`, `/api/credentials/<id>/` |
 | `policy_components/` | one `PolicyComponent` per component: its Rego, its `component.json` and the JSON Schema of its policy data | `/api/components/` |
-| `policy_cards/` | one `PolicyTemplate` per card: its `graph.json`, the code, name and rule its `card.json` gives, its `policy_card.md`, and the guardian type its graph's grant fits | `/api/policies/?guardian_type=`, `/api/policies/<id>/` |
+| `policy_cards/` | one `PolicyTemplate` per card: its `graph.json`, the code, name and rule its `card.json` gives, its `policy_card.md`, and the guardian type that redeems its capability's operation | `/api/policies/?guardian_type=`, `/api/policies/<id>/` |
 
 `/api/catalog/` is the policy catalog of the folders, built by
 `tools/policy_catalog/build_catalog.py`, which the webapp draws policy graphs from.

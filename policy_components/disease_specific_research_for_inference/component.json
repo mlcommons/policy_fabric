@@ -1,7 +1,7 @@
 {
   "name": "DiseaseSpecificResearchForInference",
   "group": "card",
-  "summary": "The card component of Disease Specific Research for inference (DUO_0000007). The script declares a use for a disease the owner allows. Outputs the InferenceGrantCredential that Grant inference takes.",
+  "summary": "The card component of Disease Specific Research for inference (DUO_0000007). The script declares a use for a disease the owner allows. Outputs a DataUseConditionCredential about the script.",
   "inputs": {
     "intendedDataUse": {
       "type": "IntendedDataUseCredential",
@@ -10,22 +10,12 @@
       "claims": [
         "useOnlyFor.diseases"
       ]
-    },
-    "scriptHash": {
-      "type": "ScriptHashCredential",
-      "about": "script",
-      "role": "Script",
-      "claims": [
-        "scriptHash"
-      ]
     }
   },
   "output": {
-    "type": "InferenceGrantCredential",
+    "type": "DataUseConditionCredential",
     "about": "script",
-    "claims": [
-      "script_digest"
-    ]
+    "claims": []
   },
   "policy_data": {
     "allowedDiseases": {

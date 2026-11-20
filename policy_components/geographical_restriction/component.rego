@@ -5,9 +5,9 @@ import rego.v1
 # GeographicalRestriction, the card component of Geographical Restriction (DUO_0000022):
 # the requester's organisation is located in a country the owner allows.
 #   location  LocationCredential  about the requester, locatedAt.country
-# -> DownloadGrantCredential about the requester.
+# -> DataUseConditionCredential about the requester.
 interface := {
-	"output": "DownloadGrantCredential",
+	"output": "DataUseConditionCredential",
 	"inputs": {"location": {"type": "LocationCredential", "role": "User"}},
 	"policy_data_schema": {
 		"type": "object",
@@ -20,11 +20,11 @@ interface := {
 	},
 }
 
-output := [grant |
+output := [condition |
 	some location in input.inputs.location
 	location.claims.locatedAt.country in input.policy_data.allowedCountries
-	grant := {
-		"type": "DownloadGrantCredential",
+	condition := {
+		"type": "DataUseConditionCredential",
 		"subject": location.subject,
 		"claims": {},
 		"evidence": evidence([location]),

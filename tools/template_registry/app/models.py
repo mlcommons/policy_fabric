@@ -2,14 +2,14 @@ from django.db import models
 
 
 class PolicyTemplate(models.Model):
-    """A policy card: a graph of policy components, ending in the grant of one kind of
-    guardian."""
+    """A policy card: a graph of policy components, whose capability issues the operation
+    of one kind of guardian."""
 
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=40, default="")
     title = models.CharField(max_length=200, default="")
     rule = models.TextField(default="")
-    # the guardians the card's grant fits: download or inference
+    # the guardians that redeem the card's operation: download or inference
     guardian_types = models.JSONField(default=list)
     # its policy_card.md, the full Policy Card
     policy_card = models.TextField(default="")

@@ -1,7 +1,6 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "Institution Specific Restriction",
-  "root": "grant_download",
   "nodes": {
     "institution_specific_restriction": {
       "component": "institution_specific_restriction",
@@ -11,20 +10,19 @@
         }
       },
       "policy_data": {}
-    },
-    "grant_download": {
-      "component": "grant_download",
-      "inputs": {
-        "key": {
-          "from": "presented"
-        },
-        "grant": {
-          "from": "node",
-          "node": "institution_specific_restriction",
-          "accept_presented": false
-        }
-      },
-      "policy_data": {}
+    }
+  },
+  "capability": {
+    "operation": "do_download",
+    "requires": [
+      "institution_specific_restriction"
+    ],
+    "parameters": {
+      "channel_key": {
+        "type": "publicKeyCredential",
+        "role": "User",
+        "claim": "key"
+      }
     }
   },
   "trusted_issuers": {

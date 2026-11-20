@@ -4,19 +4,22 @@ A policy card states what must be true to use an asset. Each card is a **graph o
 [policy components](../policy_components/)** (`graph.json`): small Rego components that
 pass credentials to each other. Shared components join credentials into new ones --
 ProjectMembership turns a requester's team and their PI's project ownership into a
-ProjectMembershipCredential -- a card component checks the result against the owner's
-parameters and outputs a grant, and Grant download or Grant inference issues the
-capability the asset's guardian redeems.
+ProjectMembershipCredential -- and a card component checks the result against the owner's
+parameters. The graph's capability requires the card component and issues the operation the
+asset's guardian redeems, `do_download` or `do_inference`, reading its parameter (the
+requester's session key, or the script's digest) from a presented credential about the same
+subject.
 
 | Decision | Made by | Lives in |
 |----------|---------|----------|
 | What must be true to use my data | the data owner | the cards' graphs, and each node's parameters |
 | Whose word I accept, per credential type | the data owner | the trusted issuers of the asset's policy agent |
 | How a credential is established | an authority's operator | an authority, on the webapp's Authorities page |
-| What is unlocked, and how | the platform, per guardian type | Grant download or Grant inference |
+| What is unlocked, and how | the platform, per guardian type | the operation of the graph's capability, and its parameters |
 
 A data owner selects one or more cards when exposing an asset. Their graphs compose into
-one under a single grant, sharing the components they have in common, and the webapp sets
+one whose capability requires every card's component, sharing the components they have in
+common, and the webapp sets
 it on the asset's `rego_policy_agent` with `set_rego_policy`. The contract validates the
 graph against its components' interfaces, plans per request which components run, runs
 them, and issues the capability only after verifying every credential they read.
@@ -62,8 +65,8 @@ writes the owner's values into the asset's graph, and the contract stores each n
 | DUO_0000025 TS | [`time-limit-on-use/`](time-limit-on-use/) | Accepted terms, Compute environment |
 | DUO_0000026 US | [`user-specific-restriction/`](user-specific-restriction/) | Platform account |
 
-These end in Grant download. [`FL/`](FL/) holds the two cards for federated inference,
-which end in Grant inference and read credentials about the script a requester brings.
+These issue `do_download`. [`FL/`](FL/) holds the two cards for federated inference,
+which issue `do_inference` and read credentials about the script a requester brings.
 
 ## Writing a card
 
@@ -73,8 +76,8 @@ which end in Grant inference and read credentials about the script a requester b
 2. **`graph.json`.** Draw it in the [Policy Composer](../docs/docs/composer.md) of the docs
    site (to run it locally, see [`../docs/README.md`](../docs/README.md)): load a card or start
    from the component library, wire each output to an input of the same credential type, turn
-   on accept presented where a registry may issue the joined credential, check it, and
-   download it. Save it as `<folder>/graph.json`, or `FL/<folder>/graph.json` for an inference
+   on accept presented where a registry may issue the joined credential, choose the
+   operation and mark the node the capability requires, check it, and download it. Save it as `<folder>/graph.json`, or `FL/<folder>/graph.json` for an inference
    card. The committed graph lists `[]` for every type in `trusted_issuers` and leaves every
    node's `policy_data` empty: the owner chooses both when exposing an asset.
 3. **`card.json`**: exactly `code` (the DUO abbreviation), `name` and `rule`, the one-line

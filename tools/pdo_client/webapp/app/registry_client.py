@@ -95,7 +95,7 @@ def list_trust_lists():
 
 
 def policy_templates_for(guardian_type):
-    """The policy cards whose graphs end in the grant of a guardian type."""
+    """The policy cards whose capability issues the operation a guardian type redeems."""
     return _get(_template_registry("policies/"), {"guardian_type": guardian_type})
 
 

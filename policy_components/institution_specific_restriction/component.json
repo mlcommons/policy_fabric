@@ -1,7 +1,7 @@
 {
   "name": "InstitutionSpecificRestriction",
   "group": "card",
-  "summary": "The card component of Institution Specific Restriction (DUO_0000028). The requester is a member of an institution the owner allows. Outputs the DownloadGrantCredential that Grant download takes.",
+  "summary": "The card component of Institution Specific Restriction (DUO_0000028). The requester is a member of an institution the owner allows. Outputs a DataUseConditionCredential about the requester.",
   "inputs": {
     "affiliation": {
       "type": "AffiliationCredential",
@@ -13,7 +13,7 @@
     }
   },
   "output": {
-    "type": "DownloadGrantCredential",
+    "type": "DataUseConditionCredential",
     "about": "requester",
     "claims": []
   },

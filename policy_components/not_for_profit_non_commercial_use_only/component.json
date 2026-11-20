@@ -1,7 +1,7 @@
 {
   "name": "NotForProfitNonCommercialUseOnly",
   "group": "card",
-  "summary": "The card component of Not-for-Profit, Non-Commercial Use Only (DUO_0000018). The requester's legal form is one the owner treats as not-for-profit, and an intended use names no purpose the owner treats as commercial. Outputs the DownloadGrantCredential that Grant download takes.",
+  "summary": "The card component of Not-for-Profit, Non-Commercial Use Only (DUO_0000018). The requester's legal form is one the owner treats as not-for-profit, and an intended use names no purpose the owner treats as commercial. Outputs a DataUseConditionCredential about the requester.",
   "inputs": {
     "legalDesignation": {
       "type": "LegalDesignationCredential",
@@ -21,7 +21,7 @@
     }
   },
   "output": {
-    "type": "DownloadGrantCredential",
+    "type": "DataUseConditionCredential",
     "about": "requester",
     "claims": []
   },

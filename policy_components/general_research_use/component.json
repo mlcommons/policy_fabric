@@ -1,7 +1,7 @@
 {
   "name": "GeneralResearchUse",
   "group": "card",
-  "summary": "The card component of General Research Use (DUO_0000042). The requester accepted the terms document the owner requires. Outputs the DownloadGrantCredential that Grant download takes.",
+  "summary": "The card component of General Research Use (DUO_0000042). The requester accepted the terms document the owner requires. Outputs a DataUseConditionCredential about the requester.",
   "inputs": {
     "agreement": {
       "type": "AgreementCredential",
@@ -13,7 +13,7 @@
     }
   },
   "output": {
-    "type": "DownloadGrantCredential",
+    "type": "DataUseConditionCredential",
     "about": "requester",
     "claims": []
   },

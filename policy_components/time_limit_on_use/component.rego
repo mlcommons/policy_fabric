@@ -7,9 +7,9 @@ import rego.v1
 # than the owner's deadline.
 #   agreement           AgreementCredential           about the requester, agreementInfo.documentID
 #   computeEnvironment  ComputeEnvironmentCredential  about a compute node, hasComputeProfile.profile.shutsDownAt
-# -> DownloadGrantCredential about the requester.
+# -> DataUseConditionCredential about the requester.
 interface := {
-	"output": "DownloadGrantCredential",
+	"output": "DataUseConditionCredential",
 	"inputs": {
 		"agreement": {"type": "AgreementCredential", "role": "User"},
 		"computeEnvironment": {"type": "ComputeEnvironmentCredential", "role": "User"},
@@ -30,15 +30,15 @@ interface := {
 	},
 }
 
-output := [grant |
+output := [condition |
 	some agreement in input.inputs.agreement
 	agreement.claims.agreementInfo.documentID == input.policy_data.requiredDocumentID
 	some compute in input.inputs.computeEnvironment
 
 	# ISO-8601 UTC datetimes of one format compare chronologically as strings.
 	compute.claims.hasComputeProfile.profile.shutsDownAt <= input.policy_data.notAfter
-	grant := {
-		"type": "DownloadGrantCredential",
+	condition := {
+		"type": "DataUseConditionCredential",
 		"subject": agreement.subject,
 		"claims": {},
 		"evidence": evidence([agreement, compute]),

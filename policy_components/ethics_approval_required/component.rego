@@ -7,9 +7,9 @@ import rego.v1
 # use the data only for purposes the IRB approved.
 #   clearance IRBClearanceCredential     about the requester, {project, purposes}
 #   use       IntendedDataUseCredential  about the project, useOnlyFor.purposes
-# -> DownloadGrantCredential about the requester. No policy data.
+# -> DataUseConditionCredential about the requester. No policy data.
 interface := {
-	"output": "DownloadGrantCredential",
+	"output": "DataUseConditionCredential",
 	"inputs": {
 		"clearance": {"type": "IRBClearanceCredential", "role": "User"},
 		"use": {"type": "IntendedDataUseCredential", "role": "User"},
@@ -23,7 +23,7 @@ output := [cred |
 	use.subject == clearance.claims.project
 	approved_use(use.claims.useOnlyFor.purposes, clearance.claims.purposes)
 	cred := {
-		"type": "DownloadGrantCredential",
+		"type": "DataUseConditionCredential",
 		"subject": clearance.subject,
 		"claims": {},
 		"evidence": evidence([clearance, use]),

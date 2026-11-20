@@ -79,7 +79,7 @@ class SeededFromTheRepository(TestCase):
         self.assertTrue(presentable["TeamCredential"])
         self.assertTrue(presentable["ProjectMembershipCredential"])
         self.assertTrue(presentable["IRBClearanceCredential"])
-        self.assertFalse(presentable["DownloadGrantCredential"])
+        self.assertFalse(presentable["DataUseConditionCredential"])
         self.assertFalse(presentable["InstitutionalIRBApprovalCredential"])
 
     def test_the_catalog_holds_every_card_and_component(self):
@@ -94,7 +94,7 @@ class SeededFromTheRepository(TestCase):
         missing = self.client.post("/api/policies/", {"name": "NO-GRAPH"}, content_type="application/json")
         self.assertEqual(missing.status_code, 400)
         broken = json.loads(json.dumps(graph))
-        broken["nodes"]["grant_download"]["inputs"].pop("key")
+        broken["nodes"]["geographical_restriction"]["inputs"].pop("location")
         refused = self.client.post("/api/policies/", {"name": "BROKEN", "graph": broken}, content_type="application/json")
         self.assertEqual(refused.status_code, 400)
         self.assertTrue(any("binds" in p for p in refused.json()["problems"]))

@@ -36,10 +36,11 @@ Authored against the Policy Fabric Policy Card template: the numbered sections b
 
 **Rule:** The script declares a use within your disease scope.
 
-The script declares a use for a disease the owner allows. Outputs the InferenceGrantCredential that Grant inference takes.
+The script declares a use for a disease the owner allows. Outputs a DataUseConditionCredential about the script.
 
 The card is a graph of policy components: each takes credentials, presented or produced by the
-components before it, and outputs one of its own, until Grant inference issues the capability.
+components before it, and outputs one of its own. The graph's capability issues `do_inference` when the
+card's component holds.
 
 - **Governance objective:** restrict inference to code declared for the diseases
   the data is consented for.
@@ -49,9 +50,9 @@ components before it, and outputs one of its own, until Grant inference issues t
 ```text
 Permission: use the target dataset through its guardian
   Assignee:  the requester
-  Conditions (all must hold), as the graph's components check them:
+  Conditions (all must hold), as the graph checks them:
     - DiseaseSpecificResearchForInference: The script declares a use for a disease the owner allows.
-    - Grant inference: every card granted the script the request names, with that digest
+    - the script has the digest the request names: a ScriptHashCredential about it carries it
     - each presented credential is from an authority the owner accepts for its type
   On grant:  do_inference for the digest of the script the request names
   Otherwise: deny
@@ -72,9 +73,9 @@ Every type resolves to a schema in [`credentials/`](../../../credentials/).
 
 ## 8  Capability Granted
 
-`do_inference` for the digest of the script the request names, issued by Grant inference. With several cards on one
-asset, their graphs compose into one under that component, which issues the capability only when
-every card granted it.
+`do_inference` for the digest of the script the request names, issued by the graph's capability. With several cards on one
+asset, their graphs compose into one whose capability requires every card's component, so it issues
+`do_inference` only when every card holds for the same script.
 
 ## 9  Codified Representation
 
@@ -84,8 +85,7 @@ its own unit tests and `component.json`:
 
 | Policy Component | What it checks |
 |---|---|
-| DiseaseSpecificResearchForInference | The script declares a use for a disease the owner allows. Outputs the InferenceGrantCredential that Grant inference takes. |
-| Grant inference | The end of every federated learning card. Issues do_inference for the script digest the request names, when every card on the asset granted that script, with that digest. |
+| DiseaseSpecificResearchForInference | The script declares a use for a disease the owner allows. Outputs a DataUseConditionCredential about the script. |
 
 [`graph_tests.json`](graph_tests.json) states the decisions the
 graph must reach; the contract and the card tests (`policy_components/run_tests.sh`) run

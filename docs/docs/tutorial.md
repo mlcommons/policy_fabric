@@ -159,7 +159,7 @@ For the tutorial's sake, the dataset is a single small file. **It is already cre
 
 Still on `data1`, the **Expose** panel lists the policies that fit this asset's guardian. Each is a **policy card**: a graph of small **policy components** that pass credentials to each other. (Use **View** to see a card's graph, its description and the Rego of its own component.)
 
-1. **Policies:** check **GS · Geographical restriction** and **IS · Institution-specific restriction**. Their graphs compose into one, drawn under the list: **GeographicalRestriction** reads the requester's location, **InstitutionSpecificRestriction** their affiliation, and both feed **Grant download**, which releases the data encrypted to the requester's **session key**.
+1. **Policies:** check **GS · Geographical restriction** and **IS · Institution-specific restriction**. Their graphs compose into one, drawn under the list: **GeographicalRestriction** reads the requester's location, **InstitutionSpecificRestriction** their affiliation, and the graph's **capability** requires both, releasing the data encrypted to the requester's **session key**.
 2. **Parameters:** each component that takes any gets its own form.
       - **GeographicalRestriction → Allowed countries:** `US`
       - **InstitutionSpecificRestriction → Allowed institutions:** `did:example:best_university`
@@ -169,7 +169,7 @@ Still on `data1`, the **Expose** panel lists the policies that fit this asset's 
       - **Session key:** **Session keys** is already checked — it is the only authority in the directory that issues it.
 4. **Review** reads: *Requesters will present one of: Affiliation + Location + Session key.* Click **Expose**.
 
-*What's happening:* this creates the asset's **policy**: the composed graph, each component's parameters, and the authorities it accepts **for each credential type**. GeographicalRestriction checks a location in an allowed country, InstitutionSpecificRestriction checks membership in an allowed institution, and Grant download grants only when both granted the holder of the same session key. A credential signed by an authority you did not accept counts for nothing here, and if you had allowed a different country, the policy would deny `data_user`, whose credential says `US`.
+*What's happening:* this creates the asset's **policy**: the composed graph, each component's parameters, and the authorities it accepts **for each credential type**. GeographicalRestriction checks a location in an allowed country, InstitutionSpecificRestriction checks membership in an allowed institution, and the capability issues the download only when both hold for the holder of the same session key. A credential signed by an authority you did not accept counts for nothing here, and if you had allowed a different country, the policy would deny `data_user`, whose credential says `US`.
 
 The asset is now fully published: dataset behind a guardian, gated by a policy that accepts both authorities. Its page now draws the graph, lists the ways requesters can meet it and the accepted authorities by name and kind — with **Remove** to withdraw trust and **Accept** to add more — and a form for each component's parameters.
 

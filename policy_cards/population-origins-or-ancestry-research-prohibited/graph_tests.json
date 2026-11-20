@@ -10,8 +10,7 @@
   "request": {"channel_key": "PUBKEY-USER-1"},
   "policy_data": {
     "project_membership": {},
-    "population_origins_or_ancestry_research_prohibited": {"prohibitedPurposes": ["POA"]},
-    "grant_download": {}
+    "population_origins_or_ancestry_research_prohibited": {"prohibitedPurposes": ["POA"]}
   },
   "credentials": {
     "team": {"type": "TeamCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
@@ -44,31 +43,31 @@
       "name": "deny: the project also intends a purpose the owner prohibits",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["HMB", "POA"]}}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node population_origins_or_ancestry_research_prohibited produced no credential"}
     },
     {
       "name": "deny: the intended use of another project",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {"use": {"subject": "did:example:project-2"}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node population_origins_or_ancestry_research_prohibited produced no credential"}
     },
     {
       "name": "deny: the requester is not on the team of the PI who owns the project",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {"team": {"claims": {"MemberOfTeamOf": "did:example:pi-2"}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node population_origins_or_ancestry_research_prohibited produced no credential"}
     },
     {
       "name": "deny: the agreement of someone else",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {"agreement": {"subject": "did:example:user-2"}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node population_origins_or_ancestry_research_prohibited produced no credential"}
     },
     {
       "name": "deny: the key of someone else",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {"key": {"subject": "did:example:user-2"}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "no publicKeyCredential about the subject has the key the request names for channel_key"}
     },
     {
       "name": "deny: no TeamCredential",
@@ -98,7 +97,7 @@
       "name": "deny: no publicKeyCredential",
       "present": {"User": ["team", "ownership", "use", "agreement"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+      "expect": {"decision": false, "missing": [{"parameter": "channel_key"}]}
     },
     {
       "name": "deny: an IntendedDataUseCredential from an issuer the contract does not trust",
