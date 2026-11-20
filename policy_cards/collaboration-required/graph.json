@@ -1,7 +1,6 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "Collaboration Required",
-  "root": "grant_download",
   "nodes": {
     "project_membership": {
       "component": "project_membership",
@@ -34,20 +33,19 @@
         }
       },
       "policy_data": {}
-    },
-    "grant_download": {
-      "component": "grant_download",
-      "inputs": {
-        "key": {
-          "from": "presented"
-        },
-        "grant": {
-          "from": "node",
-          "node": "collaboration_required",
-          "accept_presented": false
-        }
-      },
-      "policy_data": {}
+    }
+  },
+  "capability": {
+    "operation": "do_download",
+    "requires": [
+      "collaboration_required"
+    ],
+    "parameters": {
+      "channel_key": {
+        "type": "publicKeyCredential",
+        "role": "User",
+        "claim": "key"
+      }
     }
   },
   "trusted_issuers": {

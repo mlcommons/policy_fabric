@@ -1,7 +1,7 @@
 {
   "name": "NotForProfitOrganisationUseOnly",
   "group": "card",
-  "summary": "The card component of Not-for-Profit Organisation Use Only (DUO_0000045). The requester acts for an organisation of a legal form the owner accepts as not-for-profit. Outputs the DownloadGrantCredential that Grant download takes.",
+  "summary": "The card component of Not-for-Profit Organisation Use Only (DUO_0000045). The requester acts for an organisation of a legal form the owner accepts as not-for-profit. Outputs a DataUseConditionCredential about the requester.",
   "inputs": {
     "legalDesignation": {
       "type": "LegalDesignationCredential",
@@ -13,7 +13,7 @@
     }
   },
   "output": {
-    "type": "DownloadGrantCredential",
+    "type": "DataUseConditionCredential",
     "about": "requester",
     "claims": []
   },

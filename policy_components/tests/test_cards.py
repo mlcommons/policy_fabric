@@ -107,6 +107,7 @@ def as_before_test(card):
         suite = graph_tests(card)
         card_node = next(n for n, node in g["nodes"].items() if component_json(node["component"])["group"] == "card")
         read_types = {spec["type"] for iface in interfaces.values() for spec in iface["inputs"].values()}
+        read_types |= {spec["type"] for spec in g["capability"]["parameters"].values()}
         produced = {iface["output"] for iface in interfaces.values()}
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "policy.rego"

@@ -7,9 +7,9 @@ import rego.v1
 # attested to handle results securely.
 #   agreement           AgreementCredential           about the requester, agreementInfo.documentID
 #   computeEnvironment  ComputeEnvironmentCredential  about a compute node, hasComputeProfile.profile.SecureHandlingOfResults
-# -> DownloadGrantCredential about the requester.
+# -> DataUseConditionCredential about the requester.
 interface := {
-	"output": "DownloadGrantCredential",
+	"output": "DataUseConditionCredential",
 	"inputs": {
 		"agreement": {"type": "AgreementCredential", "role": "User"},
 		"computeEnvironment": {"type": "ComputeEnvironmentCredential", "role": "User"},
@@ -24,13 +24,13 @@ interface := {
 	},
 }
 
-output := [grant |
+output := [condition |
 	some agreement in input.inputs.agreement
 	agreement.claims.agreementInfo.documentID == input.policy_data.requiredDocumentID
 	some compute in input.inputs.computeEnvironment
 	compute.claims.hasComputeProfile.profile.SecureHandlingOfResults == true
-	grant := {
-		"type": "DownloadGrantCredential",
+	condition := {
+		"type": "DataUseConditionCredential",
 		"subject": agreement.subject,
 		"claims": {},
 		"evidence": evidence([agreement, compute]),

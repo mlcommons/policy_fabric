@@ -36,10 +36,11 @@ Authored against the Policy Fabric Policy Card template: the numbered sections b
 
 **Rule:** The requester's research has ethics approval.
 
-The requester holds an IRBClearanceCredential for a project, and that project's IntendedDataUseCredential names at least one purpose and only purposes the IRB approved. Outputs the DownloadGrantCredential that Grant download takes. No policy data.
+The requester holds an IRBClearanceCredential for a project, and that project's IntendedDataUseCredential names at least one purpose and only purposes the IRB approved. Outputs a DataUseConditionCredential about the requester. No policy data.
 
 The card is a graph of policy components: each takes credentials, presented or produced by the
-components before it, and outputs one of its own, until Grant download issues the capability.
+components before it, and outputs one of its own. The graph's capability issues `do_download` when the
+card's component holds.
 
 - **Governance objective:** restrict use of the asset to ethically approved
   research.
@@ -49,12 +50,12 @@ components before it, and outputs one of its own, until Grant download issues th
 ```text
 Permission: use the target dataset through its guardian
   Assignee:  the requester
-  Conditions (all must hold), as the graph's components check them:
+  Conditions (all must hold), as the graph checks them:
     - InstitutionalIRBApproval: The project was approved by an IRB that is accredited for an institution.
     - ProjectMembership: The requester is on the team of a PI who owns a project.
     - IRBClearance: The requester belongs to the institution whose accredited IRB approved the requester's project.
     - EthicsApprovalRequired: The requester holds an IRBClearanceCredential for a project, and that project's IntendedDataUseCredential names at least one purpose and only purposes the IRB approved.
-    - Grant download: every card granted the holder of the session key
+    - the requester holds the session key the request names: a publicKeyCredential about them carries it
     - each presented credential is from an authority the owner accepts for its type
   On grant:  do_download, encrypted to the requester's session key (the key in their publicKeyCredential)
   Otherwise: deny
@@ -85,9 +86,9 @@ This card needs no owner-configured values; the decision is structural.
 
 ## 8  Capability Granted
 
-`do_download`, encrypted to the requester's session key (the key in their `publicKeyCredential`), issued by Grant download. With several cards on one
-asset, their graphs compose into one under that component, which issues the capability only when
-every card granted it.
+`do_download`, encrypted to the requester's session key (the key in their `publicKeyCredential`), issued by the graph's capability. With several cards on one
+asset, their graphs compose into one whose capability requires every card's component, so it issues
+`do_download` only when every card holds for the same requester.
 
 ## 9  Codified Representation
 
@@ -100,8 +101,7 @@ its own unit tests and `component.json`:
 | InstitutionalIRBApproval | The project was approved by an IRB that is accredited for an institution. Checks that the EthicsCommitteeAccreditationCredential is about the committee that approved the project (isApprovedByEthicsCommittee); outputs, for the project, that institution (ResponsibleFor) and the purposes the IRB approved. |
 | ProjectMembership | The requester is on the team of a PI who owns a project. Checks that the ProjectOwnershipCredential is about the PI the TeamCredential names (MemberOfTeamOf); outputs the project, for the requester. |
 | IRBClearance | The requester belongs to the institution whose accredited IRB approved the requester's project. Checks that the AffiliationCredential is the requester's, that its isMemberOf is the approval's institution, and that the approved project is the requester's project; outputs, for the requester, the project and the approved purposes. |
-| EthicsApprovalRequired | The requester holds an IRBClearanceCredential for a project, and that project's IntendedDataUseCredential names at least one purpose and only purposes the IRB approved. Outputs the DownloadGrantCredential that Grant download takes. No policy data. |
-| Grant download | The end of every download card. Issues do_download to the holder of the key when the card granted that same person: the publicKeyCredential and the DownloadGrantCredential must be about the same subject. The channel key is the key in the publicKeyCredential. |
+| EthicsApprovalRequired | The requester holds an IRBClearanceCredential for a project, and that project's IntendedDataUseCredential names at least one purpose and only purposes the IRB approved. Outputs a DataUseConditionCredential about the requester. No policy data. |
 
 [`graph_tests.json`](graph_tests.json) states the decisions the
 graph must reach; the contract and the card tests (`policy_components/run_tests.sh`) run

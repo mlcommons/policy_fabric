@@ -50,8 +50,8 @@ CREDENTIALS = [
     {"id": 6, "template_type": "AffiliationCredential", "display_name": "Affiliation",
      "meaning": "A member.", "subject_kinds": ["wallet"], "self_asserted": False, "presentable": True,
      "json_schema": {"type": "object", "properties": {"isMemberOf": {"type": "string"}}, "required": ["isMemberOf"]}},
-    {"id": 7, "template_type": "DownloadGrantCredential", "display_name": "Download grant",
-     "meaning": "Granted.", "subject_kinds": ["wallet"], "self_asserted": False, "presentable": False,
+    {"id": 7, "template_type": "DataUseConditionCredential", "display_name": "Data use condition",
+     "meaning": "Met.", "subject_kinds": ["wallet"], "self_asserted": False, "presentable": False,
      "json_schema": {"type": "object", "properties": {}, "required": []}},
 ]
 
@@ -64,16 +64,14 @@ COUNTRIES = {
 }
 
 
+DOWNLOAD_PARAMETERS = {"channel_key": {"type": "publicKeyCredential", "role": "User", "claim": "key"}}
+
+
 def card_graph(name, node, input_name, input_type):
     return {
-        "version": 2, "name": name, "root": "grant_download",
-        "nodes": {
-            node: {"component": node, "inputs": {input_name: {"from": "presented"}}, "policy_data": {}},
-            "grant_download": {"component": "grant_download", "inputs": {
-                "key": {"from": "presented"},
-                "grant": {"from": "node", "node": node, "accept_presented": False},
-            }, "policy_data": {}},
-        },
+        "version": 3, "name": name,
+        "nodes": {node: {"component": node, "inputs": {input_name: {"from": "presented"}}, "policy_data": {}}},
+        "capability": {"operation": "do_download", "requires": [node], "parameters": DOWNLOAD_PARAMETERS},
         "trusted_issuers": {input_type: [], "publicKeyCredential": []},
     }
 
@@ -82,10 +80,11 @@ GS_GRAPH = card_graph("Geographical Restriction", "geographical_restriction", "l
 IS_GRAPH = card_graph("Institution Specific Restriction", "institution_specific_restriction", "affiliation",
                       "AffiliationCredential")
 FL_GRAPH = {
-    "version": 2, "name": "Inference", "root": "grant_inference",
-    "nodes": {"grant_inference": {"component": "grant_inference", "inputs": {"grant": {"from": "presented"}},
-                                  "policy_data": {}}},
-    "trusted_issuers": {},
+    "version": 3, "name": "Inference",
+    "nodes": {"declared_use": {"component": "declared_use", "inputs": {"use": {"from": "presented"}}, "policy_data": {}}},
+    "capability": {"operation": "do_inference", "requires": ["declared_use"],
+                   "parameters": {"script_digest": {"type": "ScriptHashCredential", "role": "Script", "claim": "scriptHash"}}},
+    "trusted_issuers": {"IntendedDataUseCredential": [], "ScriptHashCredential": []},
 }
 
 
@@ -93,7 +92,7 @@ def card_component(component_id, name, input_name, input_type, schema):
     return {
         "name": name, "group": "card", "policy_data_schema": schema, "rego": f"package pf.components.{component_id}",
         "inputs": {input_name: {"type": input_type, "about": "requester", "role": "User", "claims": []}},
-        "output": {"type": "DownloadGrantCredential", "about": "requester", "claims": []},
+        "output": {"type": "DataUseConditionCredential", "about": "requester", "claims": []},
     }
 
 
@@ -109,14 +108,6 @@ CATALOG = {
             "geographical_restriction", "GeographicalRestriction", "location", "LocationCredential", COUNTRIES),
         "institution_specific_restriction": card_component(
             "institution_specific_restriction", "InstitutionSpecificRestriction", "affiliation", "AffiliationCredential", {}),
-        "grant_download": {
-            "name": "Grant download", "group": "grant", "policy_data_schema": {}, "rego": "package pf.components.grant_download",
-            "inputs": {
-                "key": {"type": "publicKeyCredential", "about": "requester", "role": "User", "claims": ["key"]},
-                "grant": {"type": "DownloadGrantCredential", "about": "requester", "role": "User", "claims": []},
-            },
-            "output": {"capability": "do_download", "parameters": ["channel_key"]},
-        },
     },
     "cards": {
         "geographical-restriction": catalog_card(
@@ -227,7 +218,7 @@ class ViewTestCase(TestCase):
             ),
             "get_policy_graph": mock.Mock(return_value={"policy_graph": GS_GRAPH, "components": [], "sha256": "hash="}),
             "get_policy_data": mock.Mock(
-                return_value={"geographical_restriction": {"allowedCountries": ["US"]}, "grant_download": {}}
+                return_value={"geographical_restriction": {"allowedCountries": ["US"]}}
             ),
             "register_trusted_issuer": mock.Mock(),
             "unregister_trusted_issuer": mock.Mock(),
@@ -257,7 +248,6 @@ class ExposePanel(ViewTestCase):
     parameters = {
         "geographical_restriction": {"allowedCountries": ["US"]},
         "institution_specific_restriction": {},
-        "grant_download": {},
     }
     authorities = {
         "LocationCredential": [REGISTRY_OFFICE["did"]],
@@ -282,14 +272,12 @@ class ExposePanel(ViewTestCase):
         self.assertContains(response, 'id="expose-data"')
         self.assertContains(response, 'id="policy-catalog"')
 
-    def test_two_cards_compose_under_one_grant(self):
+    def test_two_cards_compose_under_one_capability(self):
         body = self.compose([GS["id"], IS["id"]]).json()
         graph = body["graph"]
-        self.assertEqual(list(graph["nodes"]), ["geographical_restriction", "institution_specific_restriction", "grant_download"])
-        self.assertEqual(graph["nodes"]["grant_download"]["inputs"]["grant"], [
-            {"from": "node", "node": "geographical_restriction", "accept_presented": False},
-            {"from": "node", "node": "institution_specific_restriction", "accept_presented": False},
-        ])
+        self.assertEqual(list(graph["nodes"]), ["geographical_restriction", "institution_specific_restriction"])
+        self.assertEqual(graph["capability"], {"operation": "do_download", "parameters": DOWNLOAD_PARAMETERS,
+                                               "requires": ["geographical_restriction", "institution_specific_restriction"]})
         self.assertEqual(list(graph["trusted_issuers"]), ["AffiliationCredential", "LocationCredential", "publicKeyCredential"])
         self.assertEqual(body["alternatives"], [{"User": ["AffiliationCredential", "LocationCredential", "publicKeyCredential"]}])
         self.assertEqual([n["node"] for n in body["nodes"] if n["schema"]], ["geographical_restriction"])
@@ -321,11 +309,11 @@ class ExposePanel(ViewTestCase):
 
     def test_every_node_needs_parameters_that_fit_it(self):
         with self.assertLogs("app.views._streaming", "ERROR"):
-            missing = self.expose({"cards": [GS["id"]], "parameters": {"geographical_restriction": {"allowedCountries": ["US"]}},
-                                   "authorities": {"LocationCredential": [REGISTRY_OFFICE["did"]], "publicKeyCredential": [SESSION_KEYS["did"]]}})
+            missing = self.expose({"cards": [GS["id"], IS["id"]], "parameters": {"geographical_restriction": {"allowedCountries": ["US"]}},
+                                   "authorities": self.authorities})
         self.assertIn("every node", missing[1]["detail"])
         with self.assertLogs("app.views._streaming", "ERROR"):
-            unfit = self.expose({"cards": [GS["id"]], "parameters": {"geographical_restriction": {"allowedCountries": "US"}, "grant_download": {}},
+            unfit = self.expose({"cards": [GS["id"]], "parameters": {"geographical_restriction": {"allowedCountries": "US"}},
                                  "authorities": {"LocationCredential": [REGISTRY_OFFICE["did"]], "publicKeyCredential": [SESSION_KEYS["did"]]}})
         self.assertIn("GeographicalRestriction", unfit[1]["detail"])
         self.runner["create_asset_policy"].assert_not_called()
@@ -349,7 +337,7 @@ class ExposedDashboard(ViewTestCase):
         "policy_contract": f"did:pdo:{TOKEN}",
         "graph_hash": "hash=",
         "cards": [{"name": "GEOGRAPHICAL-RESTRICTION", "code": "GS", "title": "Geographical restriction", "rule": "Allowed countries."}],
-        "policy_data": {"geographical_restriction": {"allowedCountries": ["US"]}, "grant_download": {}},
+        "policy_data": {"geographical_restriction": {"allowedCountries": ["US"]}},
     }
 
     def test_the_dashboard_draws_the_graph_with_each_nodes_parameters(self):
@@ -393,8 +381,10 @@ class ExposedDashboard(ViewTestCase):
         self.runner["set_node_policy_data"].assert_called_once_with(POLICY, "geographical_restriction", {"allowedCountries": ["CA"]}, OWNER)
         self.assertEqual(self.registries.asset["metadata"]["policy_data"]["geographical_restriction"], {"allowedCountries": ["CA"]})
         self.assertEqual(self.post(url, {"node": "nope", "policy_data": {}}).status_code, 400)
-        self.assertEqual(self.post(url, {"node": "grant_download", "policy_data": {}}).status_code, 400)
         self.assertEqual(self.post(url, {"node": "geographical_restriction", "policy_data": {"allowedCountries": "CA"}}).status_code, 400)
+        # a node whose component takes no policy data
+        self.runner["get_policy_graph"].return_value = {"policy_graph": IS_GRAPH, "components": [], "sha256": "hash="}
+        self.assertEqual(self.post(url, {"node": "institution_specific_restriction", "policy_data": {}}).status_code, 400)
 
     def test_the_checklist_reports_each_credential(self):
         location = vc("LocationCredential", WALLET_DID, {"locatedAt": {"country": "US"}}, signer=OFFICE)

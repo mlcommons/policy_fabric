@@ -154,7 +154,7 @@ class AuthoritiesListView(BaseView):
             "authorities": authorities,
             # what a person can sign for: not the credentials the system issues, nor
             # the ones requesters sign about themselves, nor what only a policy
-            # component produces (a download grant, say)
+            # component produces (a data use condition, say)
             "attestable": [
                 t for t in credential_templates
                 if not t["self_asserted"] and t["presentable"] and t["template_type"] not in (PUBLIC_KEY, WALLET_KEY)

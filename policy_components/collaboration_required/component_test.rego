@@ -18,7 +18,7 @@ scoped := {"type": "ScopedAgreementCredential", "issuer": "did:example:notary", 
 agreement := {"type": "AgreementCredential", "issuer": "did:example:notary", "subject": "did:example:institution",
 	"claims": {"agreementInfo": {"documentID": "did:example:terms", "documentVersion": "1.0"}}, "evidence": [4]}
 
-grant(affiliations, scopeds, agreements) := out if {
+condition(affiliations, scopeds, agreements) := out if {
 	out := collaboration_required.output with input as {
 		"inputs": {
 			"projectMembership": [membership], "affiliation": affiliations,
@@ -31,29 +31,29 @@ grant(affiliations, scopeds, agreements) := out if {
 scope(change) := object.union(scoped, {"claims": {"agreementInfo": {"scope": change}}})
 
 test_the_requesters_institution_agreed_to_collaborate if {
-	grant([affiliation], [scoped], [agreement]) == [{"type": "DownloadGrantCredential", "subject": "did:example:user", "claims": {}, "evidence": [0, 1, 2, 3, 4]}]
+	condition([affiliation], [scoped], [agreement]) == [{"type": "DataUseConditionCredential", "subject": "did:example:user", "claims": {}, "evidence": [0, 1, 2, 3, 4]}]
 }
 
 test_the_affiliation_of_the_pi if {
-	grant([object.union(affiliation, {"subject": "did:example:pi"})], [scoped], [agreement]) == []
+	condition([object.union(affiliation, {"subject": "did:example:pi"})], [scoped], [agreement]) == []
 }
 
 test_another_obligation if {
-	grant([affiliation], [scope({"obligation": "Publication"})], [agreement]) == []
+	condition([affiliation], [scope({"obligation": "Publication"})], [agreement]) == []
 }
 
 test_another_dataset if {
-	grant([affiliation], [scope({"dataset": "did:example:other-dataset"})], [agreement]) == []
+	condition([affiliation], [scope({"dataset": "did:example:other-dataset"})], [agreement]) == []
 }
 
 test_another_project if {
-	grant([affiliation], [scope({"project": "did:example:other-project"})], [agreement]) == []
+	condition([affiliation], [scope({"project": "did:example:other-project"})], [agreement]) == []
 }
 
 test_an_institution_that_did_not_agree if {
-	grant([object.union(affiliation, {"claims": {"isMemberOf": "did:example:other-institution"}})], [scoped], [agreement]) == []
+	condition([object.union(affiliation, {"claims": {"isMemberOf": "did:example:other-institution"}})], [scoped], [agreement]) == []
 }
 
 test_an_agreement_to_other_terms if {
-	grant([affiliation], [scoped], [object.union(agreement, {"claims": {"agreementInfo": {"documentID": "did:example:other-terms"}}})]) == []
+	condition([affiliation], [scoped], [object.union(agreement, {"claims": {"agreementInfo": {"documentID": "did:example:other-terms"}}})]) == []
 }

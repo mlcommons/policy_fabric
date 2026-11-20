@@ -6,8 +6,7 @@
   },
   "request": {"channel_key": "PUBKEY-USER-1"},
   "policy_data": {
-    "return_to_database_or_resource": {"requiredDocumentID": "did:example:terms-1"},
-    "grant_download": {}
+    "return_to_database_or_resource": {"requiredDocumentID": "did:example:terms-1"}
   },
   "credentials": {
     "agreement": {"type": "AgreementCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
@@ -33,19 +32,19 @@
       "name": "deny: an agreement to another terms document",
       "present": {"User": ["agreement", "compute", "key"]},
       "change": {"agreement": {"claims": {"agreementInfo": {"documentID": "did:example:terms-other"}}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node return_to_database_or_resource produced no credential"}
     },
     {
       "name": "deny: a compute environment that does not handle results securely",
       "present": {"User": ["agreement", "compute", "key"]},
       "change": {"compute": {"claims": {"hasComputeProfile": {"profile": {"SecureHandlingOfResults": false}}}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node return_to_database_or_resource produced no credential"}
     },
     {
       "name": "deny: the key of someone else",
       "present": {"User": ["agreement", "compute", "key"]},
       "change": {"key": {"subject": "did:example:user-2"}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "no publicKeyCredential about the subject has the key the request names for channel_key"}
     },
     {
       "name": "deny: no AgreementCredential",
@@ -63,7 +62,7 @@
       "name": "deny: no publicKeyCredential",
       "present": {"User": ["agreement", "compute"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+      "expect": {"decision": false, "missing": [{"parameter": "channel_key"}]}
     },
     {
       "name": "deny: a ComputeEnvironmentCredential from an issuer the contract does not trust",

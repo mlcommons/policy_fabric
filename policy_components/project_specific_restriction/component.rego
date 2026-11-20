@@ -8,9 +8,9 @@ import rego.v1
 #   projectMembership  ProjectMembershipCredential  about the requester, project
 #   intendedDataUse    IntendedDataUseCredential    about the project
 #   agreement          AgreementCredential          about the requester
-# -> DownloadGrantCredential about the requester.
+# -> DataUseConditionCredential about the requester.
 interface := {
-	"output": "DownloadGrantCredential",
+	"output": "DataUseConditionCredential",
 	"inputs": {
 		"projectMembership": {"type": "ProjectMembershipCredential", "role": "User"},
 		"intendedDataUse": {"type": "IntendedDataUseCredential", "role": "User"},
@@ -27,15 +27,15 @@ interface := {
 	},
 }
 
-output := [grant |
+output := [condition |
 	some membership in input.inputs.projectMembership
 	some use in input.inputs.intendedDataUse
 	use.subject == membership.claims.project
 	use.subject in input.policy_data.approvedProjects
 	some agreement in input.inputs.agreement
 	agreement.subject == membership.subject
-	grant := {
-		"type": "DownloadGrantCredential",
+	condition := {
+		"type": "DataUseConditionCredential",
 		"subject": membership.subject,
 		"claims": {},
 		"evidence": evidence([membership, use, agreement]),

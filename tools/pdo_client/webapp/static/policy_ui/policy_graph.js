@@ -4,7 +4,7 @@
 //   PolicyGraph.render(element, graph, catalog, theme) -> {destroy}  draws it, refits on resize
 //   PolicyGraph.shapes                                               the shapes, for the composer
 //
-// graph is a policy graph (version 2) and catalog the catalog tools/policy_catalog builds. theme is
+// graph is a policy graph (version 3) and catalog the catalog tools/policy_catalog builds. theme is
 // "light", "dark", or "auto" to follow prefers-color-scheme. policy_graph.css holds the look, the docs
 // composer's too.
 
@@ -81,10 +81,6 @@
     }
 
     // ------------------------------------------------------------------ layout
-    function sourcesOf(raw) {
-        return Array.isArray(raw) ? raw : [raw];
-    }
-
     // The items a graph expands into, the wires between them, and the columns they sit in, left to
     // right by their longest path to the capability; within a column, by the average position of
     // their neighbours (three sweeps each way).
@@ -97,35 +93,42 @@
             items['c:' + n] = { kind: 'component', node: n, name: c.name, policyData: Object.keys(c.policy_data) };
             Object.keys(node.inputs).forEach(function (name) {
                 var spec = c.inputs[name];
-                sourcesOf(node.inputs[name]).forEach(function (source) {
-                    if (source.from === 'presented') {
-                        items['p:' + n + ':' + name] = {
-                            kind: 'credential', type: spec.type, about: spec.about, claims: spec.claims,
-                            newClaims: 'new_claims' in spec ? spec.new_claims : [], acceptedPresented: false,
-                        };
-                        wires.push(['p:' + n + ':' + name, 'c:' + n]);
-                    } else {
-                        wires.push(['o:' + source.node, 'c:' + n]);
-                    }
-                });
+                var source = node.inputs[name];
+                if (source.from === 'presented') {
+                    items['p:' + n + ':' + name] = {
+                        kind: 'credential', type: spec.type, about: spec.about, claims: spec.claims,
+                        newClaims: 'new_claims' in spec ? spec.new_claims : [], acceptedPresented: false,
+                    };
+                    wires.push(['p:' + n + ':' + name, 'c:' + n]);
+                } else {
+                    wires.push(['o:' + source.node, 'c:' + n]);
+                }
             });
-            if (n === graph.root) {
-                items.cap = { kind: 'capability', operation: c.output.capability, parameters: c.output.parameters };
-                wires.push(['c:' + n, 'cap']);
-            } else {
-                items['o:' + n] = {
-                    kind: 'credential', type: c.output.type, about: c.output.about, claims: c.output.claims,
-                    newClaims: [], acceptedPresented: false,
-                };
-                wires.push(['c:' + n, 'o:' + n]);
-            }
+            items['o:' + n] = {
+                kind: 'credential', type: c.output.type, about: c.output.about, claims: c.output.claims,
+                newClaims: [], acceptedPresented: false,
+            };
+            wires.push(['c:' + n, 'o:' + n]);
         });
         Object.keys(graph.nodes).forEach(function (n) {
             Object.keys(graph.nodes[n].inputs).forEach(function (name) {
-                sourcesOf(graph.nodes[n].inputs[name]).forEach(function (source) {
-                    if (source.from === 'node' && source.accept_presented) items['o:' + source.node].acceptedPresented = true;
-                });
+                var source = graph.nodes[n].inputs[name];
+                if (source.from === 'node' && source.accept_presented) items['o:' + source.node].acceptedPresented = true;
             });
+        });
+        // the capability, fed by the output of every node it requires and by the presented
+        // credential each parameter of its operation is read from, about the operation's subject
+        var capability = graph.capability;
+        var about = catalog.operations[capability.operation].about;
+        items.cap = { kind: 'capability', operation: capability.operation, parameters: Object.keys(capability.parameters) };
+        capability.requires.forEach(function (n) { wires.push(['o:' + n, 'cap']); });
+        Object.keys(capability.parameters).forEach(function (p) {
+            var spec = capability.parameters[p];
+            items['cap:' + p] = {
+                kind: 'credential', type: spec.type, about: about, claims: [spec.claim],
+                newClaims: [], acceptedPresented: false,
+            };
+            wires.push(['cap:' + p, 'cap']);
         });
         return { items: items, wires: wires, columns: columns(Object.keys(items), wires, 'cap') };
     }

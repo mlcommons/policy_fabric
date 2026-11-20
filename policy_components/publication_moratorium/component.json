@@ -1,7 +1,7 @@
 {
   "name": "PublicationMoratorium",
   "group": "card",
-  "summary": "The card component of Publication Moratorium (DUO_0000024). The requester accepted the terms document the owner requires, and a compute environment attests that it handles results securely. Outputs the DownloadGrantCredential that Grant download takes.",
+  "summary": "The card component of Publication Moratorium (DUO_0000024). The requester accepted the terms document the owner requires, and a compute environment attests that it handles results securely. Outputs a DataUseConditionCredential about the requester.",
   "inputs": {
     "agreement": {
       "type": "AgreementCredential",
@@ -21,7 +21,7 @@
     }
   },
   "output": {
-    "type": "DownloadGrantCredential",
+    "type": "DataUseConditionCredential",
     "about": "requester",
     "claims": []
   },

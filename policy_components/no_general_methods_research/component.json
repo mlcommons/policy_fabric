@@ -1,7 +1,7 @@
 {
   "name": "NoGeneralMethodsResearch",
   "group": "card",
-  "summary": "The card component of No General Methods Research (DUO_0000015). The requester's project intends to use the data for no purpose the owner prohibits, such as methods development, and the requester accepted the terms. Outputs the DownloadGrantCredential that Grant download takes.",
+  "summary": "The card component of No General Methods Research (DUO_0000015). The requester's project intends to use the data for no purpose the owner prohibits, such as methods development, and the requester accepted the terms. Outputs a DataUseConditionCredential about the requester.",
   "inputs": {
     "projectMembership": {
       "type": "ProjectMembershipCredential",
@@ -27,7 +27,7 @@
     }
   },
   "output": {
-    "type": "DownloadGrantCredential",
+    "type": "DataUseConditionCredential",
     "about": "requester",
     "claims": []
   },

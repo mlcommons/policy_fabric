@@ -6,8 +6,7 @@
   },
   "request": {"channel_key": "PUBKEY-ORG-1"},
   "policy_data": {
-    "not_for_profit_non_commercial_use_only": {"nonprofitLegalForms": ["V2VJ", "8ES1"], "prohibitedPurposes": ["commercial"]},
-    "grant_download": {}
+    "not_for_profit_non_commercial_use_only": {"nonprofitLegalForms": ["V2VJ", "8ES1"], "prohibitedPurposes": ["commercial"]}
   },
   "credentials": {
     "designation": {"type": "LegalDesignationCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
@@ -31,19 +30,19 @@
       "name": "deny: a legal form the owner does not treat as not-for-profit",
       "present": {"User": ["designation", "use", "key"]},
       "change": {"designation": {"claims": {"hasLegalForm": "XTIQ"}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node not_for_profit_non_commercial_use_only produced no credential"}
     },
     {
       "name": "deny: an intended use with a commercial purpose",
       "present": {"User": ["designation", "use", "key"]},
       "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["HMB", "commercial"]}}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node not_for_profit_non_commercial_use_only produced no credential"}
     },
     {
       "name": "deny: the key of someone else",
       "present": {"User": ["designation", "use", "key"]},
       "change": {"key": {"subject": "did:example:org-2"}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "no publicKeyCredential about the subject has the key the request names for channel_key"}
     },
     {
       "name": "deny: no LegalDesignationCredential",
@@ -61,7 +60,7 @@
       "name": "deny: no publicKeyCredential",
       "present": {"User": ["designation", "use"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+      "expect": {"decision": false, "missing": [{"parameter": "channel_key"}]}
     },
     {
       "name": "deny: a LegalDesignationCredential from an issuer the contract does not trust",

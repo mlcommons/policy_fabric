@@ -15,8 +15,7 @@
     "project_membership": {},
     "institutional_irb_approval": {},
     "irb_clearance": {},
-    "ethics_approval_required": {},
-    "grant_download": {}
+    "ethics_approval_required": {}
   },
   "credentials": {
     "team": {"type": "TeamCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
@@ -63,67 +62,67 @@
       "name": "deny: only the PI's affiliation, which today's card reads",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "pi_affiliation", "use", "key"]},
       "change": {},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
     },
     {
       "name": "deny: the committee is not responsible for the requester's institution",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"accreditation": {"claims": {"ResponsibleFor": "did:example:institution-2"}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
     },
     {
       "name": "deny: the requester belongs to another institution",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"affiliation": {"claims": {"isMemberOf": "did:example:institution-2"}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
     },
     {
       "name": "deny: the IRB approved another project",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"irb": {"subject": "did:example:project-2"}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
     },
     {
       "name": "deny: the intended use is another project's",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"use": {"subject": "did:example:project-2"}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
     },
     {
       "name": "deny: the requester is not on the team of the PI who owns the project",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"team": {"claims": {"MemberOfTeamOf": "did:example:pi-2"}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
     },
     {
       "name": "deny: an unaccredited committee approved the project",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"irb": {"claims": {"isApprovedByEthicsCommittee": "did:example:committee-2"}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
     },
     {
       "name": "deny: a purpose the IRB did not approve",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["HMB", "POA"]}}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
     },
     {
       "name": "deny: an intended use that names no purpose",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"use": {"claims": {"useOnlyFor": {"purposes": []}}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
     },
     {
       "name": "deny: the key of someone else",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"key": {"subject": "did:example:user-2"}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "no publicKeyCredential about the subject has the key the request names for channel_key"}
     },
     {
       "name": "deny: a key other than the one the request names",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"key": {"claims": {"key": "PUBKEY-OTHER"}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "no publicKeyCredential about the subject has the key the request names for channel_key"}
     },
     {
       "name": "deny: no TeamCredential",
@@ -165,7 +164,7 @@
       "name": "deny: no publicKeyCredential",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+      "expect": {"decision": false, "missing": [{"parameter": "channel_key"}]}
     },
     {
       "name": "allow: two TeamCredentials, only one on the owning PI's team, cites that one",
@@ -221,7 +220,7 @@
       "name": "deny: a clearance for purposes that do not cover the intended use",
       "present": {"User": ["clearance", "use", "key"]},
       "change": {"clearance": {"claims": {"purposes": ["DS"]}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
     }
   ]
 }

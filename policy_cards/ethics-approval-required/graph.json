@@ -1,7 +1,6 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "Ethics Approval Required",
-  "root": "grant_download",
   "nodes": {
     "project_membership": {
       "component": "project_membership",
@@ -59,20 +58,19 @@
         }
       },
       "policy_data": {}
-    },
-    "grant_download": {
-      "component": "grant_download",
-      "inputs": {
-        "key": {
-          "from": "presented"
-        },
-        "grant": {
-          "from": "node",
-          "node": "ethics_approval_required",
-          "accept_presented": false
-        }
-      },
-      "policy_data": {}
+    }
+  },
+  "capability": {
+    "operation": "do_download",
+    "requires": [
+      "ethics_approval_required"
+    ],
+    "parameters": {
+      "channel_key": {
+        "type": "publicKeyCredential",
+        "role": "User",
+        "claim": "key"
+      }
     }
   },
   "trusted_issuers": {

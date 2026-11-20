@@ -5,14 +5,10 @@ import rego.v1
 # DiseaseSpecificResearchForInference, the card component of Disease Specific Research for
 # inference (DUO_0000007): the script declares a use for a disease the owner allows.
 #   intendedDataUse  IntendedDataUseCredential  about the script, useOnlyFor.diseases
-#   scriptHash       ScriptHashCredential       about the script, scriptHash
-# -> InferenceGrantCredential about the script, {script_digest}.
+# -> DataUseConditionCredential about the script.
 interface := {
-	"output": "InferenceGrantCredential",
-	"inputs": {
-		"intendedDataUse": {"type": "IntendedDataUseCredential", "role": "Script"},
-		"scriptHash": {"type": "ScriptHashCredential", "role": "Script"},
-	},
+	"output": "DataUseConditionCredential",
+	"inputs": {"intendedDataUse": {"type": "IntendedDataUseCredential", "role": "Script"}},
 	"policy_data_schema": {
 		"type": "object",
 		"properties": {"allowedDiseases": {
@@ -24,16 +20,14 @@ interface := {
 	},
 }
 
-output := [grant |
+output := [condition |
 	some use in input.inputs.intendedDataUse
 	allowed_disease(use)
-	some hash in input.inputs.scriptHash
-	hash.subject == use.subject
-	grant := {
-		"type": "InferenceGrantCredential",
-		"subject": hash.subject,
-		"claims": {"script_digest": hash.claims.scriptHash},
-		"evidence": evidence([use, hash]),
+	condition := {
+		"type": "DataUseConditionCredential",
+		"subject": use.subject,
+		"claims": {},
+		"evidence": evidence([use]),
 	}
 ]
 

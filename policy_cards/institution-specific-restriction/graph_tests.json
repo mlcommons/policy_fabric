@@ -5,8 +5,7 @@
   },
   "request": {"channel_key": "PUBKEY-USER-1"},
   "policy_data": {
-    "institution_specific_restriction": {"allowedInstitutions": ["did:example:university", "did:example:hospital"]},
-    "grant_download": {}
+    "institution_specific_restriction": {"allowedInstitutions": ["did:example:university", "did:example:hospital"]}
   },
   "credentials": {
     "affiliation": {"type": "AffiliationCredential", "issuer": "did:example:university", "signer": "did:example:university",
@@ -29,13 +28,13 @@
       "name": "deny: an institution the owner does not allow",
       "present": {"User": ["affiliation", "key"]},
       "change": {"affiliation": {"claims": {"isMemberOf": "did:example:unknown"}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node institution_specific_restriction produced no credential"}
     },
     {
       "name": "deny: the key of someone else",
       "present": {"User": ["affiliation", "key"]},
       "change": {"key": {"subject": "did:example:user-2"}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "no publicKeyCredential about the subject has the key the request names for channel_key"}
     },
     {
       "name": "deny: no AffiliationCredential",
@@ -47,7 +46,7 @@
       "name": "deny: no publicKeyCredential",
       "present": {"User": ["affiliation"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+      "expect": {"decision": false, "missing": [{"parameter": "channel_key"}]}
     },
     {
       "name": "deny: an AffiliationCredential from an issuer the contract does not trust",

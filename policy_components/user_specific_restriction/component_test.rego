@@ -9,7 +9,7 @@ account := {"type": "UserPlatformCredential", "issuer": "did:example:platform", 
 
 unapproved := object.union(account, {"claims": {"userId": "did:example:unknown"}})
 
-grant(accounts) := out if {
+condition(accounts) := out if {
 	out := user_specific_restriction.output with input as {
 		"inputs": {"userPlatform": accounts},
 		"policy_data": {
@@ -22,21 +22,21 @@ grant(accounts) := out if {
 }
 
 test_an_approved_user if {
-	grant([account]) == [{"type": "DownloadGrantCredential", "subject": "did:example:user", "claims": {}, "evidence": [0]}]
+	condition([account]) == [{"type": "DataUseConditionCredential", "subject": "did:example:user", "claims": {}, "evidence": [0]}]
 }
 
 test_an_allowed_account_type if {
-	count(grant([object.union(unapproved, {"claims": {"accountType": "institutional"}})])) == 1
+	count(condition([object.union(unapproved, {"claims": {"accountType": "institutional"}})])) == 1
 }
 
 test_a_profile_status_the_owner_accepts if {
-	count(grant([object.union(unapproved, {"claims": {"profileStatus": "verified"}})])) == 1
+	count(condition([object.union(unapproved, {"claims": {"profileStatus": "verified"}})])) == 1
 }
 
-test_one_grant_for_several_routes if {
-	count(grant([object.union(account, {"claims": {"accountType": "institutional", "profileStatus": "verified"}})])) == 1
+test_one_condition_for_several_routes if {
+	count(condition([object.union(account, {"claims": {"accountType": "institutional", "profileStatus": "verified"}})])) == 1
 }
 
 test_no_route if {
-	grant([unapproved]) == []
+	condition([unapproved]) == []
 }

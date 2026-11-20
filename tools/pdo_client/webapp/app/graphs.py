@@ -6,10 +6,9 @@ describes the components, whose ``component.json`` mirrors each Rego interface. 
 here: the contract validates the graph when it is set.
 """
 
-from .requirements import alternatives
+import json
 
-# the input of a grant that takes the cards' grants
-GRANT_INPUT = "grant"
+from .requirements import alternatives
 
 
 def interfaces(graph, catalog):
@@ -23,7 +22,7 @@ def interfaces(graph, catalog):
             if "supplied_key" in spec:
                 inputs[name]["supplied_key"] = True
         out[node["component"]] = {
-            "output": "Capability" if c["group"] == "grant" else c["output"]["type"],
+            "output": c["output"]["type"],
             "inputs": inputs,
             "policy_data_schema": c["policy_data_schema"],
         }
@@ -32,36 +31,30 @@ def interfaces(graph, catalog):
 
 def compose(card_graphs):
     """One graph from the graphs of the cards on one asset: every card's nodes, a node shared
-    by several cards once (node ids are component ids), under one grant whose grant input
-    takes every card's grant. Raises ValueError when the cards cannot share a graph."""
+    by several cards once (node ids are component ids), under one capability that requires
+    every card's nodes. Raises ValueError when the cards cannot share a graph."""
     if not card_graphs:
         raise ValueError("Select at least one policy.")
-    roots = {g["root"] for g in card_graphs}
-    if len(roots) != 1:
-        raise ValueError("The policies end in different grants: " + ", ".join(sorted(roots)))
-    root = roots.pop()
+    capabilities = {json.dumps({k: g["capability"][k] for k in ("operation", "parameters")}, sort_keys=True)
+                    for g in card_graphs}
+    if len(capabilities) != 1:
+        raise ValueError("The policies issue different operations: "
+                         + ", ".join(sorted({g["capability"]["operation"] for g in card_graphs})))
 
-    nodes, grants, trusted = {}, [], set()
+    nodes, required, trusted = {}, [], set()
     for g in card_graphs:
         for node_id, node in g["nodes"].items():
-            if node_id == root:
-                continue
             if node_id in nodes and nodes[node_id] != node:
                 raise ValueError(f"The policies use {node_id} differently.")
             nodes[node_id] = node
-        grants.append(g["nodes"][root]["inputs"][GRANT_INPUT])
+        required += [n for n in g["capability"]["requires"] if n not in required]
         trusted.update(g["trusted_issuers"])
 
-    root_node = dict(card_graphs[0]["nodes"][root])
-    root_node["inputs"] = {
-        **root_node["inputs"],
-        GRANT_INPUT: grants[0] if len(grants) == 1 else grants,
-    }
     return {
-        "version": 2,
+        "version": 3,
         "name": " + ".join(g["name"] for g in card_graphs),
-        "root": root,
-        "nodes": {**nodes, root: root_node},
+        "nodes": nodes,
+        "capability": {**card_graphs[0]["capability"], "requires": required},
         "trusted_issuers": {t: [] for t in sorted(trusted)},
     }
 

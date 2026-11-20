@@ -29,7 +29,8 @@ def _bundle_key(bundle):
 def alternatives(graph, interfaces):
     """The requirement alternatives: each a minimal set of presented credential types, by role,
     smallest first. A node input needs its producer's requirements; accept_presented adds the
-    alternative of presenting that credential instead."""
+    alternative of presenting that credential instead; the capability needs those of every
+    node it requires, and the credential each of its parameters is read from."""
     memo = {}
 
     def node_alternatives(n):
@@ -44,20 +45,22 @@ def alternatives(graph, interfaces):
     def input_alternatives(node, name):
         spec = interfaces[node["component"]]["inputs"][name]
         own = [frozenset([(spec["role"], spec["type"])])]
-        raw = node["inputs"][name]
-        alts = [frozenset()]
-        for source in raw if isinstance(raw, list) else [raw]:
-            if source["from"] == "presented":
-                options = own
-            elif source["accept_presented"]:
-                options = _minimal(own + node_alternatives(source["node"]))
-            else:
-                options = node_alternatives(source["node"])
-            alts = _product(alts, options)
-        return alts
+        source = node["inputs"][name]
+        if source["from"] == "presented":
+            return own
+        if source["accept_presented"]:
+            return _minimal(own + node_alternatives(source["node"]))
+        return node_alternatives(source["node"])
+
+    capability = graph["capability"]
+    alts = [frozenset()]
+    for n in capability["requires"]:
+        alts = _product(alts, node_alternatives(n))
+    for spec in capability["parameters"].values():
+        alts = _product(alts, [frozenset([(spec["role"], spec["type"])])])
 
     out = []
-    for bundle in sorted(node_alternatives(graph["root"]), key=_bundle_key):
+    for bundle in sorted(alts, key=_bundle_key):
         by_role = {}
         for role, type in bundle:
             by_role.setdefault(role, []).append(type)

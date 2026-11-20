@@ -5,8 +5,7 @@
   },
   "request": {"channel_key": "PUBKEY-USER-1"},
   "policy_data": {
-    "geographical_restriction": {"allowedCountries": ["US", "CA"]},
-    "grant_download": {}
+    "geographical_restriction": {"allowedCountries": ["US", "CA"]}
   },
   "credentials": {
     "location": {"type": "LocationCredential", "issuer": "did:example:loc-authority", "signer": "did:example:loc-authority",
@@ -29,13 +28,13 @@
       "name": "deny: a country the owner does not allow",
       "present": {"User": ["location", "key"]},
       "change": {"location": {"claims": {"locatedAt": {"country": "FR"}}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node geographical_restriction produced no credential"}
     },
     {
       "name": "deny: the key of someone else",
       "present": {"User": ["location", "key"]},
       "change": {"key": {"subject": "did:example:user-2"}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "no publicKeyCredential about the subject has the key the request names for channel_key"}
     },
     {
       "name": "deny: no LocationCredential",
@@ -47,7 +46,7 @@
       "name": "deny: no publicKeyCredential",
       "present": {"User": ["location"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+      "expect": {"decision": false, "missing": [{"parameter": "channel_key"}]}
     },
     {
       "name": "deny: a LocationCredential from an issuer the contract does not trust",

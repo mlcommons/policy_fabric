@@ -83,7 +83,6 @@ code, .mono { font-family: var(--pf-font-mono); font-size: .9em; }
 .lib-text { min-width: 0; }
 .lib-open .n { font-weight: 600; display: block; font-size: 13px; overflow-wrap: anywhere; }
 .lib-open .o { font-family: var(--pf-font-mono); font-size: 11px; color: var(--pf-ink-3); display: block; overflow-wrap: break-word; }
-.lib-item.grant-kind .lib-open .o { color: var(--pf-grant); }
 .lib-add { flex: none; border: 0; border-left: 1px solid var(--app-line-soft); background: var(--pf-sunk); padding: 0 13px; font-weight: 600; font-size: 13px; color: var(--pf-accent); cursor: pointer; }
 .lib-add:hover { background: var(--pf-accent); color: var(--pf-surface); }
 .lib-foot { border-top: 1px solid var(--app-line-soft); padding: 10px 12px; font-size: 12px; color: var(--pf-ink-2); }
@@ -106,7 +105,8 @@ svg.wires { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overfl
 .wire-tool { position: absolute; transform: translate(-50%, -50%); background: var(--pf-surface); border: 1px solid var(--app-danger); color: var(--app-danger); border-radius: 999px; padding: 3px 11px; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: var(--pf-shadow); white-space: nowrap; }
 .wire-tool:hover { background: var(--app-danger); color: var(--pf-surface); }
 
-/* a component on the canvas: input credentials | Policy Component | output credential (the capability for a grant) */
+/* a component on the canvas: input credentials | Policy Component | output credential; the capability at the end
+   of the card: the outputs it requires and its parameters' credentials | the capability */
 .node { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 14px; user-select: none; -webkit-user-select: none; }
 .n-ins { flex: none; width: 134px; display: flex; flex-direction: column; gap: 8px; }
 .n-in, .n-out { position: relative; }
@@ -117,7 +117,7 @@ svg.wires { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overfl
 .pf-graph .n-in .vc.socket .vc-id { font-size: 10.5px; color: var(--pf-ink-2); }
 .n-out { flex: none; width: 142px; }
 .n-out .vc { cursor: crosshair; }
-.node.grant .n-out .vc { cursor: default; }
+.node.capability .vc { cursor: inherit; }
 .n-comp { position: relative; flex: none; }
 .n-compbox { position: relative; }
 .pf-graph .node .pcw { width: 178px; cursor: move; touch-action: none; }
@@ -147,7 +147,7 @@ svg.wires { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overfl
 .n-out.dim .vc { opacity: .45; }
 
 /* accept presented on a wired input: policy_graph.css's read-only row, with a real switch in it */
-.pf-graph .n-in label.ap { color: var(--pf-ink-2); cursor: pointer; }
+.pf-graph .n-in label.ap, .pf-graph .n-out label.ap { color: var(--pf-ink-2); cursor: pointer; }
 .ap input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
 .pf-graph .ap input:checked + .ap-track { background: var(--pf-ok); }
 .pf-graph .ap input:checked + .ap-track .ap-thumb { transform: translateX(9px); }

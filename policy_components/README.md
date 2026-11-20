@@ -2,7 +2,8 @@
 
 A policy card is a graph of small Rego components that pass credentials to each other (its
 `graph.json`). Each component reads one or more credentials and outputs credentials of one
-type; the root, a grant, issues the capability. The `rego_policy_agent` contract runs a graph
+type; the graph's capability names the nodes that must hold and issues the operation, reading
+each of its parameters from a presented credential. The `rego_policy_agent` contract runs a graph
 set with `set_rego_policy`: a trusted planner decides per request which components run, and
 whether a presented credential stands in for a component's output. pdo-contracts'
 `rego-contract/docs/policy_graph.md` is the spec.
@@ -16,8 +17,8 @@ whether a presented credential stands in for a component's output. pdo-contracts
 
 A component reads `{inputs: {<input>: [credential]}, policy_data, request}` and returns a list
 of `{type, subject, claims, evidence}`, where evidence lists the presented credentials the
-output rests on. Only the grants read the request: the session key (download) or the script
-digest (inference) it names.
+output rests on. No component reads the request's session key (download) or script digest
+(inference): the capability binds those to the decision's subject.
 
 ## The library
 
@@ -29,13 +30,9 @@ digest (inference) it names.
 | `institutional_irb_approval` | EthicsCommitteeAccreditationCredential, IRBApprovalCredential | InstitutionalIRBApprovalCredential |
 | `irb_clearance` | InstitutionalIRBApprovalCredential, AffiliationCredential, ProjectMembershipCredential | IRBClearanceCredential |
 
-**Cards**: one per card, named after it, outputting the DownloadGrantCredential (or, for the
-FL cards, the InferenceGrantCredential) its grant takes. Their `component.json` names the card
-folder and the DUO term.
-
-**Grants**: `grant_download` issues `do_download` for the session key the request names, when
-every card on the asset granted that key's holder; `grant_inference` issues `do_inference`
-for the script digest the request names, when every card granted that script.
+**Cards**: one per card, named after it, outputting a DataUseConditionCredential about whom
+the card checks: the requester, or for the FL cards the script. A card's graph requires it.
+Their `component.json` names the card folder and the DUO term.
 
 A ProjectMembershipCredential or an IRBClearanceCredential may also be presented, when an
 authority the owner accepts issues it directly (their schemas say `"x-presentable": true`): a
@@ -53,8 +50,8 @@ graph input that accepts it presented skips the components that would produce it
      cards). Mark an input `"supplied_key": true` when the component checks its credential
      against a key it supplies rather than against an accepted authority (FL-IS's
      self-signed script ownership); such an input must be presented.
-   - `output`, a list comprehension over `input.inputs`, `input.policy_data` and, for a grant,
-     `input.request`. Each credential has exactly `{type, subject, claims, evidence}`; a
+   - `output`, a list comprehension over `input.inputs` and `input.policy_data` (and
+     `input.request`, for a component that needs what the requester declared). Each credential has exactly `{type, subject, claims, evidence}`; a
      component with a `supplied_key` input also returns `key_checks: [{index, key, key_type}]`
      on every credential, naming the key to check each such credential against. Anything else
      is an error, not a denial. Build outputs; never pass a presented credential through (it
@@ -69,10 +66,10 @@ graph input that accepts it presented skips the components that would produce it
    | Key | Holds |
    | --- | --- |
    | `name` | the name drawn on the Policy Component, such as `GeographicalRestriction` |
-   | `group` | `shared`, `card` or `grant` |
+   | `group` | `shared` or `card` |
    | `summary` | what it checks, in a sentence or two; the card's Policy Card repeats it |
    | `inputs` | `{<name>: {type, about, role, claims}}`, the same names, types and roles as the interface, and `supplied_key: true` where it has it. `about` says who the credential is about: `requester`, `project`, `pi`, `institution`, `committee`, `script`, `compute` or `document`. `claims` lists the claims it reads (dotted paths); `new_claims` lists any the plan adds to the type |
-   | `output` | `{type, about, claims}`; for a grant, `{capability, parameters}` |
+   | `output` | `{type, about, claims}` |
    | `policy_data` | `{<key>: {type, description}}`, `type` being `string`, `string (ISO-8601 datetime)` or `array of strings`. The interface's `policy_data_schema` must say the same |
    | `changes_from_today` | how its card's decisions differ from the card's Rego before cards became graphs; `[]` for none |
    | `card`, `duo` | card components only: the card folder under `policy_cards/` and the DUO term |

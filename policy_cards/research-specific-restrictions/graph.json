@@ -1,7 +1,6 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "Research Specific Restrictions",
-  "root": "grant_download",
   "nodes": {
     "project_membership": {
       "component": "project_membership",
@@ -31,20 +30,19 @@
         }
       },
       "policy_data": {}
-    },
-    "grant_download": {
-      "component": "grant_download",
-      "inputs": {
-        "key": {
-          "from": "presented"
-        },
-        "grant": {
-          "from": "node",
-          "node": "research_specific_restrictions",
-          "accept_presented": false
-        }
-      },
-      "policy_data": {}
+    }
+  },
+  "capability": {
+    "operation": "do_download",
+    "requires": [
+      "research_specific_restrictions"
+    ],
+    "parameters": {
+      "channel_key": {
+        "type": "publicKeyCredential",
+        "role": "User",
+        "claim": "key"
+      }
     }
   },
   "trusted_issuers": {

@@ -23,6 +23,6 @@ class PoliciesView(BaseView):
         if catalog is not None:
             cards = sorted(
                 ({"folder": folder, **card} for folder, card in catalog["cards"].items()),
-                key=lambda c: (c["graph"]["root"], c["name"].lower()),
+                key=lambda c: (c["graph"]["capability"]["operation"], c["name"].lower()),
             )
         return render(request, "policies/list.html", {"catalog": catalog, "cards": cards, "error": error})

@@ -9,8 +9,7 @@
       "approvedUsers": ["did:example:user-1"],
       "allowedAccountTypes": ["institutional"],
       "requiredProfileStatuses": ["verified"]
-    },
-    "grant_download": {}
+    }
   },
   "credentials": {
     "account": {"type": "UserPlatformCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
@@ -51,13 +50,13 @@
       "name": "deny: not an approved user, nor of an allowed account type or accepted profile status",
       "present": {"User": ["account", "key"]},
       "change": {"account": {"claims": {"userId": "did:example:user-unknown"}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "node user_specific_restriction produced no credential"}
     },
     {
       "name": "deny: the key of someone else",
       "present": {"User": ["account", "key"]},
       "change": {"key": {"subject": "did:example:user-2"}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
+      "expect": {"decision": false, "reason": "no publicKeyCredential about the subject has the key the request names for channel_key"}
     },
     {
       "name": "deny: no UserPlatformCredential",
@@ -69,7 +68,7 @@
       "name": "deny: no publicKeyCredential",
       "present": {"User": ["account"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "grant_download", "input": "key"}]}
+      "expect": {"decision": false, "missing": [{"parameter": "channel_key"}]}
     },
     {
       "name": "deny: a UserPlatformCredential from an issuer the contract does not trust",

@@ -10,7 +10,7 @@ It reads, under the repo:
   credentials/<Type>.schema.json             presented and produced credential types (JSON Schema)
   policy_components/<id>/component.json      what the views show: name, group, inputs, output, policy data
   policy_components/<id>/component.rego      package pf.components.<id>
-  policy_cards/**/graph.json                 a card, as a graph (version 2)
+  policy_cards/**/graph.json                 a card, as a graph (version 3)
   policy_cards/**/card.json                  its code, name and one-line rule
 
 A type no component outputs is presented by wallets. A produced type may also be presented only
@@ -37,7 +37,21 @@ SUBJECTS = {
     "compute": {"word": "compute node", "legend": "a compute node"},
     "document": {"word": "terms document", "legend": "a terms document"},
 }
-GROUPS = ("shared", "card", "grant")
+GROUPS = ("shared", "card")
+# the operations a card's capability may issue: the guardian that redeems it, whom the
+# decision is about, and the presented credential each parameter is read from
+OPERATIONS = {
+    "do_download": {
+        "guardian": "download",
+        "about": "requester",
+        "parameters": {"channel_key": {"type": "publicKeyCredential", "role": "User", "claim": "key"}},
+    },
+    "do_inference": {
+        "guardian": "inference",
+        "about": "script",
+        "parameters": {"script_digest": {"type": "ScriptHashCredential", "role": "Script", "claim": "scriptHash"}},
+    },
+}
 COMPONENT_KEYS = {"name", "group", "summary", "inputs", "output", "policy_data", "changes_from_today"}
 CARD_KEYS = COMPONENT_KEYS | {"card", "duo"}
 # a card folder's card.json: how the card is named to the asset owner
@@ -93,7 +107,8 @@ def build(credentials_dir, components_dir, cards_dir):
             "template": template_name(folder),
             "graph": graph,
         }
-    catalog = {"version": 1, "subjects": SUBJECTS, "credentials": credentials, "components": components, "cards": cards}
+    catalog = {"version": 1, "subjects": SUBJECTS, "operations": OPERATIONS, "credentials": credentials,
+               "components": components, "cards": cards}
     return catalog, problems
 
 
@@ -143,10 +158,7 @@ def read_component(d, credentials, folders):
         if spec["about"] not in SUBJECTS:
             problems.append(f"{cid}.{name}: about must be one of {list(SUBJECTS)}")
     output = m["output"]
-    if m["group"] == "grant":
-        if set(output) != {"capability", "parameters"}:
-            problems.append(f"{cid}: a grant outputs {{capability, parameters}}")
-    elif set(output) != {"type", "about", "claims"} or output["type"] not in credentials:
+    if set(output) != {"type", "about", "claims"} or output["type"] not in credentials:
         problems.append(f"{cid}: output must be {{type, about, claims}} of a known credential type")
     else:
         credentials[output["type"]]["produced_by"].append(cid)
@@ -171,13 +183,26 @@ def read_component(d, credentials, folders):
 
 def check_graph(folder, g, components, credentials):
     out, where = [], f"policy_cards/{folder}/graph.json"
-    if set(g) != {"version", "name", "root", "nodes", "trusted_issuers"} or g["version"] != 2:
-        return [f"{where}: a version 2 graph has exactly version, name, root, nodes and trusted_issuers"]
+    if set(g) != {"version", "name", "nodes", "capability", "trusted_issuers"} or g["version"] != 3:
+        return [f"{where}: a version 3 graph has exactly version, name, nodes, capability and trusted_issuers"]
     nodes = g["nodes"]
-    root = g["root"]
-    if root not in nodes or nodes[root]["component"] not in components or components[nodes[root]["component"]]["group"] != "grant":
-        out.append(f"{where}: root must be a grant node")
-    deps, registry_types = {}, set()
+    capability = g["capability"]
+    if set(capability) != {"operation", "requires", "parameters"} or capability["operation"] not in OPERATIONS:
+        return [f"{where}: the capability is {{operation, requires, parameters}}, operation one of {list(OPERATIONS)}"]
+    operation = OPERATIONS[capability["operation"]]
+    if capability["parameters"] != operation["parameters"]:
+        out.append(f"{where}: {capability['operation']} reads its parameters as {operation['parameters']}")
+    required = capability["requires"]
+    if not (isinstance(required, list) and required and len(set(required)) == len(required)):
+        out.append(f"{where}: the capability requires a list of distinct nodes, at least one")
+        required = []
+    for nid in required:
+        if nid not in nodes or nodes[nid]["component"] not in components:
+            out.append(f"{where}: the capability requires {nid}, which is not a node of a known component")
+        elif components[nodes[nid]["component"]]["output"]["about"] != operation["about"]:
+            out.append(f"{where}: {capability['operation']} is about the {operation['about']}, {nid} outputs about the "
+                       f"{components[nodes[nid]['component']]['output']['about']}")
+    deps, registry_types = {}, {spec["type"] for spec in capability["parameters"].values()}
     for nid, n in nodes.items():
         if set(n) != {"component", "inputs", "policy_data"} or n["policy_data"] != {}:
             out.append(f"{where}: {nid} has component, inputs and policy_data {{}}; values are the asset owner's")
@@ -197,37 +222,32 @@ def check_graph(folder, g, components, credentials):
                 out.append(f"{where}: {nid}.{name} takes {want}, which credentials/ does not define")
                 continue
             presentable = credentials[want]["presentable"]
-            sources = raw if isinstance(raw, list) else [raw]
-            if isinstance(raw, list) and (len(raw) < 2 or any(
-                    set(s) != {"from", "node", "accept_presented"} or s["from"] != "node" or s["accept_presented"] is not False
-                    for s in raw)):
-                out.append(f"{where}: {nid}.{name}: a list of sources reads two or more nodes, none accepting presented")
-            for src in sources:
-                if src == {"from": "presented"}:
-                    if not presentable:
-                        out.append(f"{where}: {nid}.{name} takes {want} presented, but only components produce it; wire one")
-                    if "supplied_key" not in spec:
-                        registry_types.add(want)
-                    continue
-                if set(src) != {"from", "node", "accept_presented"} or src["from"] != "node":
-                    out.append(f"{where}: {nid}.{name}: a source is {{from: presented}} or {{from: node, node, accept_presented}}")
-                    continue
-                if "supplied_key" in spec:
-                    out.append(f"{where}: {nid}.{name}: a credential its component checks by key is presented, not wired")
-                if src["node"] not in nodes:
-                    out.append(f"{where}: {nid}.{name} reads unknown node {src['node']}")
-                    continue
-                producer = nodes[src["node"]]["component"]
-                got = components[producer]["output"]["type"] if producer in components and "type" in components[producer]["output"] else None
-                if got != want:
-                    out.append(f"{where}: {nid}.{name} wants {want}, {src['node']} outputs {got}")
-                if not isinstance(src["accept_presented"], bool):
-                    out.append(f"{where}: {nid}.{name} needs accept_presented true or false")
-                elif src["accept_presented"]:
-                    if not presentable:
-                        out.append(f"{where}: {nid}.{name} accepts a presented {want}, but its schema does not allow one (x-presentable)")
+            src = raw
+            if src == {"from": "presented"}:
+                if not presentable:
+                    out.append(f"{where}: {nid}.{name} takes {want} presented, but only components produce it; wire one")
+                if "supplied_key" not in spec:
                     registry_types.add(want)
-                deps[nid].add(src["node"])
+                continue
+            if not isinstance(src, dict) or set(src) != {"from", "node", "accept_presented"} or src["from"] != "node":
+                out.append(f"{where}: {nid}.{name}: a source is {{from: presented}} or {{from: node, node, accept_presented}}")
+                continue
+            if "supplied_key" in spec:
+                out.append(f"{where}: {nid}.{name}: a credential its component checks by key is presented, not wired")
+            if src["node"] not in nodes:
+                out.append(f"{where}: {nid}.{name} reads unknown node {src['node']}")
+                continue
+            producer = nodes[src["node"]]["component"]
+            got = components[producer]["output"]["type"] if producer in components else None
+            if got != want:
+                out.append(f"{where}: {nid}.{name} wants {want}, {src['node']} outputs {got}")
+            if not isinstance(src["accept_presented"], bool):
+                out.append(f"{where}: {nid}.{name} needs accept_presented true or false")
+            elif src["accept_presented"]:
+                if not presentable:
+                    out.append(f"{where}: {nid}.{name} accepts a presented {want}, but its schema does not allow one (x-presentable)")
+                registry_types.add(want)
+            deps[nid].add(src["node"])
 
     seen, stack = set(), set()
 
@@ -243,11 +263,12 @@ def check_graph(folder, g, components, credentials):
         stack.discard(n)
         seen.add(n)
 
-    if root in nodes:
-        visit(root)
+    for nid in required:
+        if nid in nodes:
+            visit(nid)
     for nid in nodes:
         if nid not in seen:
-            out.append(f"{where}: {nid} does not lead to the root")
+            out.append(f"{where}: {nid} does not lead to the capability")
     if set(g["trusted_issuers"]) != registry_types:
         out.append(f"{where}: trusted_issuers lists {sorted(g['trusted_issuers'])}, the graph takes {sorted(registry_types)} presented")
     for t, dids in g["trusted_issuers"].items():

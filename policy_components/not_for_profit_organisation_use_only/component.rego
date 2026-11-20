@@ -6,9 +6,9 @@ import rego.v1
 # Only (DUO_0000045): the requester acts for an organisation of a legal form the owner
 # accepts as not-for-profit.
 #   legalDesignation  LegalDesignationCredential  about the requester, hasLegalForm
-# -> DownloadGrantCredential about the requester.
+# -> DataUseConditionCredential about the requester.
 interface := {
-	"output": "DownloadGrantCredential",
+	"output": "DataUseConditionCredential",
 	"inputs": {"legalDesignation": {"type": "LegalDesignationCredential", "role": "User"}},
 	"policy_data_schema": {
 		"type": "object",
@@ -21,11 +21,11 @@ interface := {
 	},
 }
 
-output := [grant |
+output := [condition |
 	some designation in input.inputs.legalDesignation
 	designation.claims.hasLegalForm in input.policy_data.nonprofitLegalForms
-	grant := {
-		"type": "DownloadGrantCredential",
+	condition := {
+		"type": "DataUseConditionCredential",
 		"subject": designation.subject,
 		"claims": {},
 		"evidence": evidence([designation]),

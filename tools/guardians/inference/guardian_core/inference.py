@@ -33,7 +33,7 @@ class InferenceOperation:
     """
 
     # -----------------------------------------------------------------
-    # The capability carries only the digest Grant inference approved: nothing
+    # The capability carries only the digest the policy approved: nothing
     # leaves this guardian but the answer, so there is no key to encrypt to.
     __schema__ = {
         "type": "object",

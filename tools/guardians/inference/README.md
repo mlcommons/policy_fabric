@@ -44,8 +44,8 @@ The request context reaches the operation through the `request_context` field on
 `process_capability`, which every capability request carries — an operation with
 nothing to check against it simply ignores it.
 
-The capability carries only the digest, which Grant inference -- the policy
-component every inference card ends in -- issues for the script the request names.
+The capability carries only the digest, which the policy graph's capability issues for
+the script the request names, read from a ScriptHashCredential about that script.
 There is no channel key: nothing leaves this guardian but the answer.
 
 ## `fl_framework`

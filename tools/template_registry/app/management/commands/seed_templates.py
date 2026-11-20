@@ -26,8 +26,6 @@ from app.models import CredentialTemplate, PolicyComponent, PolicyTemplate
 
 CREDENTIALS_DIR = Path(os.environ["CREDENTIALS_DIR"])
 POLICY_CARDS_DIR = Path(os.environ["POLICY_CARDS_DIR"])
-# the guardian each grant a card's graph ends in fits
-GUARDIAN_TYPES = {"grant_download": "download", "grant_inference": "inference"}
 
 CREDENTIAL_SUFFIX = ".schema.json"
 
@@ -110,7 +108,8 @@ class Command(BaseCommand):
                     "code": manifest["code"],
                     "title": manifest["name"],
                     "rule": manifest["rule"],
-                    "guardian_types": [GUARDIAN_TYPES[card["graph"]["root"]]],
+                    # the guardian that redeems the operation the card's capability issues
+                    "guardian_types": [built["operations"][card["graph"]["capability"]["operation"]]["guardian"]],
                     "policy_card": (card_dir / "policy_card.md").read_text(),
                     "graph": card["graph"],
                 },

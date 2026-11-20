@@ -1,7 +1,7 @@
 # FL — cards for federated inference
 
-The cards in the parent folder end in Grant download. These end in **Grant inference**,
-for an inference guardian, where the data stays put and code is run against it in place.
+The cards in the parent folder issue `do_download`. These issue **`do_inference`**, for an
+inference guardian, where the data stays put and code is run against it in place.
 Approving a requester says nothing about the code, so these cards read credentials about
 the **script** a requester brings, under a second role:
 
@@ -21,10 +21,11 @@ resolves through the asset registry to the guardian it can be fetched from.
   governs who may run code here and that they stand behind it. It reads credentials about
   the requester and about the script.
 
-Each card component checks a `ScriptHashCredential` about the script and outputs an
-InferenceGrantCredential for its digest. Grant inference issues `do_inference` for the
-digest the request names (`request.script_digest`, the digest of the script the webapp
-actually sends) only when every card on the asset granted that script, with that digest.
+Each card component outputs a DataUseConditionCredential about the script. The graph's
+capability issues `do_inference` for the digest the request names (`request.script_digest`,
+the digest of the script the webapp actually sends) only when every card on the asset holds
+for that script, and a `ScriptHashCredential` about the script, from an authority the owner
+accepts, carries that digest.
 
 ## Self-issued ownership
 

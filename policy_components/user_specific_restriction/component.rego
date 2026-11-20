@@ -6,9 +6,9 @@ import rego.v1
 # the requester's platform account belongs to an approved user, is of an allowed account
 # type, or has a profile status the owner accepts.
 #   userPlatform  UserPlatformCredential  about the requester, userId, accountType, profileStatus
-# -> DownloadGrantCredential about the requester.
+# -> DataUseConditionCredential about the requester.
 interface := {
-	"output": "DownloadGrantCredential",
+	"output": "DataUseConditionCredential",
 	"inputs": {"userPlatform": {"type": "UserPlatformCredential", "role": "User"}},
 	"policy_data_schema": {
 		"type": "object",
@@ -33,11 +33,11 @@ interface := {
 	},
 }
 
-output := [grant |
+output := [condition |
 	some account in input.inputs.userPlatform
 	user_qualifies(account)
-	grant := {
-		"type": "DownloadGrantCredential",
+	condition := {
+		"type": "DataUseConditionCredential",
 		"subject": account.subject,
 		"claims": {},
 		"evidence": evidence([account]),

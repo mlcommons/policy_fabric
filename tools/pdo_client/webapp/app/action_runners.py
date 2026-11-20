@@ -196,7 +196,7 @@ class DownloadGuardianActionRunner(GuardianActionRunner):
     result_kind = "data"
 
     def steps(self):
-        # Grant download reads the session key of the User role
+        # the download capability reads its channel key from a session key of the User role
         wallet_id = self.wallets["User"]
 
         def download(ctx):

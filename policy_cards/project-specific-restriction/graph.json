@@ -1,7 +1,6 @@
 {
-  "version": 2,
+  "version": 3,
   "name": "Project Specific Restriction",
-  "root": "grant_download",
   "nodes": {
     "project_membership": {
       "component": "project_membership",
@@ -31,20 +30,19 @@
         }
       },
       "policy_data": {}
-    },
-    "grant_download": {
-      "component": "grant_download",
-      "inputs": {
-        "key": {
-          "from": "presented"
-        },
-        "grant": {
-          "from": "node",
-          "node": "project_specific_restriction",
-          "accept_presented": false
-        }
-      },
-      "policy_data": {}
+    }
+  },
+  "capability": {
+    "operation": "do_download",
+    "requires": [
+      "project_specific_restriction"
+    ],
+    "parameters": {
+      "channel_key": {
+        "type": "publicKeyCredential",
+        "role": "User",
+        "claim": "key"
+      }
     }
   },
   "trusted_issuers": {
