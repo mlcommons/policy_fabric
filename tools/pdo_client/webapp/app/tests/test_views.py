@@ -134,16 +134,16 @@ COMPONENTS = [
 GS = {
     "id": 1, "name": "GEOGRAPHICAL-RESTRICTION", "code": "GS", "title": "Geographical restriction",
     "rule": "The requester is located in an allowed country.", "guardian_types": ["download"],
-    "readme": "# GS", "graph": GS_GRAPH,
+    "policy_card": "# GS", "graph": GS_GRAPH,
 }
 IS = {
     "id": 2, "name": "INSTITUTION-SPECIFIC-RESTRICTION", "code": "IS", "title": "Institution specific restriction",
     "rule": "The requester belongs to an allowed institution.", "guardian_types": ["download"],
-    "readme": "# IS", "graph": IS_GRAPH,
+    "policy_card": "# IS", "graph": IS_GRAPH,
 }
 FL = {
     "id": 3, "name": "FL-INFERENCE", "code": "FL", "title": "Inference", "rule": "For inference.",
-    "guardian_types": ["inference"], "readme": "# FL", "graph": FL_GRAPH,
+    "guardian_types": ["inference"], "policy_card": "# FL", "graph": FL_GRAPH,
 }
 REGISTRY_OFFICE = {
     "id": 1, "did": f"did:pdo:{OFFICE}#poc", "name": "University registry", "kind": "hand-signing",

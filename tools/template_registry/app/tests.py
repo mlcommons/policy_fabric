@@ -36,7 +36,7 @@ class SeededFromTheRepository(TestCase):
         self.assertTrue(irb.rule)
         self.assertEqual(irb.guardian_types, ["download"])
         self.assertEqual(irb.graph, json.loads((folder / "graph.json").read_text()))
-        self.assertEqual(irb.readme, (folder / "README.md").read_text())
+        self.assertEqual(irb.policy_card, (folder / "policy_card.md").read_text())
         fl = PolicyTemplate.objects.get(name="FL-INFERENCE-DISEASE-SPECIFIC-RESEARCH")
         self.assertEqual((fl.code, fl.guardian_types), ("FL-DS", ["inference"]))
 

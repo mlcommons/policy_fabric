@@ -1,4 +1,4 @@
-<!-- A card's graph, README and card component's Rego; opened by window.render.showCard. -->
+<!-- A card's graph, Policy Card and card component's Rego; opened by window.render.showCard. -->
 <div id="card-detail-modal" class="modal-backdrop hidden">
     <div class="modal card-detail-modal" style="max-width:860px">
         <div class="modal-header">
@@ -8,14 +8,14 @@
         </div>
         <div class="tabs">
             <button type="button" class="tab-btn" data-card-tab="graph">Graph</button>
-            <button type="button" class="tab-btn active" data-card-tab="readme">Overview</button>
+            <button type="button" class="tab-btn active" data-card-tab="policy-card">Policy card</button>
             <button type="button" class="tab-btn" data-card-tab="rego">Rego</button>
         </div>
         <div class="tab-panel" data-card-panel="graph">
             <div id="card-detail-graph"></div>
         </div>
-        <div class="tab-panel active" data-card-panel="readme">
-            <div class="markdown-body" id="card-detail-readme"></div>
+        <div class="tab-panel active" data-card-panel="policy-card">
+            <div class="markdown-body" id="card-detail-policy-card"></div>
         </div>
         <div class="tab-panel" data-card-panel="rego">
             <pre class="code-viewer"><code class="rego-code" id="card-detail-rego"></code></pre>

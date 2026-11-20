@@ -117,7 +117,7 @@ the graph.
 | --- | --- |
 | `static/policy_ui/` | the graph renderer, shared with the docs site's Policy Composer: `PolicyGraph.layout` and `PolicyGraph.render` |
 | `views/policies.py`, `templates/policies/list.html`, `static/js/policies.js` | the **Policies** page: every card drawn as its graph |
-| `templates/_card_detail_modal.html`, `static/js/render.js` | a card's popup (`window.render.showCard`): its graph, its README, and its card component's Rego |
+| `templates/_card_detail_modal.html`, `static/js/render.js` | a card's popup (`window.render.showCard`): its graph, its Policy Card, and its card component's Rego |
 | `app/graphs.py`, `app/requirements.py` | composes the graphs of the cards an owner picks, and works out their requirement alternatives the way the contract's `set_rego_policy` expands them |
 | `views/assets.py`, `static/js/asset_dashboard.js` | Expose (cards, each node's parameters, the authorities accepted per credential type) and an asset's dashboard |
 | `app/trust.py` | the authorities offered and registered per credential type |

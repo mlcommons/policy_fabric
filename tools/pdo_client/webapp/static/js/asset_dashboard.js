@@ -91,7 +91,7 @@
                     refresh();
                 });
                 item.querySelector('button').addEventListener('click', function () {
-                    window.render.showCard(card.code + ' · ' + card.title, card.readme, card.rego_source, card.graph);
+                    window.render.showCard(card.code + ' · ' + card.title, card.policy_card, card.rego_source, card.graph);
                 });
                 box.appendChild(item);
             });

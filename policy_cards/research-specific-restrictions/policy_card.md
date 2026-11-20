@@ -32,6 +32,10 @@ Authored against the Policy Fabric Policy Card template: the numbered sections b
 
 ## 4  Summary & Intent
 
+**Rule type:** Permission (constraint) · **Outcomes:** allow / deny
+
+**Rule:** The requester's research has a purpose within the scope you set.
+
 The requester's project intends to use the data for a research purpose the owner allows, and the requester accepted the terms. Outputs the DownloadGrantCredential that Grant download takes.
 
 The card is a graph of policy components: each takes credentials, presented or produced by the
@@ -84,7 +88,15 @@ every card granted it.
 
 The card is [`graph.json`](graph.json), a graph of the components in
 [`policy_components/`](../../policy_components/), each a Rego component with
-its own unit tests and `component.json`. [`graph_vectors.json`](graph_vectors.json) states the decisions the
+its own unit tests and `component.json`:
+
+| Policy Component | What it checks |
+|---|---|
+| ProjectMembership | The requester is on the team of a PI who owns a project. Checks that the ProjectOwnershipCredential is about the PI the TeamCredential names (MemberOfTeamOf); outputs the project, for the requester. |
+| ResearchSpecificRestrictions | The requester's project intends to use the data for a research purpose the owner allows, and the requester accepted the terms. Outputs the DownloadGrantCredential that Grant download takes. |
+| Grant download | The end of every download card. Issues do_download to the holder of the key when the card granted that same person: the publicKeyCredential and the DownloadGrantCredential must be about the same subject. The channel key is the key in the publicKeyCredential. |
+
+[`graph_vectors.json`](graph_vectors.json) states the decisions the
 graph must reach; the contract and the card tests (`policy_components/run_tests.sh`) run
 them.
 

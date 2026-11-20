@@ -70,7 +70,7 @@ graph input that accepts it presented skips the components that would produce it
    | --- | --- |
    | `name` | the name drawn on the Policy Component, such as `GeographicalRestriction` |
    | `group` | `shared`, `card` or `grant` |
-   | `summary` | what it checks, in a sentence or two; the card's README and Policy Card repeat it |
+   | `summary` | what it checks, in a sentence or two; the card's Policy Card repeats it |
    | `inputs` | `{<name>: {type, about, role, claims}}`, the same names, types and roles as the interface, and `supplied_key: true` where it has it. `about` says who the credential is about: `requester`, `project`, `pi`, `institution`, `committee`, `script`, `compute` or `document`. `claims` lists the claims it reads (dotted paths); `new_claims` lists any the plan adds to the type |
    | `output` | `{type, about, claims}`; for a grant, `{capability, parameters}` |
    | `policy_data` | `{<key>: {type, description}}`, `type` being `string`, `string (ISO-8601 datetime)` or `array of strings`. The interface's `policy_data_schema` must say the same |

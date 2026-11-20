@@ -1,4 +1,4 @@
-// Safe rendering of registry text: a minimal Markdown renderer for card READMEs
+// Safe rendering of registry text: a minimal Markdown renderer for Policy Cards
 // and a Rego highlighter for their rules. Everything is HTML-escaped before any
 // markup is added.
 //
@@ -48,8 +48,14 @@
         function list(pattern, tag) {
             var items = [];
             while (i < lines.length && pattern.test(lines[i])) {
-                items.push(lines[i].replace(pattern, ''));
+                var item = lines[i].replace(pattern, '');
                 i++;
+                // a wrapped item goes on in the indented lines after it
+                while (i < lines.length && /^\s+\S/.test(lines[i]) && !pattern.test(lines[i])) {
+                    item += '\n' + lines[i].trim();
+                    i++;
+                }
+                items.push(item);
             }
             return '<' + tag + '>' + items.map(function (it) {
                 return '<li>' + renderInline(escapeHtml(it)) + '</li>';
@@ -148,17 +154,15 @@
         return out;
     }
 
-    // A card's graph, README and rule (its card component's Rego), in the shared
+    // A card's graph, Policy Card and rule (its card component's Rego), in the shared
     // #card-detail-modal; the graph is drawn with the page's #policy-catalog.
     var drawnGraph = null;
 
-    function showCard(title, readme, source, graph) {
+    function showCard(title, policyCard, source, graph) {
         var modal = document.getElementById('card-detail-modal');
         if (!modal) return;
         document.getElementById('card-detail-title').textContent = title;
-        document.getElementById('card-detail-readme').innerHTML = readme
-            ? markdown(readme)
-            : '<p class="md-empty">No description provided.</p>';
+        document.getElementById('card-detail-policy-card').innerHTML = markdown(policyCard);
         document.getElementById('card-detail-rego').innerHTML = rego(source);
         if (drawnGraph) drawnGraph.destroy();
         modal.classList.remove('hidden');
