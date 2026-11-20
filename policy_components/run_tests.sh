@@ -5,7 +5,7 @@
 #
 # Needs opa, python3 with jsonschema and the regorus bindings (tests/engine.py says how to
 # build them), PDO_CONTRACTS_ROOT (a pdo-contracts checkout, whose
-# rego-contract/src/rego holds the contract's graph validator and planner), and the
+# rego-contract/src/rego/common holds the contract's graph validator and planner), and the
 # repository's history back to commit 760742d.
 set -euo pipefail
 
