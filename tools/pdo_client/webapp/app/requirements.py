@@ -1,5 +1,5 @@
 """The requirement alternatives of a policy graph, as the rego_policy_agent's set_rego_policy
-expands them (compute_alternatives, in pdo-contracts' rego-contract/src/methods/policy_graph.cpp).
+expands them (compute_alternatives, in pdo-contracts' rego-contract/src/common/policy_graph.cpp).
 Needs no Rego engine, so the webapp lists them, from the components' interfaces alone, before
 an asset's policy is set; the card tests check every card's against the same limit."""
 

@@ -1,7 +1,7 @@
 """What the rego_policy_agent's set_rego_policy and issue_policy_credential do with a policy
 graph, in Python, for the card tests. It runs the contract's own validator and planner,
 read from the pdo-contracts checkout at PDO_CONTRACTS_ROOT
-(rego-contract/src/rego/graph_validator.rego and graph_planner.rego), and the components on
+(rego-contract/src/rego/common/graph_validator.rego and graph_planner.rego), and the components on
 regorus, and expands requirement alternatives with the webapp's app/requirements.py.
 pdo-contracts' rego-contract/docs/policy_graph.md is the spec.
 """
@@ -15,7 +15,7 @@ from engine import RegoError, eval_rule, packages
 if "PDO_CONTRACTS_ROOT" not in os.environ:
     raise SystemExit("set PDO_CONTRACTS_ROOT to a pdo-contracts checkout: its contract's validator "
                      "and planner decide here as they do on-chain")
-COMBINATORS = Path(os.environ["PDO_CONTRACTS_ROOT"]) / "rego-contract" / "src" / "rego"
+COMBINATORS = Path(os.environ["PDO_CONTRACTS_ROOT"]) / "rego-contract" / "src" / "rego" / "common"
 VALIDATOR = (COMBINATORS / "graph_validator.rego").read_text()
 PLANNER = (COMBINATORS / "graph_planner.rego").read_text()
 

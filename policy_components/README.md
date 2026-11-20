@@ -98,7 +98,7 @@ repository's history back to `760742d`.
 
 The cards are decided by `tests/policy_graph.py`, which does in Python what the
 `rego_policy_agent` does on-chain: it runs the contract's own validator and planner, read
-from `$PDO_CONTRACTS_ROOT/rego-contract/src/rego/`, and each component on regorus, the engine
+from `$PDO_CONTRACTS_ROOT/rego-contract/src/rego/common/`, and each component on regorus, the engine
 the contract embeds. `tests/vectors.py` reads a card's `graph_vectors.json` and checks each
 decision, and the requirement alternatives come from the webapp's `app/requirements.py`, the
 expansion the Expose form shows.
