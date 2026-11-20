@@ -1,13 +1,13 @@
-"""Golden test vectors for a policy graph, a card's graph_vectors.json, run by test_cards.py.
+"""The tests of a policy graph, a card's graph_tests.json, run by test_cards.py.
 
-A vector file names its credentials once and builds each case from them:
+A graph tests file names its credentials once and builds each test from them:
 
     {
       "registry":    {<type>: [<signer DID>, ...]},      whom the contract trusts, per type
       "request":     {...},                               what the requester declares
       "policy_data": {<node>: {...}},                     every node's policy data
       "credentials": {<name>: {"type", "issuer", "signer", "subject", "claims"}},
-      "vectors": [
+      "tests": [
         {"name": "...",
          "present": {<role>: [<credential name>, ...]},
          "change":  {<credential name>: <JSON merge patch>},       {} for none
@@ -51,20 +51,20 @@ def merge_patch(target, patch):
     return out
 
 
-def resolve(suite, vector):
-    """The vector's presentation as the contract would view it, ``{role: [view]}``, and the
+def resolve(suite, graph_test):
+    """The test's presentation as the contract would view it, ``{role: [view]}``, and the
     credential names by index."""
     credentials = {
-        name: merge_patch(cred, vector["change"][name]) if name in vector["change"] else cred
+        name: merge_patch(cred, graph_test["change"][name]) if name in graph_test["change"] else cred
         for name, cred in suite["credentials"].items()
     }
-    unknown = set(vector["change"]) - set(credentials)
+    unknown = set(graph_test["change"]) - set(credentials)
     if unknown:
-        raise KeyError(f"{vector['name']}: change names unknown credentials {sorted(unknown)}")
+        raise KeyError(f"{graph_test['name']}: change names unknown credentials {sorted(unknown)}")
     presented, names = {}, []
-    for role in sorted(vector["present"]):
+    for role in sorted(graph_test["present"]):
         presented[role] = []
-        for name in vector["present"][role]:
+        for name in graph_test["present"][role]:
             cred = credentials[name]
             presented[role].append({
                 "type": cred["type"],
@@ -80,8 +80,8 @@ def resolve(suite, vector):
     return presented, names, credentials
 
 
-class VectorVerifier:
-    """Signature checks for vectors: a registry check passes for a trusted credential; a key
+class GraphTestVerifier:
+    """Signature checks for graph tests: a registry check passes for a trusted credential; a key
     check passes when the supplied key is the credential's signing key."""
 
     def __init__(self, credentials, names):
@@ -97,7 +97,7 @@ class VectorVerifier:
 
 
 def outcome(result, names):
-    """What a vector's expect compares with."""
+    """What a test's expect compares with."""
     if not result["decision"]:
         if "missing" in result:
             return {"decision": False, "missing": [{"node": m["node"], "input": m["input"]} for m in result["missing"]]}
@@ -122,11 +122,11 @@ def normalized(expect):
 
 
 def run(graph, components, interfaces, suite):
-    """Yield ``(vector, expected, got, result)`` for each vector of the suite."""
-    for vector in suite["vectors"]:
-        presented, names, credentials = resolve(suite, vector)
+    """Yield ``(graph_test, expected, got, result)`` for each test of the suite."""
+    for graph_test in suite["tests"]:
+        presented, names, credentials = resolve(suite, graph_test)
         result = evaluate(
             graph, components, interfaces, presented, suite["request"], suite["policy_data"],
-            VectorVerifier(credentials, names),
+            GraphTestVerifier(credentials, names),
         )
-        yield vector, normalized(vector["expect"]), normalized(outcome(result, names)), result
+        yield graph_test, normalized(graph_test["expect"]), normalized(outcome(result, names)), result

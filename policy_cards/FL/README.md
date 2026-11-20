@@ -52,5 +52,5 @@ never reach A.
 ## Testing
 
 [`../../policy_components/run_tests.sh`](../../policy_components/run_tests.sh) runs both
-cards' vectors, and `tools/tests/run_webui_inference_test.sh` runs them end to end through
+cards' graph tests, and `tools/tests/run_webui_inference_test.sh` runs them end to end through
 the web UI.

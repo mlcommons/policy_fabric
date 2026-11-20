@@ -15,7 +15,7 @@
     "key": {"type": "publicKeyCredential", "issuer": "did:example:key-authority", "signer": "did:example:key-authority",
             "subject": "did:example:user-1", "claims": {"key": "PUBKEY-USER-1"}}
   },
-  "vectors": [
+  "tests": [
     {
       "name": "allow: the requester is a member of an institution the owner allows",
       "present": {"User": ["affiliation", "key"]},

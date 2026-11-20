@@ -16,7 +16,7 @@
              "signer": "did:example:script-authority", "subject": "did:pdo:script-asset",
              "claims": {"scriptHash": "sha256:abc"}}
   },
-  "vectors": [
+  "tests": [
     {
       "name": "allow: the script declares a disease the owner allows",
       "present": {"Script": ["use", "hash"]},

@@ -10,7 +10,7 @@
   "request": {"channel_key": "PUBKEY-USER-1"},
   "policy_data": {
     "project_membership": {},
-    "non_commercial_use_only": {"prohibitedPurposes": ["commercial"]},
+    "no_general_methods_research": {"prohibitedPurposes": ["MDS", "AI_Development", "Software_Development", "TrainModel"]},
     "grant_download": {}
   },
   "credentials": {
@@ -30,7 +30,7 @@
                    "signer": "did:example:research-office", "subject": "did:example:user-1",
                    "claims": {"project": "did:example:project-1"}}
   },
-  "vectors": [
+  "tests": [
     {
       "name": "allow: the project intends no purpose the owner prohibits",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
@@ -43,7 +43,7 @@
     {
       "name": "deny: the project also intends a purpose the owner prohibits",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
-      "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["HMB", "commercial"]}}}},
+      "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["HMB", "MDS"]}}}},
       "expect": {"decision": false, "reason": "the root issued no capability"}
     },
     {
@@ -86,13 +86,13 @@
       "name": "deny: no IntendedDataUseCredential",
       "present": {"User": ["team", "ownership", "agreement", "key"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "non_commercial_use_only", "input": "intendedDataUse"}]}
+      "expect": {"decision": false, "missing": [{"node": "no_general_methods_research", "input": "intendedDataUse"}]}
     },
     {
       "name": "deny: no AgreementCredential",
       "present": {"User": ["team", "ownership", "use", "key"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "non_commercial_use_only", "input": "agreement"}]}
+      "expect": {"decision": false, "missing": [{"node": "no_general_methods_research", "input": "agreement"}]}
     },
     {
       "name": "deny: no publicKeyCredential",
@@ -104,7 +104,7 @@
       "name": "deny: an IntendedDataUseCredential from an issuer the contract does not trust",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {"use": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
-      "expect": {"decision": false, "missing": [{"node": "non_commercial_use_only", "input": "intendedDataUse"}]}
+      "expect": {"decision": false, "missing": [{"node": "no_general_methods_research", "input": "intendedDataUse"}]}
     },
     {
       "name": "allow: a trusted ProjectMembershipCredential stands in for the team and ownership",

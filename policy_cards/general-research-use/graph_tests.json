@@ -15,7 +15,7 @@
     "key": {"type": "publicKeyCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
             "subject": "did:example:user-1", "claims": {"key": "PUBKEY-USER-1"}}
   },
-  "vectors": [
+  "tests": [
     {
       "name": "allow: the requester accepted the required terms",
       "present": {"User": ["agreement", "key"]},

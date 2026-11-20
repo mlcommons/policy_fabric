@@ -10,7 +10,7 @@
   "request": {"channel_key": "PUBKEY-USER-1"},
   "policy_data": {
     "project_membership": {},
-    "genetic_studies_only": {"allowedPurposes": ["GSO"]},
+    "disease_specific_research": {"allowedDiseases": ["MONDO:0005148", "MONDO:0005015"]},
     "grant_download": {}
   },
   "credentials": {
@@ -20,7 +20,7 @@
                   "subject": "did:example:pi-1", "claims": {"Owns": "did:example:project-1"}},
     "use": {"type": "IntendedDataUseCredential", "issuer": "did:example:dac", "signer": "did:example:dac",
             "subject": "did:example:project-1",
-            "claims": {"useOnlyFor": {"purposes": ["GSO"], "diseases": []}}},
+            "claims": {"useOnlyFor": {"purposes": ["HMB"], "diseases": ["MONDO:0005148"]}}},
     "agreement": {"type": "AgreementCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
                   "subject": "did:example:user-1",
                   "claims": {"agreementInfo": {"documentID": "did:example:terms", "documentVersion": "1.0"}}},
@@ -30,9 +30,9 @@
                    "signer": "did:example:research-office", "subject": "did:example:user-1",
                    "claims": {"project": "did:example:project-1"}}
   },
-  "vectors": [
+  "tests": [
     {
-      "name": "allow: the project intends a purpose the owner allows",
+      "name": "allow: the project intends a disease the owner allows",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {},
       "expect": {"decision": true, "subject": "did:example:user-1",
@@ -41,9 +41,9 @@
                  "verified": ["team", "ownership", "use", "agreement", "key"]}
     },
     {
-      "name": "deny: a purpose the owner does not allow",
+      "name": "deny: a disease the owner does not allow",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
-      "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["SomethingElse"]}}}},
+      "change": {"use": {"claims": {"useOnlyFor": {"diseases": ["MONDO:9999999"]}}}},
       "expect": {"decision": false, "reason": "the root issued no capability"}
     },
     {
@@ -86,13 +86,13 @@
       "name": "deny: no IntendedDataUseCredential",
       "present": {"User": ["team", "ownership", "agreement", "key"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "genetic_studies_only", "input": "intendedDataUse"}]}
+      "expect": {"decision": false, "missing": [{"node": "disease_specific_research", "input": "intendedDataUse"}]}
     },
     {
       "name": "deny: no AgreementCredential",
       "present": {"User": ["team", "ownership", "use", "key"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "genetic_studies_only", "input": "agreement"}]}
+      "expect": {"decision": false, "missing": [{"node": "disease_specific_research", "input": "agreement"}]}
     },
     {
       "name": "deny: no publicKeyCredential",
@@ -104,7 +104,7 @@
       "name": "deny: an IntendedDataUseCredential from an issuer the contract does not trust",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {"use": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
-      "expect": {"decision": false, "missing": [{"node": "genetic_studies_only", "input": "intendedDataUse"}]}
+      "expect": {"decision": false, "missing": [{"node": "disease_specific_research", "input": "intendedDataUse"}]}
     },
     {
       "name": "allow: a trusted ProjectMembershipCredential stands in for the team and ownership",

@@ -94,7 +94,7 @@ its own unit tests and `component.json`:
 | NoGeneralMethodsResearch | The requester's project intends to use the data for no purpose the owner prohibits, such as methods development, and the requester accepted the terms. Outputs the DownloadGrantCredential that Grant download takes. |
 | Grant download | The end of every download card. Issues do_download to the holder of the key when the card granted that same person: the publicKeyCredential and the DownloadGrantCredential must be about the same subject. The channel key is the key in the publicKeyCredential. |
 
-[`graph_vectors.json`](graph_vectors.json) states the decisions the
+[`graph_tests.json`](graph_tests.json) states the decisions the
 graph must reach; the contract and the card tests (`policy_components/run_tests.sh`) run
 them.
 

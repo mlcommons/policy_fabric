@@ -29,7 +29,7 @@ presents one.
 
 ## Folders
 
-Every card folder holds its `graph.json`, the `graph_vectors.json` that states the
+Every card folder holds its `graph.json`, the `graph_tests.json` that states the
 decisions the graph must reach, a `card.json` with its code, name and one-line rule, and
 `policy_card.md`, the full Policy Card, which the webapp shows owners.
 
@@ -79,11 +79,11 @@ which end in Grant inference and read credentials about the script a requester b
    node's `policy_data` empty: the owner chooses both when exposing an asset.
 3. **`card.json`**: exactly `code` (the DUO abbreviation), `name` and `rule`, the one-line
    rule shown to the owner; `build_catalog.py` checks the keys.
-4. **`graph_vectors.json`**: the decisions the graph must reach. Start from a card's: every
+4. **`graph_tests.json`**: the decisions the graph must reach. Start from a card's: every
    credential type the graph reads is a key of `registry`, every node has its `policy_data`,
    and there is an allow for each requirement alternative and a deny for each thing a
    component checks. The format is in
-   [`../policy_components/tests/vectors.py`](../policy_components/tests/vectors.py), and the
+   [`../policy_components/tests/graph_tests.py`](../policy_components/tests/graph_tests.py), and the
    denial reasons in pdo-contracts' `rego-contract/docs/policy_graph.md`.
 5. **`policy_card.md`**, the full Policy Card, written by hand from an existing card: its
    rule, the graph's components, the presented credentials and the parameters. The tests find
@@ -98,7 +98,7 @@ which end in Grant inference and read credentials about the script a requester b
 ## Tests
 
 [`../policy_components/run_tests.sh`](../policy_components/run_tests.sh) runs every card's
-vectors through `policy_components/tests/policy_graph.py`, which runs the contract's own
+graph tests through `policy_components/tests/policy_graph.py`, which runs the contract's own
 validator and planner from a pdo-contracts checkout, after the components' own tests, and
 compares each card that existed at commit `760742d`
 with its Rego file there, from before cards became graphs.

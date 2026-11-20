@@ -10,7 +10,7 @@
   "request": {"channel_key": "PUBKEY-USER-1"},
   "policy_data": {
     "project_membership": {},
-    "project_specific_restriction": {"approvedProjects": ["did:example:project-1"]},
+    "population_origins_or_ancestry_research_only": {"allowedPurposes": ["POA"]},
     "grant_download": {}
   },
   "credentials": {
@@ -19,7 +19,8 @@
     "ownership": {"type": "ProjectOwnershipCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
                   "subject": "did:example:pi-1", "claims": {"Owns": "did:example:project-1"}},
     "use": {"type": "IntendedDataUseCredential", "issuer": "did:example:dac", "signer": "did:example:dac",
-            "subject": "did:example:project-1", "claims": {"useOnlyFor": {"purposes": ["HMB"]}}},
+            "subject": "did:example:project-1",
+            "claims": {"useOnlyFor": {"purposes": ["POA"], "diseases": []}}},
     "agreement": {"type": "AgreementCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
                   "subject": "did:example:user-1",
                   "claims": {"agreementInfo": {"documentID": "did:example:terms", "documentVersion": "1.0"}}},
@@ -29,9 +30,9 @@
                    "signer": "did:example:research-office", "subject": "did:example:user-1",
                    "claims": {"project": "did:example:project-1"}}
   },
-  "vectors": [
+  "tests": [
     {
-      "name": "allow: the requester's project is one the owner approved",
+      "name": "allow: the project intends a purpose the owner allows",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {},
       "expect": {"decision": true, "subject": "did:example:user-1",
@@ -40,15 +41,15 @@
                  "verified": ["team", "ownership", "use", "agreement", "key"]}
     },
     {
-      "name": "deny: the requester's project is not one the owner approved",
+      "name": "deny: a purpose the owner does not allow",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
-      "change": {"ownership": {"claims": {"Owns": "did:example:project-2"}}, "use": {"subject": "did:example:project-2"}},
+      "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["SomethingElse"]}}}},
       "expect": {"decision": false, "reason": "the root issued no capability"}
     },
     {
-      "name": "deny: the intended use of an approved project the requester does not work on",
+      "name": "deny: the intended use of another project",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
-      "change": {"ownership": {"claims": {"Owns": "did:example:project-2"}}},
+      "change": {"use": {"subject": "did:example:project-2"}},
       "expect": {"decision": false, "reason": "the root issued no capability"}
     },
     {
@@ -85,13 +86,13 @@
       "name": "deny: no IntendedDataUseCredential",
       "present": {"User": ["team", "ownership", "agreement", "key"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "project_specific_restriction", "input": "intendedDataUse"}]}
+      "expect": {"decision": false, "missing": [{"node": "population_origins_or_ancestry_research_only", "input": "intendedDataUse"}]}
     },
     {
       "name": "deny: no AgreementCredential",
       "present": {"User": ["team", "ownership", "use", "key"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "project_specific_restriction", "input": "agreement"}]}
+      "expect": {"decision": false, "missing": [{"node": "population_origins_or_ancestry_research_only", "input": "agreement"}]}
     },
     {
       "name": "deny: no publicKeyCredential",
@@ -103,7 +104,7 @@
       "name": "deny: an IntendedDataUseCredential from an issuer the contract does not trust",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {"use": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
-      "expect": {"decision": false, "missing": [{"node": "project_specific_restriction", "input": "intendedDataUse"}]}
+      "expect": {"decision": false, "missing": [{"node": "population_origins_or_ancestry_research_only", "input": "intendedDataUse"}]}
     },
     {
       "name": "allow: a trusted ProjectMembershipCredential stands in for the team and ownership",
