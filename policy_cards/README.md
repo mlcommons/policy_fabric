@@ -30,8 +30,8 @@ presents one.
 ## Folders
 
 Every card folder holds its `graph.json`, the `graph_vectors.json` that states the
-decisions the graph must reach, a `card.json` with its code, name and one-line rule, the
-`README.md` shown to owners, and `policy_card.md`, the full Policy Card.
+decisions the graph must reach, a `card.json` with its code, name and one-line rule, and
+`policy_card.md`, the full Policy Card, which the webapp shows owners.
 
 | Card | Folder | Credentials it takes presented, besides the session key |
 |------|--------|---------------------------------------------------------|
@@ -80,10 +80,9 @@ which end in Grant inference and read credentials about the script a requester b
    component checks. The format is in
    [`../policy_components/tests/vectors.py`](../policy_components/tests/vectors.py), and the
    denial reasons in pdo-contracts' `rego-contract/docs/policy_graph.md`.
-5. **`README.md`** and **`policy_card.md`**, written by hand from an existing card: the README
-   lists the graph's components, the presented credentials and the parameters, and
-   `policy_card.md` is the full Policy Card. The tests find cards by their `policy_card.md`.
-   Add the card to the table above.
+5. **`policy_card.md`**, the full Policy Card, written by hand from an existing card: its
+   rule, the graph's components, the presented credentials and the parameters. The tests find
+   cards by their `policy_card.md`. Add the card to the table above.
 6. **Check it**, with `python3 tools/policy_catalog/build_catalog.py --repo . --out /tmp/catalog.json`
    and `policy_components/run_tests.sh` (see below).
 7. **Serve it.** The template registry seeds from this folder each time it starts

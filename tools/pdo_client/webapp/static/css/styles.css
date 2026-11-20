@@ -477,7 +477,7 @@ hr { border: none; border-top: 1px solid #eee; margin: 1.2rem 0; }
 /* ===== Inline identity change form (in navbar) ===== */
 .identity-modal .modal { max-width: 380px; }
 
-/* ===== Card detail modal (rendered README + highlighted Rego) ===== */
+/* ===== Card detail modal (rendered Policy Card + highlighted Rego) ===== */
 .card-detail-modal .tabs { margin-bottom: 0; }
 .card-detail-modal .tab-panel { padding-top: 1.25rem; }
 .card-detail-modal.modal-wide { max-width: min(96vw, 1400px) !important; }
@@ -556,7 +556,6 @@ hr { border: none; border-top: 1px solid #eee; margin: 1.2rem 0; }
     font-size: 0.82rem;
     line-height: 1.5;
 }
-.markdown-body .md-empty { color: var(--color-subtle); font-style: italic; }
 
 /* Highlighted Rego source */
 .code-viewer {

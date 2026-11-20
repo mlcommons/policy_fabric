@@ -13,7 +13,7 @@ POLICY_FIELDS = (
     "title",
     "rule",
     "guardian_types",
-    "readme",
+    "policy_card",
     "graph",
 )
 

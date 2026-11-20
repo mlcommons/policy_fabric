@@ -525,7 +525,7 @@ class AssetDashboardView(BaseView):
             }
             ctx["expose"] = {
                 "cards": [
-                    {**{k: c[k] for k in ("id", "name", "code", "title", "rule", "readme", "graph")},
+                    {**{k: c[k] for k in ("id", "name", "code", "title", "rule", "policy_card", "graph")},
                      "rego_source": rules[c["name"]]}
                     for c in cards
                 ],

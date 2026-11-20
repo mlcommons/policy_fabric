@@ -11,7 +11,8 @@ class PolicyTemplate(models.Model):
     rule = models.TextField(default="")
     # the guardians the card's grant fits: download or inference
     guardian_types = models.JSONField(default=list)
-    readme = models.TextField(default="")
+    # its policy_card.md, the full Policy Card
+    policy_card = models.TextField(default="")
     # the card, its graph.json
     graph = models.JSONField()
 

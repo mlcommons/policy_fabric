@@ -31,6 +31,10 @@ Authored against the Policy Fabric Policy Card template: the numbered sections b
 
 ## 4  Summary & Intent
 
+**Rule type:** Permission (constraint) · **Outcomes:** allow / deny
+
+**Rule:** The requester is a member of an institution you allow, and owns the script they bring.
+
 The requester is a member of an allowed institution and owns the script: the ScriptOwnershipCredential is signed by the requester's own wallet, and checked against the key its WalletVerifyingKeyCredential attests. Outputs, for the script, the InferenceGrantCredential that Grant inference takes.
 
 The card is a graph of policy components: each takes credentials, presented or produced by the
@@ -77,7 +81,14 @@ every card granted it.
 
 The card is [`graph.json`](graph.json), a graph of the components in
 [`policy_components/`](../../../policy_components/), each a Rego component with
-its own unit tests and `component.json`. [`graph_vectors.json`](graph_vectors.json) states the decisions the
+its own unit tests and `component.json`:
+
+| Policy Component | What it checks |
+|---|---|
+| InstitutionSpecificRestrictionForInference | The requester is a member of an allowed institution and owns the script: the ScriptOwnershipCredential is signed by the requester's own wallet, and checked against the key its WalletVerifyingKeyCredential attests. Outputs, for the script, the InferenceGrantCredential that Grant inference takes. |
+| Grant inference | The end of every federated learning card. Issues do_inference for the script digest the request names, when every card on the asset granted that script, with that digest. |
+
+[`graph_vectors.json`](graph_vectors.json) states the decisions the
 graph must reach; the contract and the card tests (`policy_components/run_tests.sh`) run
 them.
 

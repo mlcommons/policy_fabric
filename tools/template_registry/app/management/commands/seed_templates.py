@@ -111,7 +111,7 @@ class Command(BaseCommand):
                     "title": manifest["name"],
                     "rule": manifest["rule"],
                     "guardian_types": [GUARDIAN_TYPES[card["graph"]["root"]]],
-                    "readme": (card_dir / "README.md").read_text(),
+                    "policy_card": (card_dir / "policy_card.md").read_text(),
                     "graph": card["graph"],
                 },
             )
