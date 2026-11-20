@@ -10,7 +10,7 @@
   "request": {"channel_key": "PUBKEY-USER-1"},
   "policy_data": {
     "project_membership": {},
-    "health_or_medical_or_biomedical_research": {"allowedPurposes": ["HMB"], "prohibitedPurposes": ["POA"]},
+    "research_specific_restrictions": {"allowedPurposes": ["OncologyResearch"]},
     "grant_download": {}
   },
   "credentials": {
@@ -20,7 +20,7 @@
                   "subject": "did:example:pi-1", "claims": {"Owns": "did:example:project-1"}},
     "use": {"type": "IntendedDataUseCredential", "issuer": "did:example:dac", "signer": "did:example:dac",
             "subject": "did:example:project-1",
-            "claims": {"useOnlyFor": {"purposes": ["HMB"], "diseases": []}}},
+            "claims": {"useOnlyFor": {"purposes": ["OncologyResearch"], "diseases": []}}},
     "agreement": {"type": "AgreementCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
                   "subject": "did:example:user-1",
                   "claims": {"agreementInfo": {"documentID": "did:example:terms", "documentVersion": "1.0"}}},
@@ -30,9 +30,9 @@
                    "signer": "did:example:research-office", "subject": "did:example:user-1",
                    "claims": {"project": "did:example:project-1"}}
   },
-  "vectors": [
+  "tests": [
     {
-      "name": "allow: the project intends a purpose the owner allows and none it prohibits",
+      "name": "allow: the project intends a purpose the owner allows",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {},
       "expect": {"decision": true, "subject": "did:example:user-1",
@@ -44,12 +44,6 @@
       "name": "deny: a purpose the owner does not allow",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["SomethingElse"]}}}},
-      "expect": {"decision": false, "reason": "the root issued no capability"}
-    },
-    {
-      "name": "deny: the project also intends a purpose the owner prohibits",
-      "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
-      "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["HMB", "POA"]}}}},
       "expect": {"decision": false, "reason": "the root issued no capability"}
     },
     {
@@ -92,13 +86,13 @@
       "name": "deny: no IntendedDataUseCredential",
       "present": {"User": ["team", "ownership", "agreement", "key"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "health_or_medical_or_biomedical_research", "input": "intendedDataUse"}]}
+      "expect": {"decision": false, "missing": [{"node": "research_specific_restrictions", "input": "intendedDataUse"}]}
     },
     {
       "name": "deny: no AgreementCredential",
       "present": {"User": ["team", "ownership", "use", "key"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "health_or_medical_or_biomedical_research", "input": "agreement"}]}
+      "expect": {"decision": false, "missing": [{"node": "research_specific_restrictions", "input": "agreement"}]}
     },
     {
       "name": "deny: no publicKeyCredential",
@@ -110,7 +104,7 @@
       "name": "deny: an IntendedDataUseCredential from an issuer the contract does not trust",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {"use": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
-      "expect": {"decision": false, "missing": [{"node": "health_or_medical_or_biomedical_research", "input": "intendedDataUse"}]}
+      "expect": {"decision": false, "missing": [{"node": "research_specific_restrictions", "input": "intendedDataUse"}]}
     },
     {
       "name": "allow: a trusted ProjectMembershipCredential stands in for the team and ownership",

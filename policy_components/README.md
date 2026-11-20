@@ -12,7 +12,7 @@ whether a presented credential stands in for a component's output. pdo-contracts
 | `<id>/component.rego` | `package pf.components.<id>`: the `interface` (inputs by type and role, output type, policy data schema) and the `output` rule |
 | `<id>/component.json` | what the views show: name, group, summary, who each credential is about and the claims it reads, the policy data |
 | `<id>/component_test.rego` | its unit tests |
-| `tests/` | every component against its `component.json` on OPA and regorus, and every card's graph against its `graph_vectors.json` and against the card's Rego file before cards became graphs |
+| `tests/` | every component against its `component.json` on OPA and regorus, and every card's graph against its `graph_tests.json` and against the card's Rego file before cards became graphs |
 
 A component reads `{inputs: {<input>: [credential]}, policy_data, request}` and returns a list
 of `{type, subject, claims, evidence}`, where evidence lists the presented credentials the
@@ -91,7 +91,7 @@ PDO_CONTRACTS_ROOT=~/pdo-contracts ./run_tests.sh
 
 It runs `opa test` on every component, then `tests/test_components.py` (every component's
 interface on OPA and on regorus, against its `component.json`) and `tests/test_cards.py`
-(every card's graph against its `graph_vectors.json`, and against the card's Rego file at
+(every card's graph against its `graph_tests.json`, and against the card's Rego file at
 commit `760742d`, before cards became graphs). It needs `opa`, python3 with `jsonschema` and
 the regorus bindings (built as `tests/engine.py` says), a pdo-contracts checkout, and this
 repository's history back to `760742d`.
@@ -99,7 +99,7 @@ repository's history back to `760742d`.
 The cards are decided by `tests/policy_graph.py`, which does in Python what the
 `rego_policy_agent` does on-chain: it runs the contract's own validator and planner, read
 from `$PDO_CONTRACTS_ROOT/rego-contract/src/rego/common/`, and each component on regorus, the engine
-the contract embeds. `tests/vectors.py` reads a card's `graph_vectors.json` and checks each
+the contract embeds. `tests/graph_tests.py` reads a card's `graph_tests.json` and checks each
 decision, and the requirement alternatives come from the webapp's `app/requirements.py`, the
 expansion the Expose form shows.
 

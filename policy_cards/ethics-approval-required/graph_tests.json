@@ -49,7 +49,7 @@
                   "signer": "did:example:research-office", "subject": "did:example:user-1",
                   "claims": {"project": "did:example:project-1", "purposes": ["HMB"]}}
   },
-  "vectors": [
+  "tests": [
     {
       "name": "allow: the whole chain, with the requester's affiliation",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},

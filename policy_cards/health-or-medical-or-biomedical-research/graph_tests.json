@@ -10,7 +10,7 @@
   "request": {"channel_key": "PUBKEY-USER-1"},
   "policy_data": {
     "project_membership": {},
-    "no_general_methods_research": {"prohibitedPurposes": ["MDS", "AI_Development", "Software_Development", "TrainModel"]},
+    "health_or_medical_or_biomedical_research": {"allowedPurposes": ["HMB"], "prohibitedPurposes": ["POA"]},
     "grant_download": {}
   },
   "credentials": {
@@ -30,9 +30,9 @@
                    "signer": "did:example:research-office", "subject": "did:example:user-1",
                    "claims": {"project": "did:example:project-1"}}
   },
-  "vectors": [
+  "tests": [
     {
-      "name": "allow: the project intends no purpose the owner prohibits",
+      "name": "allow: the project intends a purpose the owner allows and none it prohibits",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {},
       "expect": {"decision": true, "subject": "did:example:user-1",
@@ -41,9 +41,15 @@
                  "verified": ["team", "ownership", "use", "agreement", "key"]}
     },
     {
+      "name": "deny: a purpose the owner does not allow",
+      "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
+      "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["SomethingElse"]}}}},
+      "expect": {"decision": false, "reason": "the root issued no capability"}
+    },
+    {
       "name": "deny: the project also intends a purpose the owner prohibits",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
-      "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["HMB", "MDS"]}}}},
+      "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["HMB", "POA"]}}}},
       "expect": {"decision": false, "reason": "the root issued no capability"}
     },
     {
@@ -86,13 +92,13 @@
       "name": "deny: no IntendedDataUseCredential",
       "present": {"User": ["team", "ownership", "agreement", "key"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "no_general_methods_research", "input": "intendedDataUse"}]}
+      "expect": {"decision": false, "missing": [{"node": "health_or_medical_or_biomedical_research", "input": "intendedDataUse"}]}
     },
     {
       "name": "deny: no AgreementCredential",
       "present": {"User": ["team", "ownership", "use", "key"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "no_general_methods_research", "input": "agreement"}]}
+      "expect": {"decision": false, "missing": [{"node": "health_or_medical_or_biomedical_research", "input": "agreement"}]}
     },
     {
       "name": "deny: no publicKeyCredential",
@@ -104,7 +110,7 @@
       "name": "deny: an IntendedDataUseCredential from an issuer the contract does not trust",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},
       "change": {"use": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
-      "expect": {"decision": false, "missing": [{"node": "no_general_methods_research", "input": "intendedDataUse"}]}
+      "expect": {"decision": false, "missing": [{"node": "health_or_medical_or_biomedical_research", "input": "intendedDataUse"}]}
     },
     {
       "name": "allow: a trusted ProjectMembershipCredential stands in for the team and ownership",

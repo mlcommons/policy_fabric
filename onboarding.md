@@ -311,7 +311,7 @@ Tear down with `bash tools/stop_all.sh && bash tools/docker_stop_all.sh`.
 | where a service's launch command runs (here vs. handed to the host) | `webapp/app/service_launcher.py` — shared by guardians and the FL server |
 | the federated page or the round | `webapp/app/views/federated.py`, `templates/federated/list.html`, `static/js/federated.js` |
 | the FL server's API | `tools/fl_server/server.py` **and** `webapp/app/fl_client.py` **and** `guardians/inference/fl_framework/client.py` — three ends of one protocol |
-| a policy | `policy_cards/<name>/graph.json` + `graph_vectors.json` + `card.json` (draw it in the docs site's Policy Composer); `policy_components/run_tests.sh` |
+| a policy | `policy_cards/<name>/graph.json` + `graph_tests.json` + `card.json` (draw it in the docs site's Policy Composer); `policy_components/run_tests.sh` |
 | a policy component | `policy_components/<id>/component.rego` + `component_test.rego` + `component.json`; `policy_components/run_tests.sh` |
 | the Expose panel, the trust panel, the checklist | `webapp/app/views/assets.py`, `webapp/app/{graphs,trust,checklist,readiness}.py`, `static/js/asset_dashboard.js`; `webapp/run_tests.sh` |
 | how graphs are drawn, the Policies page | `webapp/static/policy_ui/` (shared with the docs composer), `webapp/app/views/policies.py`, `templates/policies/list.html`, `static/js/policies.js` |

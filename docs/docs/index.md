@@ -95,7 +95,7 @@ A Policy Card is composed of its identification, the scope it governs, the rules
 | Associated Credentials | The credential types that must be presented and the claims drawn from each. |
 | Reference Values Schema | The owner-configured values the rules evaluate evidence against (e.g. allowed countries or institutions), so one card is reused across datasets by re-parameterization. |
 | Capability Granted | operation + parameters: what success produces — the capability package the Asset Guardian enforces without any policy logic of its own. |
-| Codified Representation | The card's `graph.json`, a graph of Rego policy components evaluated against the presented evidence and reference values to reach the allow/deny decision, and the `graph_vectors.json` decisions it must reach. |
+| Codified Representation | The card's `graph.json`, a graph of Rego policy components evaluated against the presented evidence and reference values to reach the allow/deny decision, and the `graph_tests.json` decisions it must reach. |
 | Legal & Disclaimers | Legal & Disclaimers |
 
 ### Credentials

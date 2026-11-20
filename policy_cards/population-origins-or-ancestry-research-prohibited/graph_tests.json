@@ -30,7 +30,7 @@
                    "signer": "did:example:research-office", "subject": "did:example:user-1",
                    "claims": {"project": "did:example:project-1"}}
   },
-  "vectors": [
+  "tests": [
     {
       "name": "allow: the project intends no purpose the owner prohibits",
       "present": {"User": ["team", "ownership", "use", "agreement", "key"]},

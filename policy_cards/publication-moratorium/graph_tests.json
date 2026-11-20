@@ -6,7 +6,7 @@
   },
   "request": {"channel_key": "PUBKEY-USER-1"},
   "policy_data": {
-    "time_limit_on_use": {"requiredDocumentID": "did:example:terms-1", "notAfter": "2027-12-31T23:59:59Z"},
+    "publication_moratorium": {"requiredDocumentID": "did:example:terms-1"},
     "grant_download": {}
   },
   "credentials": {
@@ -19,9 +19,9 @@
     "key": {"type": "publicKeyCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
             "subject": "did:example:user-1", "claims": {"key": "PUBKEY-USER-1"}}
   },
-  "vectors": [
+  "tests": [
     {
-      "name": "allow: the requester accepted the terms and the compute environment shuts down before the deadline",
+      "name": "allow: the required terms, on a compute environment that handles results securely",
       "present": {"User": ["agreement", "compute", "key"]},
       "change": {},
       "expect": {"decision": true, "subject": "did:example:user-1",
@@ -30,24 +30,15 @@
                  "verified": ["agreement", "compute", "key"]}
     },
     {
-      "name": "allow: a compute environment that shuts down at the deadline",
+      "name": "deny: a compute environment that does not handle results securely",
       "present": {"User": ["agreement", "compute", "key"]},
-      "change": {"compute": {"claims": {"hasComputeProfile": {"profile": {"shutsDownAt": "2027-12-31T23:59:59Z"}}}}},
-      "expect": {"decision": true, "subject": "did:example:user-1",
-                 "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
-                 "evidence": ["agreement", "compute", "key"],
-                 "verified": ["agreement", "compute", "key"]}
-    },
-    {
-      "name": "deny: a compute environment that shuts down after the deadline",
-      "present": {"User": ["agreement", "compute", "key"]},
-      "change": {"compute": {"claims": {"hasComputeProfile": {"profile": {"shutsDownAt": "2028-06-01T00:00:00Z"}}}}},
+      "change": {"compute": {"claims": {"hasComputeProfile": {"profile": {"SecureHandlingOfResults": false}}}}},
       "expect": {"decision": false, "reason": "the root issued no capability"}
     },
     {
-      "name": "deny: an agreement to another terms document",
+      "name": "deny: the requester accepted other terms",
       "present": {"User": ["agreement", "compute", "key"]},
-      "change": {"agreement": {"claims": {"agreementInfo": {"documentID": "did:example:terms-other"}}}},
+      "change": {"agreement": {"claims": {"agreementInfo": {"documentID": "did:example:terms-2"}}}},
       "expect": {"decision": false, "reason": "the root issued no capability"}
     },
     {
@@ -60,13 +51,13 @@
       "name": "deny: no AgreementCredential",
       "present": {"User": ["compute", "key"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "time_limit_on_use", "input": "agreement"}]}
+      "expect": {"decision": false, "missing": [{"node": "publication_moratorium", "input": "agreement"}]}
     },
     {
       "name": "deny: no ComputeEnvironmentCredential",
       "present": {"User": ["agreement", "key"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"node": "time_limit_on_use", "input": "computeEnvironment"}]}
+      "expect": {"decision": false, "missing": [{"node": "publication_moratorium", "input": "computeEnvironment"}]}
     },
     {
       "name": "deny: no publicKeyCredential",
@@ -78,7 +69,7 @@
       "name": "deny: a ComputeEnvironmentCredential from an issuer the contract does not trust",
       "present": {"User": ["agreement", "compute", "key"]},
       "change": {"compute": {"issuer": "did:example:elsewhere", "signer": "did:example:elsewhere"}},
-      "expect": {"decision": false, "missing": [{"node": "time_limit_on_use", "input": "computeEnvironment"}]}
+      "expect": {"decision": false, "missing": [{"node": "publication_moratorium", "input": "computeEnvironment"}]}
     }
   ]
 }

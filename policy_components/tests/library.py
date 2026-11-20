@@ -32,8 +32,8 @@ def graph(card):
     return json.loads((CARDS / card / "graph.json").read_text())
 
 
-def vectors(card):
-    return json.loads((CARDS / card / "graph_vectors.json").read_text())
+def graph_tests(card):
+    return json.loads((CARDS / card / "graph_tests.json").read_text())
 
 
 def opa_eval(sources, query, input_doc):

@@ -88,7 +88,7 @@ its own unit tests and `component.json`:
 | InstitutionSpecificRestrictionForInference | The requester is a member of an allowed institution and owns the script: the ScriptOwnershipCredential is signed by the requester's own wallet, and checked against the key its WalletVerifyingKeyCredential attests. Outputs, for the script, the InferenceGrantCredential that Grant inference takes. |
 | Grant inference | The end of every federated learning card. Issues do_inference for the script digest the request names, when every card on the asset granted that script, with that digest. |
 
-[`graph_vectors.json`](graph_vectors.json) states the decisions the
+[`graph_tests.json`](graph_tests.json) states the decisions the
 graph must reach; the contract and the card tests (`policy_components/run_tests.sh`) run
 them.
 

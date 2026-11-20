@@ -14,7 +14,7 @@
     "key": {"type": "publicKeyCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
             "subject": "did:example:org-1", "claims": {"key": "PUBKEY-ORG-1"}}
   },
-  "vectors": [
+  "tests": [
     {
       "name": "allow: a legal form the owner accepts as not-for-profit",
       "present": {"User": ["designation", "key"]},
