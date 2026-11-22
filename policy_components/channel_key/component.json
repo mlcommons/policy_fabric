@@ -1,0 +1,24 @@
+{
+  "name": "ChannelKey",
+  "group": "shared",
+  "summary": "The requester holds the channel key the request names, the key the download is encrypted to. Decides about the requester and admits that channel_key, which do_download takes.",
+  "inputs": {
+    "key": {
+      "type": "publicKeyCredential",
+      "about": "requester",
+      "role": "User",
+      "claims": [
+        "key"
+      ]
+    }
+  },
+  "output": {
+    "type": "Decision",
+    "about": "requester",
+    "parameters": [
+      "channel_key"
+    ]
+  },
+  "policy_data": {},
+  "changes_from_today": []
+}

@@ -1,7 +1,7 @@
 {
   "name": "InstitutionSpecificRestrictionForInference",
   "group": "card",
-  "summary": "The card component of Institution Specific Restriction for inference (DUO_0000028). The requester is a member of an allowed institution and owns the script: the ScriptOwnershipCredential is signed by the requester's own wallet, and checked against the key its WalletVerifyingKeyCredential attests. Outputs a DataUseConditionCredential about the script.",
+  "summary": "The card component of Institution Specific Restriction for inference (DUO_0000028). The requester is a member of an allowed institution and owns the script: the ScriptOwnershipCredential is signed by the requester's own wallet, and checked against the key its WalletVerifyingKeyCredential attests. Decides about the script.",
   "inputs": {
     "affiliation": {
       "type": "AffiliationCredential",
@@ -31,9 +31,9 @@
     }
   },
   "output": {
-    "type": "DataUseConditionCredential",
+    "type": "Decision",
     "about": "script",
-    "claims": []
+    "parameters": []
   },
   "policy_data": {
     "allowedInstitutions": {

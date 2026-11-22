@@ -4,8 +4,7 @@ did when it was one Rego module.
 
 The comparison with the old Rego file (at commit 760742d, read through git) allows
 for what the graph does differently everywhere: the operation may carry fewer parameters (an
-inference capability no longer carries a channel key), and only credentials of the types the
-graph reads are compared with what the old module flagged. A test that presents a type a
+inference capability no longer carries a channel key). A test that presents a type a
 component produces (a registry's shortcut) has no counterpart in the old module, and is not
 compared.
 """
@@ -53,8 +52,8 @@ def legacy_source(card):
 
 
 def legacy_outcome(path, suite, graph_test, card_node):
-    """The old module's decision, operation and flagged credentials, as the contract that ran
-    it would decide: it denied unless every flagged credential verified."""
+    """The old module's decision and operation, as the contract that ran it would decide: it
+    denied unless every flagged credential verified."""
     presented, names, credentials = resolve(suite, graph_test)
     views = {view["index"]: view for creds in presented.values() for view in creds}
     legacy_input = {
@@ -72,8 +71,7 @@ def legacy_outcome(path, suite, graph_test, card_node):
     verified = all(verifier.registry(views[i]) for i in flagged) and all(
         verifier.key(views[task["index"]], task["key"], task["key_type"]) for task in supplied
     )
-    relied_on = flagged + [task["index"] for task in supplied]
-    return result["decision"] and verified, result["operation"], {names[i]: views[i]["type"] for i in relied_on}
+    return result["decision"] and verified, result["operation"]
 
 
 def name_of(text):
@@ -106,8 +104,6 @@ def as_before_test(card):
         g, components, interfaces = checked_graph(card)
         suite = graph_tests(card)
         card_node = next(n for n, node in g["nodes"].items() if component_json(node["component"])["group"] == "card")
-        read_types = {spec["type"] for iface in interfaces.values() for spec in iface["inputs"].values()}
-        read_types |= {spec["type"] for spec in g["capability"]["parameters"].values()}
         produced = {iface["output"] for iface in interfaces.values()}
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "policy.rego"
@@ -117,17 +113,13 @@ def as_before_test(card):
                 if presented_types & produced:
                     continue
                 with self.subTest(test=graph_test["name"]):
-                    decision, operation, relied_on = legacy_outcome(path, suite, graph_test, card_node)
+                    decision, operation = legacy_outcome(path, suite, graph_test, card_node)
                     self.assertEqual(got["decision"], decision)
                     if not decision:
                         continue
                     self.assertEqual(result["operation"]["name"], operation["name"])
                     for key, value in result["operation"]["parameters"].items():
                         self.assertEqual(operation["parameters"][key], value)
-                    self.assertEqual(
-                        sorted(got["evidence"]),
-                        sorted(name for name, t in relied_on.items() if t in read_types),
-                    )
 
     return test
 

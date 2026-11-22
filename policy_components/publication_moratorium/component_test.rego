@@ -17,15 +17,20 @@ condition(agreements, computes) := out if {
 	}
 }
 
+# the component's decision when its condition holds for one subject, and when it holds for none
+allowed(subject) := {"allow": true, "parameters": {"subject": [subject]}}
+
+denied := {"allow": false, "parameters": {"subject": []}}
+
 test_the_required_terms_on_a_compute_environment_that_handles_results_securely if {
-	condition([agreement], [compute]) == [{"type": "DataUseConditionCredential", "subject": "did:example:user", "claims": {}, "evidence": [0, 1]}]
+	condition([agreement], [compute]) == allowed("did:example:user")
 }
 
 test_an_agreement_to_other_terms if {
-	condition([object.union(agreement, {"claims": {"agreementInfo": {"documentID": "did:example:other-terms"}}})], [compute]) == []
+	condition([object.union(agreement, {"claims": {"agreementInfo": {"documentID": "did:example:other-terms"}}})], [compute]) == denied
 }
 
 test_a_compute_environment_that_does_not_handle_results_securely if {
 	insecure := object.union(compute, {"claims": {"hasComputeProfile": {"profile": {"SecureHandlingOfResults": false}}}})
-	condition([agreement], [insecure]) == []
+	condition([agreement], [insecure]) == denied
 }

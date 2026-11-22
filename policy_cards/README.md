@@ -2,13 +2,13 @@
 
 A policy card states what must be true to use an asset. Each card is a **graph of
 [policy components](../policy_components/)** (`graph.json`): small Rego components that
-pass credentials to each other. Shared components join credentials into new ones --
-ProjectMembership turns a requester's team and their PI's project ownership into a
+pass credentials and decisions to each other. Shared components join credentials into new
+ones -- ProjectMembership turns a requester's team and their PI's project ownership into a
 ProjectMembershipCredential -- and a card component checks the result against the owner's
-parameters. The graph's capability requires the card component and issues the operation the
-asset's guardian redeems, `do_download` or `do_inference`, reading its parameter (the
-requester's session key, or the script's digest) from a presented credential about the same
-subject.
+parameters and decides. AllowIfAll joins the card's decision with the one that admits the
+operation's parameter (ChannelKey's, the requester's session key; or ScriptDigest's, the
+script's digest), and the graph's capability makes that decision into the operation the
+asset's guardian redeems, `do_download` or `do_inference`.
 
 | Decision | Made by | Lives in |
 |----------|---------|----------|
@@ -18,11 +18,17 @@ subject.
 | What is unlocked, and how | the platform, per guardian type | the operation of the graph's capability, and its parameters |
 
 A data owner selects one or more cards when exposing an asset. Their graphs compose into
-one whose capability requires every card's component, sharing the components they have in
+one whose AllowIfAll takes every card's decision, sharing the components they have in
 common, and the webapp sets
 it on the asset's `rego_policy_agent` with `set_rego_policy`. The contract validates the
 graph against its components' interfaces, plans per request which components run, runs
 them, and issues the capability only after verifying every credential they read.
+
+A decision is `{allow, parameters}`: whether it allows, and for each parameter it names the
+values it admits, `subject` (whom it is about) among them. AllowIfAll allows when every
+decision it takes allows and they admit a value in common for each parameter; its parameters
+are those common values. The capability takes one decision, and issues the operation when
+it allows, about exactly one subject, and admits the parameter the request names.
 
 A credential a component produces can also be presented, when the card's graph accepts it
 presented and an authority the owner accepts issued it: ProjectMembershipCredential and
@@ -75,9 +81,10 @@ which issue `do_inference` and read credentials about the script a requester bri
    says, with `card` naming the folder you are about to create.
 2. **`graph.json`.** Draw it in the [Policy Composer](../docs/docs/composer.md) of the docs
    site (to run it locally, see [`../docs/README.md`](../docs/README.md)): load a card or start
-   from the component library, wire each output to an input of the same credential type, turn
-   on accept presented where a registry may issue the joined credential, choose the
-   operation and mark the node the capability requires, check it, and download it. Save it as `<folder>/graph.json`, or `FL/<folder>/graph.json` for an inference
+   from the component library, wire each output to an input of the same type, turn on accept
+   presented where a registry may issue the joined credential, wire the card component's
+   decision and ChannelKey's (or ScriptDigest's) into AllowIfAll and AllowIfAll into the
+   capability, choose the operation, check it, and download it. Save it as `<folder>/graph.json`, or `FL/<folder>/graph.json` for an inference
    card. The committed graph lists `[]` for every type in `trusted_issuers` and leaves every
    node's `policy_data` empty: the owner chooses both when exposing an asset.
 3. **`card.json`**: exactly `code` (the DUO abbreviation), `name` and `rule`, the one-line

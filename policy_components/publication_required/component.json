@@ -1,7 +1,7 @@
 {
   "name": "PublicationRequired",
   "group": "card",
-  "summary": "The card component of Publication Required (DUO_0000019). The requester's institution agreed to terms with the Publication obligation, scoped to the owner's dataset and the requester's project. Outputs a DataUseConditionCredential about the requester.",
+  "summary": "The card component of Publication Required (DUO_0000019). The requester's institution agreed to terms with the Publication obligation, scoped to the owner's dataset and the requester's project. Decides about the requester.",
   "inputs": {
     "projectMembership": {
       "type": "ProjectMembershipCredential",
@@ -39,9 +39,9 @@
     }
   },
   "output": {
-    "type": "DataUseConditionCredential",
+    "type": "Decision",
     "about": "requester",
-    "claims": []
+    "parameters": []
   },
   "policy_data": {
     "datasetID": {

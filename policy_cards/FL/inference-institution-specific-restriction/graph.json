@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "name": "Institution Specific Restriction for inference",
   "nodes": {
     "institution_specific_restriction_for_inference": {
@@ -16,20 +16,36 @@
         }
       },
       "policy_data": {}
+    },
+    "script_digest": {
+      "component": "script_digest",
+      "inputs": {
+        "scriptHash": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "allow_if_all": {
+      "component": "allow_if_all",
+      "inputs": {
+        "decisions": {
+          "from": "nodes",
+          "nodes": [
+            "institution_specific_restriction_for_inference",
+            "script_digest"
+          ]
+        }
+      },
+      "policy_data": {}
     }
   },
   "capability": {
     "operation": "do_inference",
-    "requires": [
-      "institution_specific_restriction_for_inference"
-    ],
-    "parameters": {
-      "script_digest": {
-        "type": "ScriptHashCredential",
-        "role": "Script",
-        "claim": "scriptHash"
-      }
-    }
+    "decision": "allow_if_all",
+    "parameters": [
+      "script_digest"
+    ]
   },
   "trusted_issuers": {
     "AffiliationCredential": [],

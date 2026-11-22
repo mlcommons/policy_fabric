@@ -25,7 +25,7 @@ Four personas participate:
 | **FL-DS** — disease-specific inference | *what is this code for?* | Hospital A, and Hospital B |
 | **FL-IS** — institution-specific inference | *who is running it, and do they stand behind it?* | Hospital B only |
 
-**Hospital A** is satisfied by a rule about the code. **Hospital B** wants that *and* a rule about the requester, so it attaches **both**. Each card is a graph of **policy components**: its card component checks the credentials it reads against the owner's parameters, and the graph's **capability** turns that into *run the script identified by this digest*. Cards on one asset compose into one graph whose capability requires **every** card to hold for the same script, so the requester has to satisfy the union of what the cards read.
+**Hospital A** is satisfied by a rule about the code. **Hospital B** wants that *and* a rule about the requester, so it attaches **both**. Each card is a graph of **policy components**: its card component checks the credentials it reads against the owner's parameters and **decides**, **ScriptDigest** decides that an accepted authority signed the digest the request names for the script, **AllowIfAll** joins the two decisions, and the graph's **capability** turns the joined decision into *run the script identified by this digest*. Cards on one asset compose into one graph whose AllowIfAll takes **every** card's decision, so the script runs only if every card holds for the same script, and the requester has to satisfy the union of what the cards read.
 
 ### What each card reads
 
@@ -39,7 +39,7 @@ The credentials are about two identities: the **Script**, presented from the scr
 | FL-IS | **User** | Wallet key | which key the requester's wallet is registered with on the ledger |
 | FL-IS | **Script** | Script ownership | a wallet's claim that the script is **its** script |
 
-The digest is what makes the declaration mean anything. The request names the digest of the script actually being sent, and the capability approves that digest only if an accepted authority signed it for the script every card approved. Without it, an in-scope declaration attached to one script could be presented alongside a completely different piece of code.
+The digest is what makes the declaration mean anything. The request names the digest of the script actually being sent, and ScriptDigest admits that digest only if an accepted authority signed it for the script, which AllowIfAll then requires to be the script every card approved. Without it, an in-scope declaration attached to one script could be presented alongside a completely different piece of code.
 
 The ownership claim is the interesting one: it is *self-asserted*, signed by the requester's **own wallet**. On its own, "this script is mine" is worth nothing: anyone can say it about anything. It becomes evidence because FL-IS checks that signature against the key in the Wallet key credential, which *is* from an authority. So the chain is: an authority says *this wallet holds this key*, the wallet uses that key to say *this script is mine*, and another authority says *this wallet belongs to that institution*. All three must be about one wallet, and the ownership claim must be about the script being run.
 
@@ -279,7 +279,7 @@ Both hospitals will find it in the directory and decide, separately, whether to 
 ### 3.2 Expose the dataset behind FL-DS
 
 1. Registering brings you back to **Assets**. Click **Open** on `hospital_a_cohort`. The **Expose** panel lists the policies that fit an inference guardian.
-2. **Policies:** check **FL-DS · Disease-specific inference**. (Use **View** to see the card's graph.) Its graph is drawn under the list: **DiseaseSpecificResearchForInference** reads the script's intended use, and the **capability** issues *run the approved script, identified by its digest*, read from the script's digest credential.
+2. **Policies:** check **FL-DS · Disease-specific inference**. (Use **View** to see the card's graph.) Its graph is drawn under the list: **DiseaseSpecificResearchForInference** reads the script's intended use, **ScriptDigest** its digest credential, **AllowIfAll** joins their decisions, and the **capability** issues *run the approved script, identified by its digest*.
 3. **Parameters → DiseaseSpecificResearchForInference → Allowed diseases:** `MONDO:0005148`
 4. **Accepted authorities:**
       - **Intended data use:** check **Code review board**
@@ -310,7 +310,7 @@ Hospital A is done. It asks nothing about who is requesting, so it never needs t
 2. **Policies:** check **both**:
       - **FL-DS · Disease-specific inference**
       - **FL-IS · Institution-specific inference**
-   Their graphs compose into one: one capability requires both card components.
+   Their graphs compose into one: one AllowIfAll takes both card components' decisions and ScriptDigest's.
 3. **Parameters:** each card component has its own form.
       - **DiseaseSpecificResearchForInference → Allowed diseases:** `MONDO:0005148`
       - **InstitutionSpecificRestrictionForInference → Allowed institutions:** `did:example:best_university`
@@ -322,7 +322,7 @@ Hospital A is done. It asks nothing about who is requesting, so it never needs t
 
 Note what is *not* accepted anywhere: the requester's wallet. It never becomes an authority, and it does not need to be — FL-IS hands its key to the contract along with the ownership credential, and the check happens against that key directly.
 
-*What's happening in the background:* the composed graph is set on **one** policy agent contract, each component with its own parameters. At request time the contract runs the components over the presentation: each card component holds for the script or not, the capability issues the operation only if **both** hold for the same script, and every credential the graph read is verified before it does.
+*What's happening in the background:* the composed graph is set on **one** policy agent contract, each component with its own parameters. At request time the contract runs the components over the presentation: each card component decides for the script, AllowIfAll allows only if **both** and ScriptDigest allow for the same script, the capability issues the operation from that decision, and every credential the graph read is verified before it does.
 
 The two hospitals have agreed about nothing except, coincidentally, the same disease code and the same authority. Hospital B additionally demands to know who is asking.
 

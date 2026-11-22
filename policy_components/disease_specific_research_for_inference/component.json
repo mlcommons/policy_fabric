@@ -1,7 +1,7 @@
 {
   "name": "DiseaseSpecificResearchForInference",
   "group": "card",
-  "summary": "The card component of Disease Specific Research for inference (DUO_0000007). The script declares a use for a disease the owner allows. Outputs a DataUseConditionCredential about the script.",
+  "summary": "The card component of Disease Specific Research for inference (DUO_0000007). The script declares a use for a disease the owner allows. Decides about the script.",
   "inputs": {
     "intendedDataUse": {
       "type": "IntendedDataUseCredential",
@@ -13,9 +13,9 @@
     }
   },
   "output": {
-    "type": "DataUseConditionCredential",
+    "type": "Decision",
     "about": "script",
-    "claims": []
+    "parameters": []
   },
   "policy_data": {
     "allowedDiseases": {

@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "name": "Disease Specific Research",
   "nodes": {
     "project_membership": {
@@ -30,20 +30,36 @@
         }
       },
       "policy_data": {}
+    },
+    "channel_key": {
+      "component": "channel_key",
+      "inputs": {
+        "key": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "allow_if_all": {
+      "component": "allow_if_all",
+      "inputs": {
+        "decisions": {
+          "from": "nodes",
+          "nodes": [
+            "disease_specific_research",
+            "channel_key"
+          ]
+        }
+      },
+      "policy_data": {}
     }
   },
   "capability": {
     "operation": "do_download",
-    "requires": [
-      "disease_specific_research"
-    ],
-    "parameters": {
-      "channel_key": {
-        "type": "publicKeyCredential",
-        "role": "User",
-        "claim": "key"
-      }
-    }
+    "decision": "allow_if_all",
+    "parameters": [
+      "channel_key"
+    ]
   },
   "trusted_issuers": {
     "AgreementCredential": [],

@@ -13,10 +13,15 @@ condition(designations) := out if {
 	}
 }
 
+# the component's decision when its condition holds for one subject, and when it holds for none
+allowed(subject) := {"allow": true, "parameters": {"subject": [subject]}}
+
+denied := {"allow": false, "parameters": {"subject": []}}
+
 test_a_not_for_profit_legal_form if {
-	condition([designation]) == [{"type": "DataUseConditionCredential", "subject": "did:example:org", "claims": {}, "evidence": [0]}]
+	condition([designation]) == allowed("did:example:org")
 }
 
 test_a_legal_form_the_owner_does_not_accept if {
-	condition([object.union(designation, {"claims": {"hasLegalForm": "XTIQ"}})]) == []
+	condition([object.union(designation, {"claims": {"hasLegalForm": "XTIQ"}})]) == denied
 }

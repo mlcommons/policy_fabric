@@ -1,7 +1,7 @@
 {
   "name": "PopulationOriginsOrAncestryResearchOnly",
   "group": "card",
-  "summary": "The card component of Population Origins or Ancestry Research Only (DUO_0000011). The requester's project intends to use the data for a population origins or ancestry purpose the owner allows, and the requester accepted the terms. Outputs a DataUseConditionCredential about the requester.",
+  "summary": "The card component of Population Origins or Ancestry Research Only (DUO_0000011). The requester's project intends to use the data for a population origins or ancestry purpose the owner allows, and the requester accepted the terms. Decides about the requester.",
   "inputs": {
     "projectMembership": {
       "type": "ProjectMembershipCredential",
@@ -27,9 +27,9 @@
     }
   },
   "output": {
-    "type": "DataUseConditionCredential",
+    "type": "Decision",
     "about": "requester",
-    "claims": []
+    "parameters": []
   },
   "policy_data": {
     "allowedPurposes": {

@@ -5,9 +5,9 @@ import rego.v1
 # GeographicalRestriction, the card component of Geographical Restriction (DUO_0000022):
 # the requester's organisation is located in a country the owner allows.
 #   location  LocationCredential  about the requester, locatedAt.country
-# -> DataUseConditionCredential about the requester.
+# -> Decision about the requester.
 interface := {
-	"output": "DataUseConditionCredential",
+	"output": "Decision",
 	"inputs": {"location": {"type": "LocationCredential", "role": "User"}},
 	"policy_data_schema": {
 		"type": "object",
@@ -20,19 +20,10 @@ interface := {
 	},
 }
 
-output := [condition |
+# for whom the condition holds
+subjects contains location.subject if {
 	some location in input.inputs.location
 	location.claims.locatedAt.country in input.policy_data.allowedCountries
-	condition := {
-		"type": "DataUseConditionCredential",
-		"subject": location.subject,
-		"claims": {},
-		"evidence": evidence([location]),
-	}
-]
-
-# The presented credentials an output rests on: the union of its inputs' evidence, sorted.
-evidence(creds) := result if {
-	ids := {i | some c in creds; some i in c.evidence}
-	result := sort(ids)
 }
+
+output := {"allow": count(subjects) > 0, "parameters": {"subject": sort(subjects)}}

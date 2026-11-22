@@ -29,8 +29,8 @@ def _bundle_key(bundle):
 def alternatives(graph, interfaces):
     """The requirement alternatives: each a minimal set of presented credential types, by role,
     smallest first. A node input needs its producer's requirements; accept_presented adds the
-    alternative of presenting that credential instead; the capability needs those of every
-    node it requires, and the credential each of its parameters is read from."""
+    alternative of presenting that credential instead; an input of decisions needs those of
+    every node it reads; the capability needs those of its decision's node."""
     memo = {}
 
     def node_alternatives(n):
@@ -43,21 +43,21 @@ def alternatives(graph, interfaces):
         return memo[n]
 
     def input_alternatives(node, name):
+        source = node["inputs"][name]
+        if source["from"] == "nodes":
+            alts = [frozenset()]
+            for n in source["nodes"]:
+                alts = _product(alts, node_alternatives(n))
+            return alts
         spec = interfaces[node["component"]]["inputs"][name]
         own = [frozenset([(spec["role"], spec["type"])])]
-        source = node["inputs"][name]
         if source["from"] == "presented":
             return own
         if source["accept_presented"]:
             return _minimal(own + node_alternatives(source["node"]))
         return node_alternatives(source["node"])
 
-    capability = graph["capability"]
-    alts = [frozenset()]
-    for n in capability["requires"]:
-        alts = _product(alts, node_alternatives(n))
-    for spec in capability["parameters"].values():
-        alts = _product(alts, [frozenset([(spec["role"], spec["type"])])])
+    alts = node_alternatives(graph["capability"]["decision"])
 
     out = []
     for bundle in sorted(alts, key=_bundle_key):

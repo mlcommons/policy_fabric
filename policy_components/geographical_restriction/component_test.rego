@@ -13,10 +13,15 @@ condition(locations) := out if {
 	}
 }
 
+# the component's decision when its condition holds for one subject, and when it holds for none
+allowed(subject) := {"allow": true, "parameters": {"subject": [subject]}}
+
+denied := {"allow": false, "parameters": {"subject": []}}
+
 test_a_country_the_owner_allows if {
-	condition([location]) == [{"type": "DataUseConditionCredential", "subject": "did:example:user", "claims": {}, "evidence": [0]}]
+	condition([location]) == allowed("did:example:user")
 }
 
 test_a_country_the_owner_does_not_allow if {
-	condition([object.union(location, {"claims": {"locatedAt": {"country": "FR"}}})]) == []
+	condition([object.union(location, {"claims": {"locatedAt": {"country": "FR"}}})]) == denied
 }

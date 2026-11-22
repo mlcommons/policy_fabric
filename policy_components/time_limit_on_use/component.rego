@@ -7,9 +7,9 @@ import rego.v1
 # than the owner's deadline.
 #   agreement           AgreementCredential           about the requester, agreementInfo.documentID
 #   computeEnvironment  ComputeEnvironmentCredential  about a compute node, hasComputeProfile.profile.shutsDownAt
-# -> DataUseConditionCredential about the requester.
+# -> Decision about the requester.
 interface := {
-	"output": "DataUseConditionCredential",
+	"output": "Decision",
 	"inputs": {
 		"agreement": {"type": "AgreementCredential", "role": "User"},
 		"computeEnvironment": {"type": "ComputeEnvironmentCredential", "role": "User"},
@@ -30,23 +30,14 @@ interface := {
 	},
 }
 
-output := [condition |
+# for whom the condition holds
+subjects contains agreement.subject if {
 	some agreement in input.inputs.agreement
 	agreement.claims.agreementInfo.documentID == input.policy_data.requiredDocumentID
 	some compute in input.inputs.computeEnvironment
 
 	# ISO-8601 UTC datetimes of one format compare chronologically as strings.
 	compute.claims.hasComputeProfile.profile.shutsDownAt <= input.policy_data.notAfter
-	condition := {
-		"type": "DataUseConditionCredential",
-		"subject": agreement.subject,
-		"claims": {},
-		"evidence": evidence([agreement, compute]),
-	}
-]
-
-# The presented credentials an output rests on: the union of its inputs' evidence, sorted.
-evidence(creds) := result if {
-	ids := {i | some c in creds; some i in c.evidence}
-	result := sort(ids)
 }
+
+output := {"allow": count(subjects) > 0, "parameters": {"subject": sort(subjects)}}

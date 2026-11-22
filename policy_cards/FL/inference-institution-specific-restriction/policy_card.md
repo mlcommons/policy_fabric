@@ -35,11 +35,11 @@ Authored against the Policy Fabric Policy Card template: the numbered sections b
 
 **Rule:** The requester is a member of an institution you allow, and owns the script they bring.
 
-The requester is a member of an allowed institution and owns the script: the ScriptOwnershipCredential is signed by the requester's own wallet, and checked against the key its WalletVerifyingKeyCredential attests. Outputs a DataUseConditionCredential about the script.
+The requester is a member of an allowed institution and owns the script: the ScriptOwnershipCredential is signed by the requester's own wallet, and checked against the key its WalletVerifyingKeyCredential attests. Decides about the script.
 
 The card is a graph of policy components: each takes credentials, presented or produced by the
-components before it, and outputs one of its own. The graph's capability issues `do_inference` when the
-card's component holds.
+components before it, and outputs one of its own or a decision. AllowIfAll joins the card
+component's decision with ScriptDigest's, and the graph's capability makes it into `do_inference`.
 
 - **Governance objective:** restrict inference to code its requester stands
   behind, from approved institutions.
@@ -74,8 +74,8 @@ Every type resolves to a schema in [`credentials/`](../../../credentials/).
 
 ## 8  Capability Granted
 
-`do_inference` for the digest of the script the request names, issued by the graph's capability. With several cards on one
-asset, their graphs compose into one whose capability requires every card's component, so it issues
+`do_inference` for the digest of the script the request names, made by the graph's capability from AllowIfAll's decision. With several cards on one
+asset, their graphs compose into one whose AllowIfAll takes every card's decision, so it issues
 `do_inference` only when every card holds for the same script.
 
 ## 9  Codified Representation
@@ -86,7 +86,9 @@ its own unit tests and `component.json`:
 
 | Policy Component | What it checks |
 |---|---|
-| InstitutionSpecificRestrictionForInference | The requester is a member of an allowed institution and owns the script: the ScriptOwnershipCredential is signed by the requester's own wallet, and checked against the key its WalletVerifyingKeyCredential attests. Outputs a DataUseConditionCredential about the script. |
+| InstitutionSpecificRestrictionForInference | The requester is a member of an allowed institution and owns the script: the ScriptOwnershipCredential is signed by the requester's own wallet, and checked against the key its WalletVerifyingKeyCredential attests. Decides about the script. |
+| ScriptDigest | The script has the digest the request names. Decides about the script and admits that script_digest, which do_inference takes. |
+| AllowIfAll | Allows when every decision it takes allows and, for each parameter they name, they admit a value in common. Its parameters are the values all of them admit; a parameter a decision leaves out, it does not restrict. |
 
 [`graph_tests.json`](graph_tests.json) states the decisions the
 graph must reach; the contract and the card tests (`policy_components/run_tests.sh`) run

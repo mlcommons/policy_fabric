@@ -1,7 +1,7 @@
 {
   "name": "EthicsApprovalRequired",
   "group": "card",
-  "summary": "The card component of Ethics Approval Required (DUO_0000021). The requester holds an IRBClearanceCredential for a project, and that project's IntendedDataUseCredential names at least one purpose and only purposes the IRB approved. Outputs a DataUseConditionCredential about the requester. No policy data.",
+  "summary": "The card component of Ethics Approval Required (DUO_0000021). The requester holds an IRBClearanceCredential for a project, and that project's IntendedDataUseCredential names at least one purpose and only purposes the IRB approved. Decides about the requester. No policy data.",
   "inputs": {
     "clearance": {
       "type": "IRBClearanceCredential",
@@ -22,9 +22,9 @@
     }
   },
   "output": {
-    "type": "DataUseConditionCredential",
+    "type": "Decision",
     "about": "requester",
-    "claims": []
+    "parameters": []
   },
   "policy_data": {},
   "card": "ethics-approval-required",

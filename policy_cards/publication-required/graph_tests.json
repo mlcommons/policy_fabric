@@ -11,7 +11,9 @@
   "request": {"channel_key": "PUBKEY-USER-1"},
   "policy_data": {
     "project_membership": {},
-    "publication_required": {"datasetID": "did:example:dataset-1"}
+    "publication_required": {"datasetID": "did:example:dataset-1"},
+    "channel_key": {},
+    "allow_if_all": {}
   },
   "credentials": {
     "team": {"type": "TeamCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
@@ -45,56 +47,55 @@
       "change": {},
       "expect": {"decision": true, "subject": "did:example:user-1",
                  "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
-                 "evidence": ["team", "ownership", "affiliation", "scoped", "agreement", "key"],
                  "verified": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]}
     },
     {
       "name": "deny: only the PI's affiliation, which today's card reads",
       "present": {"User": ["team", "ownership", "pi_affiliation", "scoped", "agreement", "key"]},
       "change": {},
-      "expect": {"decision": false, "reason": "node publication_required produced no credential"}
+      "expect": {"decision": false, "reason": "node publication_required denies"}
     },
     {
       "name": "deny: terms with an obligation other than Publication",
       "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
       "change": {"scoped": {"claims": {"agreementInfo": {"scope": {"obligation": "Collaboration"}}}}},
-      "expect": {"decision": false, "reason": "node publication_required produced no credential"}
+      "expect": {"decision": false, "reason": "node publication_required denies"}
     },
     {
       "name": "deny: terms scoped to another dataset",
       "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
       "change": {"scoped": {"claims": {"agreementInfo": {"scope": {"dataset": "did:example:dataset-2"}}}}},
-      "expect": {"decision": false, "reason": "node publication_required produced no credential"}
+      "expect": {"decision": false, "reason": "node publication_required denies"}
     },
     {
       "name": "deny: terms scoped to another project",
       "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
       "change": {"scoped": {"claims": {"agreementInfo": {"scope": {"project": "did:example:project-2"}}}}},
-      "expect": {"decision": false, "reason": "node publication_required produced no credential"}
+      "expect": {"decision": false, "reason": "node publication_required denies"}
     },
     {
       "name": "deny: the requester belongs to an institution that did not agree",
       "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
       "change": {"affiliation": {"claims": {"isMemberOf": "did:example:institution-2"}}},
-      "expect": {"decision": false, "reason": "node publication_required produced no credential"}
+      "expect": {"decision": false, "reason": "node publication_required denies"}
     },
     {
       "name": "deny: the institution agreed to other terms",
       "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
       "change": {"agreement": {"claims": {"agreementInfo": {"documentID": "did:example:terms-2"}}}},
-      "expect": {"decision": false, "reason": "node publication_required produced no credential"}
+      "expect": {"decision": false, "reason": "node publication_required denies"}
     },
     {
       "name": "deny: the requester is not on the team of the PI who owns the project",
       "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
       "change": {"team": {"claims": {"MemberOfTeamOf": "did:example:pi-2"}}},
-      "expect": {"decision": false, "reason": "node publication_required produced no credential"}
+      "expect": {"decision": false, "reason": "node publication_required denies"}
     },
     {
       "name": "deny: the key of someone else",
       "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement", "key"]},
       "change": {"key": {"subject": "did:example:user-2"}},
-      "expect": {"decision": false, "reason": "no publicKeyCredential about the subject has the key the request names for channel_key"}
+      "expect": {"decision": false, "reason": "node allow_if_all denies"}
     },
     {
       "name": "deny: no TeamCredential",
@@ -130,7 +131,7 @@
       "name": "deny: no publicKeyCredential",
       "present": {"User": ["team", "ownership", "affiliation", "scoped", "agreement"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"parameter": "channel_key"}]}
+      "expect": {"decision": false, "missing": [{"node": "channel_key", "input": "key"}]}
     },
     {
       "name": "deny: a ScopedAgreementCredential from an issuer the contract does not trust",
@@ -144,7 +145,6 @@
       "change": {},
       "expect": {"decision": true, "subject": "did:example:user-1",
                  "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
-                 "evidence": ["membership", "affiliation", "scoped", "agreement", "key"],
                  "verified": ["membership", "affiliation", "scoped", "agreement", "key"]}
     }
   ]

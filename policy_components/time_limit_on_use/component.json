@@ -1,7 +1,7 @@
 {
   "name": "TimeLimitOnUse",
   "group": "card",
-  "summary": "The card component of Time Limit on Use (DUO_0000025). The requester accepted the owner's terms document, and a compute node is attested to shut down no later than the owner's deadline. Outputs a DataUseConditionCredential about the requester.",
+  "summary": "The card component of Time Limit on Use (DUO_0000025). The requester accepted the owner's terms document, and a compute node is attested to shut down no later than the owner's deadline. Decides about the requester.",
   "inputs": {
     "agreement": {
       "type": "AgreementCredential",
@@ -21,9 +21,9 @@
     }
   },
   "output": {
-    "type": "DataUseConditionCredential",
+    "type": "Decision",
     "about": "requester",
-    "claims": []
+    "parameters": []
   },
   "policy_data": {
     "requiredDocumentID": {

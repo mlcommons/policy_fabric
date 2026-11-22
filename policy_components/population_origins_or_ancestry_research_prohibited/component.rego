@@ -9,9 +9,9 @@ import rego.v1
 #   projectMembership  ProjectMembershipCredential  about the requester, project
 #   intendedDataUse    IntendedDataUseCredential    about the project, useOnlyFor.purposes
 #   agreement          AgreementCredential          about the requester
-# -> DataUseConditionCredential about the requester.
+# -> Decision about the requester.
 interface := {
-	"output": "DataUseConditionCredential",
+	"output": "Decision",
 	"inputs": {
 		"projectMembership": {"type": "ProjectMembershipCredential", "role": "User"},
 		"intendedDataUse": {"type": "IntendedDataUseCredential", "role": "User"},
@@ -28,20 +28,17 @@ interface := {
 	},
 }
 
-output := [condition |
+# for whom the condition holds
+subjects contains membership.subject if {
 	some membership in input.inputs.projectMembership
 	some use in input.inputs.intendedDataUse
 	use.subject == membership.claims.project
 	no_prohibited_purpose(use)
 	some agreement in input.inputs.agreement
 	agreement.subject == membership.subject
-	condition := {
-		"type": "DataUseConditionCredential",
-		"subject": membership.subject,
-		"claims": {},
-		"evidence": evidence([membership, use, agreement]),
-	}
-]
+}
+
+output := {"allow": count(subjects) > 0, "parameters": {"subject": sort(subjects)}}
 
 # The list is bound outside the "not", so that policy data without it fails the check
 # instead of prohibiting nothing.
@@ -50,10 +47,4 @@ no_prohibited_purpose(use) if {
 	every purpose in use.claims.useOnlyFor.purposes {
 		not purpose in prohibited
 	}
-}
-
-# The presented credentials an output rests on: the union of its inputs' evidence, sorted.
-evidence(creds) := result if {
-	ids := {i | some c in creds; some i in c.evidence}
-	result := sort(ids)
 }

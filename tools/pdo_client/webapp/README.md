@@ -129,8 +129,9 @@ the graph.
   with one set of parameters, and must be wired the same way in both cards ("The policies use
   `<node>` differently." otherwise);
 - every card must issue the same operation with the same parameters ("The policies issue different
-  operations" otherwise); the capability requires every card's nodes, so it issues the operation only
-  when every card holds for the same subject;
+  operations" otherwise) and join its decisions in an AllowIfAll; the composed graph has one AllowIfAll,
+  which takes every card's decisions, so the capability issues the operation only when every card holds
+  for the same subject;
 - every type a card trusts is listed with no issuer; the owner's choice of authorities per type is
   registered with `register_trusted_issuer` after `set_rego_policy`.
 

@@ -15,7 +15,9 @@
     "project_membership": {},
     "institutional_irb_approval": {},
     "irb_clearance": {},
-    "ethics_approval_required": {}
+    "ethics_approval_required": {},
+    "channel_key": {},
+    "allow_if_all": {}
   },
   "credentials": {
     "team": {"type": "TeamCredential", "issuer": "did:example:registry", "signer": "did:example:registry",
@@ -55,74 +57,73 @@
       "change": {},
       "expect": {"decision": true, "subject": "did:example:user-1",
                  "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
-                 "evidence": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"],
                  "verified": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]}
     },
     {
       "name": "deny: only the PI's affiliation, which today's card reads",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "pi_affiliation", "use", "key"]},
       "change": {},
-      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required denies"}
     },
     {
       "name": "deny: the committee is not responsible for the requester's institution",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"accreditation": {"claims": {"ResponsibleFor": "did:example:institution-2"}}},
-      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required denies"}
     },
     {
       "name": "deny: the requester belongs to another institution",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"affiliation": {"claims": {"isMemberOf": "did:example:institution-2"}}},
-      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required denies"}
     },
     {
       "name": "deny: the IRB approved another project",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"irb": {"subject": "did:example:project-2"}},
-      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required denies"}
     },
     {
       "name": "deny: the intended use is another project's",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"use": {"subject": "did:example:project-2"}},
-      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required denies"}
     },
     {
       "name": "deny: the requester is not on the team of the PI who owns the project",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"team": {"claims": {"MemberOfTeamOf": "did:example:pi-2"}}},
-      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required denies"}
     },
     {
       "name": "deny: an unaccredited committee approved the project",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"irb": {"claims": {"isApprovedByEthicsCommittee": "did:example:committee-2"}}},
-      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required denies"}
     },
     {
       "name": "deny: a purpose the IRB did not approve",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"use": {"claims": {"useOnlyFor": {"purposes": ["HMB", "POA"]}}}},
-      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required denies"}
     },
     {
       "name": "deny: an intended use that names no purpose",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"use": {"claims": {"useOnlyFor": {"purposes": []}}}},
-      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required denies"}
     },
     {
       "name": "deny: the key of someone else",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"key": {"subject": "did:example:user-2"}},
-      "expect": {"decision": false, "reason": "no publicKeyCredential about the subject has the key the request names for channel_key"}
+      "expect": {"decision": false, "reason": "node allow_if_all denies"}
     },
     {
       "name": "deny: a key other than the one the request names",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]},
       "change": {"key": {"claims": {"key": "PUBKEY-OTHER"}}},
-      "expect": {"decision": false, "reason": "no publicKeyCredential about the subject has the key the request names for channel_key"}
+      "expect": {"decision": false, "reason": "node channel_key denies"}
     },
     {
       "name": "deny: no TeamCredential",
@@ -164,7 +165,7 @@
       "name": "deny: no publicKeyCredential",
       "present": {"User": ["team", "ownership", "accreditation", "irb", "affiliation", "use"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"parameter": "channel_key"}]}
+      "expect": {"decision": false, "missing": [{"node": "channel_key", "input": "key"}]}
     },
     {
       "name": "allow: two TeamCredentials, only one on the owning PI's team, cites that one",
@@ -172,7 +173,6 @@
       "change": {},
       "expect": {"decision": true, "subject": "did:example:user-1",
                  "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
-                 "evidence": ["team", "ownership", "accreditation", "irb", "affiliation", "use", "key"],
                  "verified": ["team_of_another_pi", "team", "ownership", "accreditation", "irb", "affiliation", "use", "key"]}
     },
     {
@@ -193,7 +193,7 @@
       "change": {},
       "expect": {"decision": true, "subject": "did:example:user-1",
                  "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
-                 "evidence": ["clearance", "use", "key"], "verified": ["clearance", "use", "key"]}
+                 "verified": ["clearance", "use", "key"]}
     },
     {
       "name": "deny: an IRBClearanceCredential from an untrusted issuer, and nothing else",
@@ -213,14 +213,13 @@
       "change": {},
       "expect": {"decision": true, "subject": "did:example:user-1",
                  "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
-                 "evidence": ["membership", "accreditation", "irb", "affiliation", "use", "key"],
                  "verified": ["membership", "accreditation", "irb", "affiliation", "use", "key"]}
     },
     {
       "name": "deny: a clearance for purposes that do not cover the intended use",
       "present": {"User": ["clearance", "use", "key"]},
       "change": {"clearance": {"claims": {"purposes": ["DS"]}}},
-      "expect": {"decision": false, "reason": "node ethics_approval_required produced no credential"}
+      "expect": {"decision": false, "reason": "node ethics_approval_required denies"}
     }
   ]
 }

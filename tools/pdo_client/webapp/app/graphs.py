@@ -10,6 +10,9 @@ import json
 
 from .requirements import alternatives
 
+# the output and input type of a decision
+DECISION = "Decision"
+
 
 def interfaces(graph, catalog):
     """The interfaces of the graph's components, as set_rego_policy evaluates them."""
@@ -18,6 +21,9 @@ def interfaces(graph, catalog):
         c = catalog["components"][node["component"]]
         inputs = {}
         for name, spec in c["inputs"].items():
+            if spec["type"] == DECISION:
+                inputs[name] = {"type": DECISION}
+                continue
             inputs[name] = {"type": spec["type"], "role": spec["role"]}
             if "supplied_key" in spec:
                 inputs[name]["supplied_key"] = True
@@ -31,30 +37,38 @@ def interfaces(graph, catalog):
 
 def compose(card_graphs):
     """One graph from the graphs of the cards on one asset: every card's nodes, a node shared
-    by several cards once (node ids are component ids), under one capability that requires
-    every card's nodes. Raises ValueError when the cards cannot share a graph."""
+    by several cards once (node ids are component ids), and one AllowIfAll, which takes every
+    decision the cards' own take and whose decision the capability makes into the operation.
+    Raises ValueError when the cards cannot share a graph."""
     if not card_graphs:
         raise ValueError("Select at least one policy.")
-    capabilities = {json.dumps({k: g["capability"][k] for k in ("operation", "parameters")}, sort_keys=True)
-                    for g in card_graphs}
+    capabilities = {json.dumps(g["capability"], sort_keys=True) for g in card_graphs}
     if len(capabilities) != 1:
         raise ValueError("The policies issue different operations: "
                          + ", ".join(sorted({g["capability"]["operation"] for g in card_graphs})))
+    joined = card_graphs[0]["capability"]["decision"]
+    for g in card_graphs:
+        if g["nodes"][joined]["component"] != "allow_if_all":
+            raise ValueError(f"{g['name']} does not join its decisions in AllowIfAll.")
 
-    nodes, required, trusted = {}, [], set()
+    nodes, decisions, trusted = {}, [], set()
     for g in card_graphs:
         for node_id, node in g["nodes"].items():
+            if node_id == joined:
+                decisions += [n for n in node["inputs"]["decisions"]["nodes"] if n not in decisions]
+                continue
             if node_id in nodes and nodes[node_id] != node:
                 raise ValueError(f"The policies use {node_id} differently.")
             nodes[node_id] = node
-        required += [n for n in g["capability"]["requires"] if n not in required]
         trusted.update(g["trusted_issuers"])
+    nodes[joined] = {"component": "allow_if_all", "inputs": {"decisions": {"from": "nodes", "nodes": decisions}},
+                     "policy_data": {}}
 
     return {
-        "version": 3,
+        "version": 4,
         "name": " + ".join(g["name"] for g in card_graphs),
         "nodes": nodes,
-        "capability": {**card_graphs[0]["capability"], "requires": required},
+        "capability": card_graphs[0]["capability"],
         "trusted_issuers": {t: [] for t in sorted(trusted)},
     }
 

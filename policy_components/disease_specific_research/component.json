@@ -1,7 +1,7 @@
 {
   "name": "DiseaseSpecificResearch",
   "group": "card",
-  "summary": "The card component of Disease Specific Research (DUO_0000007). The requester's project intends to use the data for a disease the owner allows, and the requester accepted the terms. Outputs a DataUseConditionCredential about the requester.",
+  "summary": "The card component of Disease Specific Research (DUO_0000007). The requester's project intends to use the data for a disease the owner allows, and the requester accepted the terms. Decides about the requester.",
   "inputs": {
     "projectMembership": {
       "type": "ProjectMembershipCredential",
@@ -27,9 +27,9 @@
     }
   },
   "output": {
-    "type": "DataUseConditionCredential",
+    "type": "Decision",
     "about": "requester",
-    "claims": []
+    "parameters": []
   },
   "policy_data": {
     "allowedDiseases": {

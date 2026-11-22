@@ -5,9 +5,9 @@ import rego.v1
 # GeneralResearchUse, the card component of General Research Use (DUO_0000042): the
 # requester accepted the terms document the owner requires.
 #   agreement  AgreementCredential  about the requester, agreementInfo.documentID
-# -> DataUseConditionCredential about the requester.
+# -> Decision about the requester.
 interface := {
-	"output": "DataUseConditionCredential",
+	"output": "Decision",
 	"inputs": {"agreement": {"type": "AgreementCredential", "role": "User"}},
 	"policy_data_schema": {
 		"type": "object",
@@ -19,19 +19,10 @@ interface := {
 	},
 }
 
-output := [condition |
+# for whom the condition holds
+subjects contains agreement.subject if {
 	some agreement in input.inputs.agreement
 	agreement.claims.agreementInfo.documentID == input.policy_data.requiredDocumentID
-	condition := {
-		"type": "DataUseConditionCredential",
-		"subject": agreement.subject,
-		"claims": {},
-		"evidence": evidence([agreement]),
-	}
-]
-
-# The presented credentials an output rests on: the union of its inputs' evidence, sorted.
-evidence(creds) := result if {
-	ids := {i | some c in creds; some i in c.evidence}
-	result := sort(ids)
 }
+
+output := {"allow": count(subjects) > 0, "parameters": {"subject": sort(subjects)}}

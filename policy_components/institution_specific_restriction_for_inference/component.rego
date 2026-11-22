@@ -9,9 +9,9 @@ import rego.v1
 #   affiliation         AffiliationCredential         about the requester, isMemberOf
 #   walletVerifyingKey  WalletVerifyingKeyCredential  about the requester, verifying_key
 #   scriptOwnership     ScriptOwnershipCredential     about the script, ownedBy, signed by the requester
-# -> DataUseConditionCredential about the script.
+# -> Decision about the script.
 interface := {
-	"output": "DataUseConditionCredential",
+	"output": "Decision",
 	"inputs": {
 		"affiliation": {"type": "AffiliationCredential", "role": "User"},
 		"walletVerifyingKey": {"type": "WalletVerifyingKeyCredential", "role": "User"},
@@ -28,7 +28,8 @@ interface := {
 	},
 }
 
-output := [condition |
+# for whom the condition holds, and the key check of each script ownership that makes it hold
+holds contains {"subject": ownership.subject, "check": {"index": ownership.evidence[0], "key": wallet_key.claims.verifying_key, "key_type": "ec"}} if {
 	some affiliation in input.inputs.affiliation
 	affiliation.claims.isMemberOf in input.policy_data.allowedInstitutions
 	some wallet_key in input.inputs.walletVerifyingKey
@@ -36,17 +37,12 @@ output := [condition |
 	some ownership in input.inputs.scriptOwnership
 	ownership.issuer == affiliation.subject
 	ownership.claims.ownedBy == affiliation.subject
-	condition := {
-		"type": "DataUseConditionCredential",
-		"subject": ownership.subject,
-		"claims": {},
-		"evidence": evidence([affiliation, wallet_key, ownership]),
-		"key_checks": [{"index": ownership.evidence[0], "key": wallet_key.claims.verifying_key, "key_type": "ec"}],
-	}
-]
+}
 
-# The presented credentials an output rests on: the union of its inputs' evidence, sorted.
-evidence(creds) := result if {
-	ids := {i | some c in creds; some i in c.evidence}
-	result := sort(ids)
+subjects := {h.subject | some h in holds}
+
+output := {
+	"allow": count(subjects) > 0,
+	"parameters": {"subject": sort(subjects)},
+	"key_checks": sort({h.check | some h in holds}),
 }

@@ -16,18 +16,23 @@ condition(uses) := out if {
 	}
 }
 
+# the component's decision when its condition holds for one subject, and when it holds for none
+allowed(subject) := {"allow": true, "parameters": {"subject": [subject]}}
+
+denied := {"allow": false, "parameters": {"subject": []}}
+
 test_the_use_is_within_what_the_irb_approved if {
-	condition([use]) == [{"type": "DataUseConditionCredential", "subject": "did:example:user", "claims": {}, "evidence": [0, 1, 2]}]
+	condition([use]) == allowed("did:example:user")
 }
 
 test_the_use_of_another_project if {
-	condition([object.union(use, {"subject": "did:example:other-project"})]) == []
+	condition([object.union(use, {"subject": "did:example:other-project"})]) == denied
 }
 
 test_a_purpose_the_irb_did_not_approve if {
-	condition([object.union(use, {"claims": {"useOnlyFor": {"purposes": ["HMB", "POA"]}}})]) == []
+	condition([object.union(use, {"claims": {"useOnlyFor": {"purposes": ["HMB", "POA"]}}})]) == denied
 }
 
 test_a_use_that_names_no_purpose if {
-	condition([object.union(use, {"claims": {"useOnlyFor": {"purposes": []}}})]) == []
+	condition([object.union(use, {"claims": {"useOnlyFor": {"purposes": []}}})]) == denied
 }

@@ -79,7 +79,7 @@ class SeededFromTheRepository(TestCase):
         self.assertTrue(presentable["TeamCredential"])
         self.assertTrue(presentable["ProjectMembershipCredential"])
         self.assertTrue(presentable["IRBClearanceCredential"])
-        self.assertFalse(presentable["DataUseConditionCredential"])
+        self.assertNotIn("Decision", presentable)
         self.assertFalse(presentable["InstitutionalIRBApprovalCredential"])
 
     def test_the_catalog_holds_every_card_and_component(self):

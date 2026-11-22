@@ -21,11 +21,11 @@ resolves through the asset registry to the guardian it can be fetched from.
   governs who may run code here and that they stand behind it. It reads credentials about
   the requester and about the script.
 
-Each card component outputs a DataUseConditionCredential about the script. The graph's
-capability issues `do_inference` for the digest the request names (`request.script_digest`,
-the digest of the script the webapp actually sends) only when every card on the asset holds
-for that script, and a `ScriptHashCredential` about the script, from an authority the owner
-accepts, carries that digest.
+Each card component decides about the script. ScriptDigest decides that a
+`ScriptHashCredential` about the script, from an authority the owner accepts, carries the
+digest the request names (`request.script_digest`, the digest of the script the webapp
+actually sends), and AllowIfAll joins the decisions. The graph's capability issues
+`do_inference` for that digest only when every card on the asset holds for that script.
 
 ## Self-issued ownership
 

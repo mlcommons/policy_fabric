@@ -6,7 +6,9 @@
   },
   "request": {"channel_key": "PUBKEY-USER-1"},
   "policy_data": {
-    "return_to_database_or_resource": {"requiredDocumentID": "did:example:terms-1"}
+    "return_to_database_or_resource": {"requiredDocumentID": "did:example:terms-1"},
+    "channel_key": {},
+    "allow_if_all": {}
   },
   "credentials": {
     "agreement": {"type": "AgreementCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
@@ -25,26 +27,25 @@
       "change": {},
       "expect": {"decision": true, "subject": "did:example:user-1",
                  "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
-                 "evidence": ["agreement", "compute", "key"],
                  "verified": ["agreement", "compute", "key"]}
     },
     {
       "name": "deny: an agreement to another terms document",
       "present": {"User": ["agreement", "compute", "key"]},
       "change": {"agreement": {"claims": {"agreementInfo": {"documentID": "did:example:terms-other"}}}},
-      "expect": {"decision": false, "reason": "node return_to_database_or_resource produced no credential"}
+      "expect": {"decision": false, "reason": "node return_to_database_or_resource denies"}
     },
     {
       "name": "deny: a compute environment that does not handle results securely",
       "present": {"User": ["agreement", "compute", "key"]},
       "change": {"compute": {"claims": {"hasComputeProfile": {"profile": {"SecureHandlingOfResults": false}}}}},
-      "expect": {"decision": false, "reason": "node return_to_database_or_resource produced no credential"}
+      "expect": {"decision": false, "reason": "node return_to_database_or_resource denies"}
     },
     {
       "name": "deny: the key of someone else",
       "present": {"User": ["agreement", "compute", "key"]},
       "change": {"key": {"subject": "did:example:user-2"}},
-      "expect": {"decision": false, "reason": "no publicKeyCredential about the subject has the key the request names for channel_key"}
+      "expect": {"decision": false, "reason": "node allow_if_all denies"}
     },
     {
       "name": "deny: no AgreementCredential",
@@ -62,7 +63,7 @@
       "name": "deny: no publicKeyCredential",
       "present": {"User": ["agreement", "compute"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"parameter": "channel_key"}]}
+      "expect": {"decision": false, "missing": [{"node": "channel_key", "input": "key"}]}
     },
     {
       "name": "deny: a ComputeEnvironmentCredential from an issuer the contract does not trust",

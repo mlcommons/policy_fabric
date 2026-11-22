@@ -26,7 +26,7 @@ The card's graph joins it in three steps, each a policy component:
 2. **InstitutionalIRBApproval** — committee 7 approved the project, and committee 7 is accredited for Best University.
 3. **IRBClearance** — Rana belongs to that university, and the project approved is hers: she is cleared for the purposes the committee approved.
 
-Then **EthicsApprovalRequired**, the card's own component, checks that every use the project declares is a purpose the committee approved, and the graph's **capability** releases the data to Rana's session key.
+Then **EthicsApprovalRequired**, the card's own component, checks that every use the project declares is a purpose the committee approved and decides, **AllowIfAll** joins that decision with **ChannelKey**'s on Rana's session key, and the graph's **capability** releases the data to it.
 
 | Persona | Identity | What they do |
 | --- | --- | --- |
@@ -137,7 +137,7 @@ Most credentials below are **about** someone else (Dr. Alice, the project, the c
 
 1. The app gets a session key from `Session keys`.
 2. It presents Rana's wallet — her own credentials and the copies about Dr. Alice, the project and the committee — to the asset's policy agent, naming the session key.
-3. The contract plans the graph: no IRB clearance was presented, so it runs the components that produce one. ProjectMembership finds Rana's project through Dr. Alice, InstitutionalIRBApproval finds the committee's accreditation for Best University, IRBClearance matches Rana's affiliation to it, and EthicsApprovalRequired checks the project's declared use against the approved purposes. The capability then issues the download for the session key the request names, which must be Rana's.
+3. The contract plans the graph: no IRB clearance was presented, so it runs the components that produce one. ProjectMembership finds Rana's project through Dr. Alice, InstitutionalIRBApproval finds the committee's accreditation for Best University, IRBClearance matches Rana's affiliation to it, and EthicsApprovalRequired checks the project's declared use against the approved purposes. ChannelKey decides that the session key the request names is Rana's, AllowIfAll joins the two decisions, and the capability issues the download for that key.
 4. Before signing anything, the contract verifies every credential the components read against the authorities the owner accepts for its type. It then issues the decision, and the guardian returns the data encrypted to Rana's session key.
 
 Rana's wallet still holds no IRB clearance: the policy joined the chain itself.
@@ -156,8 +156,11 @@ Ethics registry           ──signs──► IRB approval · Accreditation · 
                                         │   (or a presented IRB clearance, from
                                         │    Best University IRB office)
                                         ▼
-                               EthicsApprovalRequired ─► the graph's capability
-                                                    │   (for Rana's session key)
+                               EthicsApprovalRequired ─► AllowIfAll ◄─ ChannelKey
+                                                              │   (Rana's session key)
+                                                              ▼
+                                                    the graph's capability
+                                                    │
                                                     ▼
                                       capability ──► guardian ──► Rana
 ```

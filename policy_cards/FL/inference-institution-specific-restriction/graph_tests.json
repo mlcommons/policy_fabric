@@ -8,7 +8,9 @@
   },
   "request": {"script_digest": "sha256:abc"},
   "policy_data": {
-    "institution_specific_restriction_for_inference": {"allowedInstitutions": ["did:example:university", "did:example:hospital"]}
+    "institution_specific_restriction_for_inference": {"allowedInstitutions": ["did:example:university", "did:example:hospital"]},
+    "script_digest": {},
+    "allow_if_all": {}
   },
   "credentials": {
     "affiliation": {"type": "AffiliationCredential", "issuer": "did:example:university", "signer": "did:example:university",
@@ -33,32 +35,31 @@
       "change": {},
       "expect": {"decision": true, "subject": "did:pdo:script-asset",
                  "operation": {"name": "do_inference", "parameters": {"script_digest": "sha256:abc"}},
-                 "evidence": ["affiliation", "wallet_key", "ownership", "hash"],
                  "verified": ["affiliation", "wallet_key", "ownership", "hash"]}
     },
     {
       "name": "deny: an institution the owner does not allow",
       "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership", "hash"]},
       "change": {"affiliation": {"claims": {"isMemberOf": "did:example:elsewhere"}}},
-      "expect": {"decision": false, "reason": "node institution_specific_restriction_for_inference produced no credential"}
+      "expect": {"decision": false, "reason": "node institution_specific_restriction_for_inference denies"}
     },
     {
       "name": "deny: the wallet key of someone else",
       "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership", "hash"]},
       "change": {"wallet_key": {"subject": "did:pdo:other-wallet"}},
-      "expect": {"decision": false, "reason": "node institution_specific_restriction_for_inference produced no credential"}
+      "expect": {"decision": false, "reason": "node institution_specific_restriction_for_inference denies"}
     },
     {
       "name": "deny: an ownership signed by another wallet",
       "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership", "hash"]},
       "change": {"ownership": {"issuer": "did:pdo:other-wallet", "signer": "did:pdo:other-wallet", "signing_key": "OTHERPEM"}},
-      "expect": {"decision": false, "reason": "node institution_specific_restriction_for_inference produced no credential"}
+      "expect": {"decision": false, "reason": "node institution_specific_restriction_for_inference denies"}
     },
     {
       "name": "deny: an ownership naming another wallet as owner",
       "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership", "hash"]},
       "change": {"ownership": {"claims": {"ownedBy": "did:pdo:other-wallet"}}},
-      "expect": {"decision": false, "reason": "node institution_specific_restriction_for_inference produced no credential"}
+      "expect": {"decision": false, "reason": "node institution_specific_restriction_for_inference denies"}
     },
     {
       "name": "deny: an ownership not signed with the key the wallet key credential attests",
@@ -70,7 +71,7 @@
       "name": "deny: the hash of another script",
       "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership", "hash"]},
       "change": {"hash": {"subject": "did:pdo:other-script"}},
-      "expect": {"decision": false, "reason": "no ScriptHashCredential about the subject has the scriptHash the request names for script_digest"}
+      "expect": {"decision": false, "reason": "node allow_if_all denies"}
     },
     {
       "name": "deny: no AffiliationCredential",
@@ -94,7 +95,7 @@
       "name": "deny: no ScriptHashCredential",
       "present": {"User": ["affiliation", "key", "wallet_key"], "Script": ["ownership"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"parameter": "script_digest"}]}
+      "expect": {"decision": false, "missing": [{"node": "script_digest", "input": "scriptHash"}]}
     },
     {
       "name": "deny: an AffiliationCredential from an issuer the contract does not trust",

@@ -6,9 +6,9 @@ import rego.v1
 # Only (DUO_0000045): the requester acts for an organisation of a legal form the owner
 # accepts as not-for-profit.
 #   legalDesignation  LegalDesignationCredential  about the requester, hasLegalForm
-# -> DataUseConditionCredential about the requester.
+# -> Decision about the requester.
 interface := {
-	"output": "DataUseConditionCredential",
+	"output": "Decision",
 	"inputs": {"legalDesignation": {"type": "LegalDesignationCredential", "role": "User"}},
 	"policy_data_schema": {
 		"type": "object",
@@ -21,19 +21,10 @@ interface := {
 	},
 }
 
-output := [condition |
+# for whom the condition holds
+subjects contains designation.subject if {
 	some designation in input.inputs.legalDesignation
 	designation.claims.hasLegalForm in input.policy_data.nonprofitLegalForms
-	condition := {
-		"type": "DataUseConditionCredential",
-		"subject": designation.subject,
-		"claims": {},
-		"evidence": evidence([designation]),
-	}
-]
-
-# The presented credentials an output rests on: the union of its inputs' evidence, sorted.
-evidence(creds) := result if {
-	ids := {i | some c in creds; some i in c.evidence}
-	result := sort(ids)
 }
+
+output := {"allow": count(subjects) > 0, "parameters": {"subject": sort(subjects)}}

@@ -1,9 +1,9 @@
 # Policy components
 
-A policy card is a graph of small Rego components that pass credentials to each other (its
-`graph.json`). Each component reads one or more credentials and outputs credentials of one
-type; the graph's capability names the nodes that must hold and issues the operation, reading
-each of its parameters from a presented credential. The `rego_policy_agent` contract runs a graph
+A policy card is a graph of small Rego components that pass credentials and decisions to each
+other (its `graph.json`). Each component reads credentials or decisions and outputs credentials
+of one type, or one decision; the graph's capability makes one decision into the operation,
+with the parameters it admits. The `rego_policy_agent` contract runs a graph
 set with `set_rego_policy`: a trusted planner decides per request which components run, and
 whether a presented credential stands in for a component's output. pdo-contracts'
 `rego-contract/docs/policy_graph.md` is the spec.
@@ -15,10 +15,12 @@ whether a presented credential stands in for a component's output. pdo-contracts
 | `<id>/component_test.rego` | its unit tests |
 | `tests/` | every component against its `component.json` on OPA and regorus, and every card's graph against its `graph_tests.json` and against the card's Rego file before cards became graphs |
 
-A component reads `{inputs: {<input>: [credential]}, policy_data, request}` and returns a list
-of `{type, subject, claims, evidence}`, where evidence lists the presented credentials the
-output rests on. No component reads the request's session key (download) or script digest
-(inference): the capability binds those to the decision's subject.
+A component reads `{inputs: {<input>: [credential or decision]}, policy_data, request}` and
+returns a list of `{type, subject, claims, evidence}`, where evidence lists the presented
+credentials the output rests on, or one decision, `{allow, parameters}`: whether it allows, and
+for each parameter it names the values it admits (`subject`, whom it is about, among them). Only
+ChannelKey and ScriptDigest read the request, for the session key (download) or the script
+digest (inference) it names.
 
 ## The library
 
@@ -29,10 +31,17 @@ output rests on. No component reads the request's session key (download) or scri
 | `project_membership` | TeamCredential, ProjectOwnershipCredential | ProjectMembershipCredential |
 | `institutional_irb_approval` | EthicsCommitteeAccreditationCredential, IRBApprovalCredential | InstitutionalIRBApprovalCredential |
 | `irb_clearance` | InstitutionalIRBApprovalCredential, AffiliationCredential, ProjectMembershipCredential | IRBClearanceCredential |
+| `channel_key` | publicKeyCredential | a Decision about the requester, admitting the `channel_key` the request names |
+| `script_digest` | ScriptHashCredential | a Decision about the script, admitting the `script_digest` the request names |
 
-**Cards**: one per card, named after it, outputting a DataUseConditionCredential about whom
-the card checks: the requester, or for the FL cards the script. A card's graph requires it.
-Their `component.json` names the card folder and the DUO term.
+**Cards**: one per card, named after it, outputting a Decision about whom the card checks:
+the requester, or for the FL cards the script. Their `component.json` names the card folder
+and the DUO term.
+
+**Decisions**: `allow_if_all` takes one or more decisions and allows when all of them allow
+and, for each parameter they name, admit a value in common; its parameters are those common
+values. A card's graph joins its card component's decision with ChannelKey's (or
+ScriptDigest's) in it, and its capability takes AllowIfAll's decision.
 
 A ProjectMembershipCredential or an IRBClearanceCredential may also be presented, when an
 authority the owner accepts issues it directly (their schemas say `"x-presentable": true`): a
@@ -42,20 +51,25 @@ graph input that accepts it presented skips the components that would produce it
 
 1. **Its output type.** A component outputs one credential type, with a JSON Schema in
    `credentials/` (`displayName`, `meaning`, `subjectKinds`, `selfAsserted` and the claims, like
-   the others). Add `"x-presentable": true` only when an authority may also issue it directly; a
-   type no component outputs is always presentable.
+   the others), or a Decision. Add `"x-presentable": true` only when an authority may also
+   issue it directly; a type no component outputs is always presentable.
 2. **`<id>/component.rego`**, in `package pf.components.<id>`, `<id>` being the folder name:
-   - `interface`, a static rule: `{output: <type>, inputs: {<name>: {type, role}}, policy_data_schema}`.
+   - `interface`, a static rule: `{output: <type or "Decision">, inputs: {<name>: {type, role}}, policy_data_schema}`.
      `role` is the presentation the credential comes from (`User`, or `Script` for the FL
-     cards). Mark an input `"supplied_key": true` when the component checks its credential
-     against a key it supplies rather than against an accepted authority (FL-IS's
-     self-signed script ownership); such an input must be presented.
-   - `output`, a list comprehension over `input.inputs` and `input.policy_data` (and
-     `input.request`, for a component that needs what the requester declared). Each credential has exactly `{type, subject, claims, evidence}`; a
-     component with a `supplied_key` input also returns `key_checks: [{index, key, key_type}]`
-     on every credential, naming the key to check each such credential against. Anything else
-     is an error, not a denial. Build outputs; never pass a presented credential through (it
-     carries an `issuer`).
+     cards); an input of decisions is `{"type": "Decision"}`. Mark an input
+     `"supplied_key": true` when the component checks its credential against a key it
+     supplies rather than against an accepted authority (FL-IS's self-signed script
+     ownership); such an input must be presented.
+   - `output`, over `input.inputs` and `input.policy_data` (and `input.request`, for a
+     component that needs what the requester declared). A list of credentials, each exactly
+     `{type, subject, claims, evidence}`; or one decision, exactly `{allow, parameters}`, each
+     parameter a list of the values it admits, at least one each when it allows. A card
+     component's decision admits whom its condition holds for:
+     `{"allow": count(subjects) > 0, "parameters": {"subject": sort(subjects)}}`. A component
+     with a `supplied_key` input also returns `key_checks: [{index, key, key_type}]` on every
+     credential or on its decision, naming the key to check each such credential against.
+     Anything else is an error, not a denial. Build outputs; never pass a presented credential
+     through (it carries an `issuer`).
    - Keep to what regorus accepts: no comprehension in a rule head that uses body variables, no
      comprehension nested in another, no `time.*`, and no rule head reading a field the value may
      lack.
@@ -66,10 +80,10 @@ graph input that accepts it presented skips the components that would produce it
    | Key | Holds |
    | --- | --- |
    | `name` | the name drawn on the Policy Component, such as `GeographicalRestriction` |
-   | `group` | `shared` or `card` |
+   | `group` | `shared`, `card` or `decision` (a component that only combines decisions) |
    | `summary` | what it checks, in a sentence or two; the card's Policy Card repeats it |
-   | `inputs` | `{<name>: {type, about, role, claims}}`, the same names, types and roles as the interface, and `supplied_key: true` where it has it. `about` says who the credential is about: `requester`, `project`, `pi`, `institution`, `committee`, `script`, `compute` or `document`. `claims` lists the claims it reads (dotted paths); `new_claims` lists any the plan adds to the type |
-   | `output` | `{type, about, claims}` |
+   | `inputs` | `{<name>: {type, about, role, claims}}`, the same names, types and roles as the interface, and `supplied_key: true` where it has it; `{type: "Decision"}` for an input of decisions. `about` says who the credential is about: `requester`, `project`, `pi`, `institution`, `committee`, `script`, `compute` or `document`. `claims` lists the claims it reads (dotted paths); `new_claims` lists any the plan adds to the type |
+   | `output` | `{type, about, claims}` for a credential; `{type: "Decision", about, parameters}` for a decision, `parameters` listing what it admits besides `subject`; `{type: "Decision"}` for a `decision` component, whose decision is about whom its decisions are about |
    | `policy_data` | `{<key>: {type, description}}`, `type` being `string`, `string (ISO-8601 datetime)` or `array of strings`. The interface's `policy_data_schema` must say the same |
    | `changes_from_today` | how its card's decisions differ from the card's Rego before cards became graphs; `[]` for none |
    | `card`, `duo` | card components only: the card folder under `policy_cards/` and the DUO term |

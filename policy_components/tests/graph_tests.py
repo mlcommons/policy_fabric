@@ -11,8 +11,8 @@ A graph tests file names its credentials once and builds each test from them:
         {"name": "...",
          "present": {<role>: [<credential name>, ...]},
          "change":  {<credential name>: <JSON merge patch>},       {} for none
-         "expect":  {"decision": true, "subject", "operation", "evidence": [<name>], "verified": [<name>]}
-                 or {"decision": false, "missing": [{"node", "input"} or {"parameter"}]}
+         "expect":  {"decision": true, "subject", "operation", "verified": [<name>]}
+                 or {"decision": false, "missing": [{"node", "input"}]}
                  or {"decision": false, "reason": "<why>"}}
       ]
     }
@@ -26,11 +26,9 @@ is its signer, and the supplied key is that name. (pdo-contracts' on-chain test,
 ``rego-contract/test/python/policy_graph_test.py``, signs such a credential with a real key and
 puts its PEM wherever the name appears.)
 
-An allow compares the decision's subject and operation, its "evidence" (the presented
-credentials the outputs of the required nodes cite, and the one each parameter is read from)
-and its "verified" (every presented credential bound to a node that ran or offered to a
-parameter), as sets of names. A denial compares
-"missing" as a set, or "reason" exactly. Indices are given in presentation order, roles sorted.
+An allow compares the decision's subject and operation, and its "verified" (every presented
+credential bound to a node that ran), as a set of names. A denial compares "missing" as a
+set, or "reason" exactly. Indices are given in presentation order, roles sorted.
 """
 
 import copy
@@ -98,9 +96,7 @@ class GraphTestVerifier:
 
 
 def missing(entry):
-    """A missing input or parameter, as a test names it."""
-    if "parameter" in entry:
-        return {"parameter": entry["parameter"]}
+    """A missing input, as a test names it."""
     return {"node": entry["node"], "input": entry["input"]}
 
 
@@ -114,16 +110,14 @@ def outcome(result, names):
         "decision": True,
         "subject": result["subject"],
         "operation": result["operation"],
-        "evidence": [names[i] for i in result["evidence"]],
         "verified": [names[i] for i in result["verified"]],
     }
 
 
 def normalized(expect):
     out = copy.deepcopy(expect)
-    for key in ("evidence", "verified"):
-        if key in out:
-            out[key] = sorted(out[key])
+    if "verified" in out:
+        out["verified"] = sorted(out["verified"])
     if "missing" in out:
         out["missing"] = sorted(out["missing"], key=json.dumps)
     return out

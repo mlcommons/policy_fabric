@@ -7,9 +7,9 @@ import rego.v1
 # and an intended use names no purpose the owner treats as commercial.
 #   legalDesignation  LegalDesignationCredential  about the requester, hasLegalForm
 #   intendedDataUse   IntendedDataUseCredential   about the project, useOnlyFor.purposes
-# -> DataUseConditionCredential about the requester.
+# -> Decision about the requester.
 interface := {
-	"output": "DataUseConditionCredential",
+	"output": "Decision",
 	"inputs": {
 		"legalDesignation": {"type": "LegalDesignationCredential", "role": "User"},
 		"intendedDataUse": {"type": "IntendedDataUseCredential", "role": "User"},
@@ -32,18 +32,15 @@ interface := {
 	},
 }
 
-output := [condition |
+# for whom the condition holds
+subjects contains designation.subject if {
 	some designation in input.inputs.legalDesignation
 	designation.claims.hasLegalForm in input.policy_data.nonprofitLegalForms
 	some use in input.inputs.intendedDataUse
 	non_commercial(use.claims.useOnlyFor.purposes, input.policy_data.prohibitedPurposes)
-	condition := {
-		"type": "DataUseConditionCredential",
-		"subject": designation.subject,
-		"claims": {},
-		"evidence": evidence([designation, use]),
-	}
-]
+}
+
+output := {"allow": count(subjects) > 0, "parameters": {"subject": sort(subjects)}}
 
 # Taken as arguments, a purposes claim or prohibited list that is missing fails the check;
 # read inside the negation, it would pass.
@@ -51,10 +48,4 @@ non_commercial(purposes, prohibited) if {
 	every purpose in purposes {
 		not purpose in prohibited
 	}
-}
-
-# The presented credentials an output rests on: the union of its inputs' evidence, sorted.
-evidence(creds) := result if {
-	ids := {i | some c in creds; some i in c.evidence}
-	result := sort(ids)
 }

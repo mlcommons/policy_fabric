@@ -10,11 +10,13 @@ It reads, under the repo:
   credentials/<Type>.schema.json             presented and produced credential types (JSON Schema)
   policy_components/<id>/component.json      what the views show: name, group, inputs, output, policy data
   policy_components/<id>/component.rego      package pf.components.<id>
-  policy_cards/**/graph.json                 a card, as a graph (version 3)
+  policy_cards/**/graph.json                 a card, as a graph (version 4)
   policy_cards/**/card.json                  its code, name and one-line rule
 
 A type no component outputs is presented by wallets. A produced type may also be presented only
-when its schema says "x-presentable": true (a registry may issue it directly).
+when its schema says "x-presentable": true (a registry may issue it directly). A component may
+instead output a Decision, which no wallet presents: a card component's, about whom it checks,
+or a decision component's (AllowIfAll), which combines the decisions it takes.
 
 The interfaces in the Rego are not evaluated here; policy_components/tests checks them against
 component.json on OPA and regorus. Standard library only: the docs build and the template
@@ -37,19 +39,21 @@ SUBJECTS = {
     "compute": {"word": "compute node", "legend": "a compute node"},
     "document": {"word": "terms document", "legend": "a terms document"},
 }
-GROUPS = ("shared", "card")
+GROUPS = ("shared", "card", "decision")
+# the output and input type of a decision
+DECISION = "Decision"
 # the operations a card's capability may issue: the guardian that redeems it, whom the
-# decision is about, and the presented credential each parameter is read from
+# decision is about, and the parameters the decision must admit
 OPERATIONS = {
     "do_download": {
         "guardian": "download",
         "about": "requester",
-        "parameters": {"channel_key": {"type": "publicKeyCredential", "role": "User", "claim": "key"}},
+        "parameters": ["channel_key"],
     },
     "do_inference": {
         "guardian": "inference",
         "about": "script",
-        "parameters": {"script_digest": {"type": "ScriptHashCredential", "role": "Script", "claim": "scriptHash"}},
+        "parameters": ["script_digest"],
     },
 }
 COMPONENT_KEYS = {"name", "group", "summary", "inputs", "output", "policy_data", "changes_from_today"}
@@ -150,6 +154,8 @@ def read_component(d, credentials, folders):
     if m["group"] not in GROUPS:
         problems.append(f"{cid}: group must be one of {GROUPS}")
     for name, spec in m["inputs"].items():
+        if spec == {"type": DECISION}:
+            continue
         if not INPUT_KEYS <= set(spec) <= INPUT_KEYS | INPUT_EXTRA_KEYS:
             problems.append(f"{cid}.{name}: an input has {sorted(INPUT_KEYS)}, and may have {sorted(INPUT_EXTRA_KEYS)}")
             continue
@@ -158,12 +164,25 @@ def read_component(d, credentials, folders):
         if spec["about"] not in SUBJECTS:
             problems.append(f"{cid}.{name}: about must be one of {list(SUBJECTS)}")
     output = m["output"]
-    if set(output) != {"type", "about", "claims"} or output["type"] not in credentials:
-        problems.append(f"{cid}: output must be {{type, about, claims}} of a known credential type")
+    takes_decisions = any(spec == {"type": DECISION} for spec in m["inputs"].values())
+    if m["group"] == "decision":
+        # it combines decisions: its decision is about whom they are about
+        if output != {"type": DECISION} or not takes_decisions:
+            problems.append(f"{cid}: a decision component takes decisions and outputs {{type: Decision}}")
+    elif takes_decisions:
+        problems.append(f"{cid}: only a decision component takes decisions")
+    elif output["type"] == DECISION:
+        if set(output) != {"type", "about", "parameters"} or output["about"] not in SUBJECTS or "subject" in output["parameters"]:
+            problems.append(f"{cid}: a decision output is {{type, about, parameters}}, about one of {list(SUBJECTS)}, "
+                            "parameters besides subject")
+    elif set(output) != {"type", "about", "claims"} or output["type"] not in credentials:
+        problems.append(f"{cid}: output must be {{type, about, claims}} of a known credential type, or a Decision")
     else:
         credentials[output["type"]]["produced_by"].append(cid)
         if output["about"] not in SUBJECTS:
             problems.append(f"{cid}: output about must be one of {list(SUBJECTS)}")
+    if m["group"] == "card" and output["type"] != DECISION:
+        problems.append(f"{cid}: a card component outputs a Decision")
     if m["group"] == "card" and m["card"] not in folders:
         problems.append(f"{cid}: card folder policy_cards/{m['card']} has no graph.json")
     for key, spec in m["policy_data"].items():
@@ -183,26 +202,16 @@ def read_component(d, credentials, folders):
 
 def check_graph(folder, g, components, credentials):
     out, where = [], f"policy_cards/{folder}/graph.json"
-    if set(g) != {"version", "name", "nodes", "capability", "trusted_issuers"} or g["version"] != 3:
-        return [f"{where}: a version 3 graph has exactly version, name, nodes, capability and trusted_issuers"]
+    if set(g) != {"version", "name", "nodes", "capability", "trusted_issuers"} or g["version"] != 4:
+        return [f"{where}: a version 4 graph has exactly version, name, nodes, capability and trusted_issuers"]
     nodes = g["nodes"]
     capability = g["capability"]
-    if set(capability) != {"operation", "requires", "parameters"} or capability["operation"] not in OPERATIONS:
-        return [f"{where}: the capability is {{operation, requires, parameters}}, operation one of {list(OPERATIONS)}"]
+    if set(capability) != {"operation", "decision", "parameters"} or capability["operation"] not in OPERATIONS:
+        return [f"{where}: the capability is {{operation, decision, parameters}}, operation one of {list(OPERATIONS)}"]
     operation = OPERATIONS[capability["operation"]]
     if capability["parameters"] != operation["parameters"]:
-        out.append(f"{where}: {capability['operation']} reads its parameters as {operation['parameters']}")
-    required = capability["requires"]
-    if not (isinstance(required, list) and required and len(set(required)) == len(required)):
-        out.append(f"{where}: the capability requires a list of distinct nodes, at least one")
-        required = []
-    for nid in required:
-        if nid not in nodes or nodes[nid]["component"] not in components:
-            out.append(f"{where}: the capability requires {nid}, which is not a node of a known component")
-        elif components[nodes[nid]["component"]]["output"]["about"] != operation["about"]:
-            out.append(f"{where}: {capability['operation']} is about the {operation['about']}, {nid} outputs about the "
-                       f"{components[nodes[nid]['component']]['output']['about']}")
-    deps, registry_types = {}, {spec["type"] for spec in capability["parameters"].values()}
+        out.append(f"{where}: {capability['operation']} takes the parameters {operation['parameters']}")
+    deps, registry_types = {}, set()
     for nid, n in nodes.items():
         if set(n) != {"component", "inputs", "policy_data"} or n["policy_data"] != {}:
             out.append(f"{where}: {nid} has component, inputs and policy_data {{}}; values are the asset owner's")
@@ -218,11 +227,25 @@ def check_graph(folder, g, components, credentials):
                 continue
             spec = c["inputs"][name]
             want = spec["type"]
+            src = raw
+            if want == DECISION:
+                if not (isinstance(src, dict) and set(src) == {"from", "nodes"} and src["from"] == "nodes"
+                        and isinstance(src["nodes"], list) and src["nodes"] and len(set(src["nodes"])) == len(src["nodes"])):
+                    out.append(f"{where}: {nid}.{name}: a source of decisions is {{from: nodes, nodes}}, one or more nodes, each once")
+                    continue
+                for m in src["nodes"]:
+                    if m not in nodes or nodes[m]["component"] not in components:
+                        out.append(f"{where}: {nid}.{name} reads unknown node {m}")
+                    elif components[nodes[m]["component"]]["output"]["type"] != DECISION:
+                        out.append(f"{where}: {nid}.{name} takes decisions, {m} outputs "
+                                   f"{components[nodes[m]['component']]['output']['type']}")
+                    else:
+                        deps[nid].add(m)
+                continue
             if want not in credentials:
                 out.append(f"{where}: {nid}.{name} takes {want}, which credentials/ does not define")
                 continue
             presentable = credentials[want]["presentable"]
-            src = raw
             if src == {"from": "presented"}:
                 if not presentable:
                     out.append(f"{where}: {nid}.{name} takes {want} presented, but only components produce it; wire one")
@@ -263,18 +286,44 @@ def check_graph(folder, g, components, credentials):
         stack.discard(n)
         seen.add(n)
 
-    for nid in required:
-        if nid in nodes:
-            visit(nid)
+    decision = capability["decision"]
+    if decision not in deps or components[nodes[decision]["component"]]["output"]["type"] != DECISION:
+        out.append(f"{where}: the capability's decision {decision} is not a node that outputs a Decision")
+    else:
+        visit(decision)
     for nid in nodes:
         if nid not in seen:
             out.append(f"{where}: {nid} does not lead to the capability")
+    if not out:
+        about, admits = decided(decision, nodes, components, where, out)
+        if about is not None and about != operation["about"]:
+            out.append(f"{where}: {capability['operation']} is about the {operation['about']}, the decision is about the {about}")
+        for name in operation["parameters"]:
+            if name not in admits:
+                out.append(f"{where}: {capability['operation']} takes {name}, which the decision does not admit")
     if set(g["trusted_issuers"]) != registry_types:
         out.append(f"{where}: trusted_issuers lists {sorted(g['trusted_issuers'])}, the graph takes {sorted(registry_types)} presented")
     for t, dids in g["trusted_issuers"].items():
         if dids != []:
             out.append(f"{where}: trusted_issuers of {t} must be []; the asset owner chooses issuers")
     return out
+
+
+def decided(nid, nodes, components, where, out):
+    """Whom a node's decision is about, and the parameters it admits besides subject: a
+    component's own, or, for a decision component, those of the decisions it takes, which must
+    be about one subject. The graph has no cycle."""
+    c = components[nodes[nid]["component"]]
+    if c["group"] != "decision":
+        return c["output"]["about"], set(c["output"]["parameters"])
+    taken = [decided(m, nodes, components, where, out)
+             for name, spec in c["inputs"].items() for m in nodes[nid]["inputs"][name]["nodes"]]
+    abouts = sorted({about for about, _ in taken if about is not None})
+    admits = set().union(*(admits for _, admits in taken))
+    if len(abouts) > 1:
+        out.append(f"{where}: {nid} takes decisions about the {' and the '.join(abouts)}; they admit no subject in common")
+        return None, admits
+    return (abouts[0] if abouts else None), admits
 
 
 def main():

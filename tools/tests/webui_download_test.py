@@ -16,8 +16,8 @@ in the same order:
 * once the owner allows only another country, the same request is refused.
 
 What the run proves: two cards composed into one graph of policy components whose
-capability requires both, set with set_rego_policy and run by the contract, and a node's
-policy data changed on its own.
+AllowIfAll joins both cards' decisions with the session key's, set with set_rego_policy and
+run by the contract, and a node's policy data changed on its own.
 
 Run it through ``run_webui_inference_test.sh -t download``, which brings the stack up
 around it.
@@ -64,7 +64,8 @@ DATA_PATH = os.environ.get("TUTORIAL_DATA_PATH", "/tmp/asset_data.txt")
 GUARDIAN_PORT = "7900"
 
 CARDS = ["GEOGRAPHICAL-RESTRICTION", "INSTITUTION-SPECIFIC-RESTRICTION"]
-NODES = ["geographical_restriction", "institution_specific_restriction"]
+# the composed graph's nodes: both cards' components, the session key's, and the AllowIfAll joining their decisions
+NODES = ["geographical_restriction", "channel_key", "institution_specific_restriction", "allow_if_all"]
 
 
 def requester_wallet(runner):
@@ -201,6 +202,8 @@ def run_workflow(runner):
             "return Array.from(document.querySelectorAll('#asset-policy-graph .pc-nm')).map(e => e.textContent);"
         )
         print(f"      components: {', '.join(names)}", flush=True)
+        if not runner.driver.find_elements(By.CSS_SELECTOR, "#asset-policy-graph .vd") or not runner.driver.find_elements(By.CSS_SELECTOR, "#asset-policy-graph .ad"):
+            raise StepFailed("the dashboard draws no decision, or no adapter")
         if not runner.driver.find_elements(By.CSS_SELECTOR, "#asset-policy-graph .vc.cap"):
             raise StepFailed("the dashboard draws no capability")
         visible(runner.driver, "#node-data-forms fieldset[data-parameters=geographical_restriction]")
@@ -253,7 +256,7 @@ def run_workflow(runner):
         submit_use(runner)
         run_flow(runner.driver, expect_error=True)
         text = runner.driver.execute_script("return document.body.textContent;")
-        if "node geographical_restriction produced no credential" not in text:
+        if "node geographical_restriction denies" not in text:
             raise StepFailed("the download was not refused by the graph")
 
     runner.step("The same request is now refused", refused)

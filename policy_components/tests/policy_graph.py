@@ -28,6 +28,9 @@ MAX_SOURCE_BYTES = 64 * 1024
 
 KEY_TYPES = ("ec", "rsa")
 
+# the output and input type of a decision, {allow, parameters}
+DECISION = "Decision"
+
 
 def component_package(component_id):
     return f"data.pf.components.{component_id}"
@@ -85,7 +88,7 @@ def validate(graph, components):
 
 # ---------------------------------------------------------------- evaluation
 def plan(graph, interfaces, presented):
-    """The planner's result: ``{order, bindings, parameters, missing}``. ``presented`` is the contract's
+    """The planner's result: ``{order, bindings, missing}``. ``presented`` is the contract's
     view of the presentation, ``{role: [{type, issuer, signer, trusted, subject, claims,
     index, proof_value}]}``."""
     return eval_rule(PLANNER, "data.plan.result", {"graph": graph, "interfaces": interfaces, "presented": presented})
@@ -115,6 +118,16 @@ def _index(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and value == int(value)
 
 
+def _well_formed_key_checks(checks, key_bound):
+    return isinstance(checks, list) and all(
+        isinstance(check, dict) and set(check) == {"index", "key", "key_type"}
+        and _index(check["index"]) and int(check["index"]) in key_bound
+        and isinstance(check["key"], str) and check["key"]
+        and check["key_type"] in KEY_TYPES
+        for check in checks
+    )
+
+
 def _well_formed(credential, iface, allowed, key_bound):
     keys = {"type", "subject", "claims", "evidence"}
     if _checks_keys(iface):
@@ -130,14 +143,39 @@ def _well_formed(credential, iface, allowed, key_bound):
     if not (isinstance(credential["evidence"], list)
             and all(_index(i) and int(i) in allowed for i in credential["evidence"])):
         return False
-    if "key_checks" in keys:
-        for check in credential["key_checks"] if isinstance(credential["key_checks"], list) else [None]:
-            if not (isinstance(check, dict) and set(check) == {"index", "key", "key_type"}
-                    and _index(check["index"]) and int(check["index"]) in key_bound
-                    and isinstance(check["key"], str) and check["key"]
-                    and check["key_type"] in KEY_TYPES):
-                return False
-    return True
+    return "key_checks" not in keys or _well_formed_key_checks(credential["key_checks"], key_bound)
+
+
+def _well_formed_decision(decision, iface, key_bound):
+    """Whether it allows, and for each parameter it names the values it admits, at least one of
+    each when it allows; the subjects it admits are DIDs."""
+    keys = {"allow", "parameters"}
+    if _checks_keys(iface):
+        keys.add("key_checks")
+    if not (isinstance(decision, dict) and set(decision) == keys):
+        return False
+    if not (isinstance(decision["allow"], bool) and isinstance(decision["parameters"], dict)):
+        return False
+    for name, values in decision["parameters"].items():
+        if not isinstance(values, list) or (decision["allow"] and not values):
+            return False
+        if name == "subject" and not all(isinstance(v, str) and v for v in values):
+            return False
+    return "key_checks" not in keys or _well_formed_key_checks(decision["key_checks"], key_bound)
+
+
+def _denying_node(planned, outputs, start):
+    """The node a denial names: from the node whose decision denies, the first node it read a
+    denying decision from, inputs by name, for as long as there is one."""
+    at = start
+    while True:
+        read = [m for name in sorted(planned["bindings"][at])
+                if planned["bindings"][at][name]["from"] == "nodes"
+                for m in planned["bindings"][at][name]["nodes"]]
+        denying = [m for m in read if not outputs[m]["allow"]]
+        if not denying:
+            return at
+        at = denying[0]
 
 
 def _deny(reason, result, **extra):
@@ -146,16 +184,15 @@ def _deny(reason, result, **extra):
 
 def evaluate(graph, components, interfaces, presented, request, policy_data, verifier):
     """issue_policy_credential in graph mode, short of signing: plan, run the active nodes in
-    order, decide from what the nodes the capability requires produced and the credentials
-    offered to its parameters, then verify every presented credential bound to an active
-    node or offered to a parameter.
+    order, make the capability from its node's decision, then verify every presented
+    credential bound to an active node.
 
     ``policy_data`` is ``{node: object}``. ``verifier`` stands in for the contract's
     signature checks: ``verifier.registry(view)`` for a credential checked against the
     registry, ``verifier.key(view, key, key_type)`` for one checked against a key a
     component supplied.
 
-    Returns ``{decision: True, subject, operation, evidence, verified, order, outputs}`` or
+    Returns ``{decision: True, subject, operation, verified, order, outputs}`` or
     ``{decision: False, reason, [missing], order, outputs}``. A component that returns an
     ill-formed output raises GraphError, as the contract fails the call.
     """
@@ -172,7 +209,9 @@ def evaluate(graph, components, interfaces, presented, request, policy_data, ver
         iface = interfaces[node["component"]]
         inputs, allowed, key_bound = {}, set(), set()
         for name, entry in planned["bindings"][n].items():
-            if entry["from"] == "presented":
+            if entry["from"] == "nodes":
+                inputs[name] = [outputs[m] for m in entry["nodes"]]
+            elif entry["from"] == "presented":
                 inputs[name] = [_as_credential(views[i]) for i in entry["indices"]]
                 allowed.update(entry["indices"])
                 if _supplied_key(iface["inputs"][name]):
@@ -190,44 +229,45 @@ def evaluate(graph, components, interfaces, presented, request, policy_data, ver
             component_package(node["component"]) + ".output",
             {"inputs": inputs, "policy_data": policy_data[n], "request": request},
         )
-        if not (isinstance(out, list) and len(out) <= MAX_CREDENTIALS
-                and all(_well_formed(c, iface, allowed, key_bound) for c in out)):
+        if iface["output"] == DECISION:
+            ok = _well_formed_decision(out, iface, key_bound)
+        else:
+            ok = (isinstance(out, list) and len(out) <= MAX_CREDENTIALS
+                  and all(_well_formed(c, iface, allowed, key_bound) for c in out))
+        if not ok:
             raise GraphError(f"node {n} returned an ill-formed output")
         outputs[n] = out
 
-    # every node the capability requires produced a credential, all of them about one subject
+    # the capability's decision allows, about one subject
     capability = graph["capability"]
-    subject = None
-    for n in capability["requires"]:
-        if not outputs[n]:
-            return _deny(f"node {n} produced no credential", result)
-        for cred in outputs[n]:
-            if subject is None:
-                subject = cred["subject"]
-            elif cred["subject"] != subject:
-                return _deny("the nodes the capability requires are about different subjects", result)
+    decision = outputs[capability["decision"]]
+    if not decision["allow"]:
+        return _deny(f"node {_denying_node(planned, outputs, capability['decision'])} denies", result)
+    admitted = decision["parameters"]
+    if "subject" not in admitted:
+        return _deny("the decision names no subject", result)
+    if len(admitted["subject"]) != 1:
+        return _deny("the decision admits more than one subject", result)
+    subject = admitted["subject"][0]
 
-    # each parameter is what the request names, the claim of a presented credential about that
-    # subject; the first such credential is the one the decision cites
-    evidence = {int(i) for n in capability["requires"] for c in outputs[n] for i in c["evidence"]}
+    # each parameter is what the request names, one of the values the decision admits for it
     parameters = {}
-    for name, spec in capability["parameters"].items():
+    for name in capability["parameters"]:
+        if name not in admitted:
+            return _deny(f"the decision names no {name}", result)
         if name not in request:
             return _deny(f"the request names no {name}", result)
-        matching = [i for i in planned["parameters"][name]
-                    if views[i]["subject"] == subject and spec["claim"] in views[i]["claims"]
-                    and views[i]["claims"][spec["claim"]] == request[name]]
-        if not matching:
-            return _deny(f"no {spec['type']} about the subject has the {spec['claim']} the request names for {name}",
-                         result)
+        if request[name] not in admitted[name]:
+            return _deny(f"the decision does not admit the {name} the request names", result)
         parameters[name] = request[name]
-        evidence.add(matching[0])
     operation = {"name": capability["operation"], "parameters": parameters}
 
     verified = set()
     for n in planned["order"]:
         iface = interfaces[graph["nodes"][n]["component"]]
-        checks = [check for cred in outputs[n] for check in cred["key_checks"]] if _checks_keys(iface) else []
+        # a node outputs credentials, or one decision; each carries its key checks
+        produced = [outputs[n]] if iface["output"] == DECISION else outputs[n]
+        checks = [check for out in produced for check in out["key_checks"]] if _checks_keys(iface) else []
         for name, entry in planned["bindings"][n].items():
             if entry["from"] != "presented":
                 continue
@@ -240,17 +280,11 @@ def evaluate(graph, components, interfaces, presented, request, policy_data, ver
                 if not ok:
                     return _deny("credential verification failed", result)
                 verified.add(i)
-    for indices in planned["parameters"].values():
-        for i in indices:
-            if not verifier.registry(views[i]):
-                return _deny("credential verification failed", result)
-            verified.add(i)
 
     return {
         "decision": True,
         "subject": subject,
         "operation": operation,
-        "evidence": sorted(evidence),
         "verified": sorted(verified),
         "order": result["order"],
         "outputs": outputs,

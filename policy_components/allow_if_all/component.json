@@ -1,0 +1,15 @@
+{
+  "name": "AllowIfAll",
+  "group": "decision",
+  "summary": "Allows when every decision it takes allows and, for each parameter they name, they admit a value in common. Its parameters are the values all of them admit; a parameter a decision leaves out, it does not restrict.",
+  "inputs": {
+    "decisions": {
+      "type": "Decision"
+    }
+  },
+  "output": {
+    "type": "Decision"
+  },
+  "policy_data": {},
+  "changes_from_today": []
+}

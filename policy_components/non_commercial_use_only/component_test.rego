@@ -20,25 +20,30 @@ condition(uses, agreements) := out if {
 	}
 }
 
+# the component's decision when its condition holds for one subject, and when it holds for none
+allowed(subject) := {"allow": true, "parameters": {"subject": [subject]}}
+
+denied := {"allow": false, "parameters": {"subject": []}}
+
 test_no_purpose_the_owner_prohibits if {
-	condition([use], [agreement]) == [{"type": "DataUseConditionCredential", "subject": "did:example:user", "claims": {}, "evidence": [0, 1, 2, 3]}]
+	condition([use], [agreement]) == allowed("did:example:user")
 }
 
 test_a_purpose_the_owner_prohibits if {
-	condition([object.union(use, {"claims": {"useOnlyFor": {"purposes": ["HMB", "commercial"]}}})], [agreement]) == []
+	condition([object.union(use, {"claims": {"useOnlyFor": {"purposes": ["HMB", "commercial"]}}})], [agreement]) == denied
 }
 
 test_policy_data_without_the_prohibited_purposes if {
-	non_commercial_use_only.output == [] with input as {
+	non_commercial_use_only.output == denied with input as {
 		"inputs": {"projectMembership": [membership], "intendedDataUse": [use], "agreement": [agreement]},
 		"policy_data": {}, "request": {},
 	}
 }
 
 test_the_use_of_another_project if {
-	condition([object.union(use, {"subject": "did:example:other-project"})], [agreement]) == []
+	condition([object.union(use, {"subject": "did:example:other-project"})], [agreement]) == denied
 }
 
 test_the_agreement_of_someone_else if {
-	condition([use], [object.union(agreement, {"subject": "did:example:other"})]) == []
+	condition([use], [object.union(agreement, {"subject": "did:example:other"})]) == denied
 }

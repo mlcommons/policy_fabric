@@ -8,8 +8,8 @@ hide:
 # Policy Composer
 
 Draw a policy card from the components in this repository: add components from the library, wire each output to
-an input that takes the same credential, choose the operation the card's capability issues, switch **required** on
-at the output of each component the capability requires, and check the result. Download the `graph.json` and open
+an input that takes the same credential, join decisions in **AllowIfAll**, wire the decision the card ends in into the
+capability, choose the operation it issues, and check the result. Download the `graph.json` and open
 a pull request to add or change a card.
 
 [Open the composer on a page of its own](composer/app/index.html){ .md-button }

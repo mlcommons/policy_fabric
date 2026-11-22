@@ -17,20 +17,25 @@ condition(agreements, computes) := out if {
 	}
 }
 
+# the component's decision when its condition holds for one subject, and when it holds for none
+allowed(subject) := {"allow": true, "parameters": {"subject": [subject]}}
+
+denied := {"allow": false, "parameters": {"subject": []}}
+
 test_the_terms_accepted_and_shut_down_before_the_deadline if {
-	condition([agreement], [compute]) == [{"type": "DataUseConditionCredential", "subject": "did:example:user", "claims": {}, "evidence": [0, 1]}]
+	condition([agreement], [compute]) == allowed("did:example:user")
 }
 
 test_a_shutdown_at_the_deadline if {
 	on_time := object.union(compute, {"claims": {"hasComputeProfile": {"profile": {"shutsDownAt": "2027-12-31T23:59:59Z"}}}})
-	count(condition([agreement], [on_time])) == 1
+	count(condition([agreement], [on_time]).parameters.subject) == 1
 }
 
 test_a_shutdown_after_the_deadline if {
 	late := object.union(compute, {"claims": {"hasComputeProfile": {"profile": {"shutsDownAt": "2028-06-01T00:00:00Z"}}}})
-	condition([agreement], [late]) == []
+	condition([agreement], [late]) == denied
 }
 
 test_an_agreement_to_another_document if {
-	condition([object.union(agreement, {"claims": {"agreementInfo": {"documentID": "did:example:other-terms"}}})], [compute]) == []
+	condition([object.union(agreement, {"claims": {"agreementInfo": {"documentID": "did:example:other-terms"}}})], [compute]) == denied
 }

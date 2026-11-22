@@ -1,7 +1,7 @@
 {
   "name": "ProjectSpecificRestriction",
   "group": "card",
-  "summary": "The card component of Project Specific Restriction (DUO_0000027). The requester's project is one the owner approved and has an intended use, and the requester accepted the terms. Outputs a DataUseConditionCredential about the requester.",
+  "summary": "The card component of Project Specific Restriction (DUO_0000027). The requester's project is one the owner approved and has an intended use, and the requester accepted the terms. Decides about the requester.",
   "inputs": {
     "projectMembership": {
       "type": "ProjectMembershipCredential",
@@ -25,9 +25,9 @@
     }
   },
   "output": {
-    "type": "DataUseConditionCredential",
+    "type": "Decision",
     "about": "requester",
-    "claims": []
+    "parameters": []
   },
   "policy_data": {
     "approvedProjects": {

@@ -5,7 +5,9 @@
   },
   "request": {"channel_key": "PUBKEY-USER-1"},
   "policy_data": {
-    "institution_specific_restriction": {"allowedInstitutions": ["did:example:university", "did:example:hospital"]}
+    "institution_specific_restriction": {"allowedInstitutions": ["did:example:university", "did:example:hospital"]},
+    "channel_key": {},
+    "allow_if_all": {}
   },
   "credentials": {
     "affiliation": {"type": "AffiliationCredential", "issuer": "did:example:university", "signer": "did:example:university",
@@ -21,20 +23,19 @@
       "change": {},
       "expect": {"decision": true, "subject": "did:example:user-1",
                  "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
-                 "evidence": ["affiliation", "key"],
                  "verified": ["affiliation", "key"]}
     },
     {
       "name": "deny: an institution the owner does not allow",
       "present": {"User": ["affiliation", "key"]},
       "change": {"affiliation": {"claims": {"isMemberOf": "did:example:unknown"}}},
-      "expect": {"decision": false, "reason": "node institution_specific_restriction produced no credential"}
+      "expect": {"decision": false, "reason": "node institution_specific_restriction denies"}
     },
     {
       "name": "deny: the key of someone else",
       "present": {"User": ["affiliation", "key"]},
       "change": {"key": {"subject": "did:example:user-2"}},
-      "expect": {"decision": false, "reason": "no publicKeyCredential about the subject has the key the request names for channel_key"}
+      "expect": {"decision": false, "reason": "node allow_if_all denies"}
     },
     {
       "name": "deny: no AffiliationCredential",
@@ -46,7 +47,7 @@
       "name": "deny: no publicKeyCredential",
       "present": {"User": ["affiliation"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"parameter": "channel_key"}]}
+      "expect": {"decision": false, "missing": [{"node": "channel_key", "input": "key"}]}
     },
     {
       "name": "deny: an AffiliationCredential from an issuer the contract does not trust",

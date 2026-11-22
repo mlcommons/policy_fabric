@@ -21,25 +21,24 @@ condition(affiliations, keys, ownerships) := out if {
 }
 
 test_a_member_of_an_allowed_institution_owns_the_script if {
-	condition([affiliation], [wallet_key], [ownership]) == [{
-		"type": "DataUseConditionCredential", "subject": "did:pdo:script",
-		"claims": {}, "evidence": [0, 1, 2],
+	condition([affiliation], [wallet_key], [ownership]) == {
+		"allow": true, "parameters": {"subject": ["did:pdo:script"]},
 		"key_checks": [{"index": 2, "key": "WALLETPEM", "key_type": "ec"}],
-	}]
+	}
 }
 
 test_an_institution_the_owner_does_not_allow if {
-	condition([object.union(affiliation, {"claims": {"isMemberOf": "did:example:elsewhere"}})], [wallet_key], [ownership]) == []
+	condition([object.union(affiliation, {"claims": {"isMemberOf": "did:example:elsewhere"}})], [wallet_key], [ownership]) == {"allow": false, "parameters": {"subject": []}, "key_checks": []}
 }
 
 test_the_wallet_key_of_someone_else if {
-	condition([affiliation], [object.union(wallet_key, {"subject": "did:pdo:other-wallet"})], [ownership]) == []
+	condition([affiliation], [object.union(wallet_key, {"subject": "did:pdo:other-wallet"})], [ownership]) == {"allow": false, "parameters": {"subject": []}, "key_checks": []}
 }
 
 test_an_ownership_signed_by_someone_else if {
-	condition([affiliation], [wallet_key], [object.union(ownership, {"issuer": "did:pdo:other-wallet"})]) == []
+	condition([affiliation], [wallet_key], [object.union(ownership, {"issuer": "did:pdo:other-wallet"})]) == {"allow": false, "parameters": {"subject": []}, "key_checks": []}
 }
 
 test_an_ownership_naming_someone_else if {
-	condition([affiliation], [wallet_key], [object.union(ownership, {"claims": {"ownedBy": "did:pdo:other-wallet"}})]) == []
+	condition([affiliation], [wallet_key], [object.union(ownership, {"claims": {"ownedBy": "did:pdo:other-wallet"}})]) == {"allow": false, "parameters": {"subject": []}, "key_checks": []}
 }

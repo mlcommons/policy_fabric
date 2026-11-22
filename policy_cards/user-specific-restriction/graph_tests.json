@@ -9,7 +9,9 @@
       "approvedUsers": ["did:example:user-1"],
       "allowedAccountTypes": ["institutional"],
       "requiredProfileStatuses": ["verified"]
-    }
+    },
+    "channel_key": {},
+    "allow_if_all": {}
   },
   "credentials": {
     "account": {"type": "UserPlatformCredential", "issuer": "did:example:platform", "signer": "did:example:platform",
@@ -25,7 +27,6 @@
       "change": {},
       "expect": {"decision": true, "subject": "did:example:user-1",
                  "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
-                 "evidence": ["account", "key"],
                  "verified": ["account", "key"]}
     },
     {
@@ -34,7 +35,6 @@
       "change": {"account": {"claims": {"userId": "did:example:user-unknown", "accountType": "institutional"}}},
       "expect": {"decision": true, "subject": "did:example:user-1",
                  "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
-                 "evidence": ["account", "key"],
                  "verified": ["account", "key"]}
     },
     {
@@ -43,20 +43,19 @@
       "change": {"account": {"claims": {"userId": "did:example:user-unknown", "profileStatus": "verified"}}},
       "expect": {"decision": true, "subject": "did:example:user-1",
                  "operation": {"name": "do_download", "parameters": {"channel_key": "PUBKEY-USER-1"}},
-                 "evidence": ["account", "key"],
                  "verified": ["account", "key"]}
     },
     {
       "name": "deny: not an approved user, nor of an allowed account type or accepted profile status",
       "present": {"User": ["account", "key"]},
       "change": {"account": {"claims": {"userId": "did:example:user-unknown"}}},
-      "expect": {"decision": false, "reason": "node user_specific_restriction produced no credential"}
+      "expect": {"decision": false, "reason": "node user_specific_restriction denies"}
     },
     {
       "name": "deny: the key of someone else",
       "present": {"User": ["account", "key"]},
       "change": {"key": {"subject": "did:example:user-2"}},
-      "expect": {"decision": false, "reason": "no publicKeyCredential about the subject has the key the request names for channel_key"}
+      "expect": {"decision": false, "reason": "node allow_if_all denies"}
     },
     {
       "name": "deny: no UserPlatformCredential",
@@ -68,7 +67,7 @@
       "name": "deny: no publicKeyCredential",
       "present": {"User": ["account"]},
       "change": {},
-      "expect": {"decision": false, "missing": [{"parameter": "channel_key"}]}
+      "expect": {"decision": false, "missing": [{"node": "channel_key", "input": "key"}]}
     },
     {
       "name": "deny: a UserPlatformCredential from an issuer the contract does not trust",

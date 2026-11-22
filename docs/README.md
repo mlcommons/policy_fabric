@@ -37,7 +37,7 @@ python3 tools/tests/policy_ui/e2e_composer.py docs/site /tmp/composer-shots
 
 It serves the built site and drives the composer in Chromium: the library, loading and
 downloading every card, building the IRB card from the library, wiring, accept presented,
-the capability's operation and the components it requires, Simulate, Arrange, the draft kept on reload, the framing docs page, both themes and phone
+decisions joined in AllowIfAll, the capability's operation and decision, dragging, Simulate, Arrange, the draft kept on reload, the framing docs page, both themes and phone
 width. It prints a PASS or FAIL line per check, saves screenshots, and exits 1 on any failure.
 CI does not run it; CI builds the site strictly (`.github/workflows/policy-checks.yml`) and
 deploys it on pushes to `main` (`.github/workflows/docs.yml`).

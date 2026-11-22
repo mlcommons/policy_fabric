@@ -30,30 +30,35 @@ condition(affiliations, scopeds, agreements) := out if {
 
 scope(change) := object.union(scoped, {"claims": {"agreementInfo": {"scope": change}}})
 
+# the component's decision when its condition holds for one subject, and when it holds for none
+allowed(subject) := {"allow": true, "parameters": {"subject": [subject]}}
+
+denied := {"allow": false, "parameters": {"subject": []}}
+
 test_the_requesters_institution_agreed_to_publish if {
-	condition([affiliation], [scoped], [agreement]) == [{"type": "DataUseConditionCredential", "subject": "did:example:user", "claims": {}, "evidence": [0, 1, 2, 3, 4]}]
+	condition([affiliation], [scoped], [agreement]) == allowed("did:example:user")
 }
 
 test_the_affiliation_of_the_pi if {
-	condition([object.union(affiliation, {"subject": "did:example:pi"})], [scoped], [agreement]) == []
+	condition([object.union(affiliation, {"subject": "did:example:pi"})], [scoped], [agreement]) == denied
 }
 
 test_another_obligation if {
-	condition([affiliation], [scope({"obligation": "Collaboration"})], [agreement]) == []
+	condition([affiliation], [scope({"obligation": "Collaboration"})], [agreement]) == denied
 }
 
 test_another_dataset if {
-	condition([affiliation], [scope({"dataset": "did:example:other-dataset"})], [agreement]) == []
+	condition([affiliation], [scope({"dataset": "did:example:other-dataset"})], [agreement]) == denied
 }
 
 test_another_project if {
-	condition([affiliation], [scope({"project": "did:example:other-project"})], [agreement]) == []
+	condition([affiliation], [scope({"project": "did:example:other-project"})], [agreement]) == denied
 }
 
 test_an_institution_that_did_not_agree if {
-	condition([object.union(affiliation, {"claims": {"isMemberOf": "did:example:other-institution"}})], [scoped], [agreement]) == []
+	condition([object.union(affiliation, {"claims": {"isMemberOf": "did:example:other-institution"}})], [scoped], [agreement]) == denied
 }
 
 test_an_agreement_to_other_terms if {
-	condition([affiliation], [scoped], [object.union(agreement, {"claims": {"agreementInfo": {"documentID": "did:example:other-terms"}}})]) == []
+	condition([affiliation], [scoped], [object.union(agreement, {"claims": {"agreementInfo": {"documentID": "did:example:other-terms"}}})]) == denied
 }

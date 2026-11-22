@@ -1,7 +1,7 @@
 {
   "name": "GeographicalRestriction",
   "group": "card",
-  "summary": "The card component of Geographical Restriction (DUO_0000022). The requester's organisation is located in a country the owner allows. Outputs a DataUseConditionCredential about the requester.",
+  "summary": "The card component of Geographical Restriction (DUO_0000022). The requester's organisation is located in a country the owner allows. Decides about the requester.",
   "inputs": {
     "location": {
       "type": "LocationCredential",
@@ -13,9 +13,9 @@
     }
   },
   "output": {
-    "type": "DataUseConditionCredential",
+    "type": "Decision",
     "about": "requester",
-    "claims": []
+    "parameters": []
   },
   "policy_data": {
     "allowedCountries": {

@@ -17,18 +17,23 @@ condition(designations, uses) := out if {
 	}
 }
 
+# the component's decision when its condition holds for one subject, and when it holds for none
+allowed(subject) := {"allow": true, "parameters": {"subject": [subject]}}
+
+denied := {"allow": false, "parameters": {"subject": []}}
+
 test_a_not_for_profit_requester_and_a_non_commercial_use if {
-	condition([designation], [use]) == [{"type": "DataUseConditionCredential", "subject": "did:example:org", "claims": {}, "evidence": [0, 1]}]
+	condition([designation], [use]) == allowed("did:example:org")
 }
 
 test_a_legal_form_the_owner_does_not_treat_as_not_for_profit if {
-	condition([object.union(designation, {"claims": {"hasLegalForm": "XTIQ"}})], [use]) == []
+	condition([object.union(designation, {"claims": {"hasLegalForm": "XTIQ"}})], [use]) == denied
 }
 
 test_a_commercial_purpose_among_others if {
-	condition([designation], [object.union(use, {"claims": {"useOnlyFor": {"purposes": ["HMB", "commercial"]}}})]) == []
+	condition([designation], [object.union(use, {"claims": {"useOnlyFor": {"purposes": ["HMB", "commercial"]}}})]) == denied
 }
 
 test_a_use_that_declares_no_purposes if {
-	condition([designation], [json.remove(use, ["claims/useOnlyFor/purposes"])]) == []
+	condition([designation], [json.remove(use, ["claims/useOnlyFor/purposes"])]) == denied
 }

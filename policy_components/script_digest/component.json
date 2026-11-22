@@ -1,0 +1,24 @@
+{
+  "name": "ScriptDigest",
+  "group": "shared",
+  "summary": "The script has the digest the request names. Decides about the script and admits that script_digest, which do_inference takes.",
+  "inputs": {
+    "scriptHash": {
+      "type": "ScriptHashCredential",
+      "about": "script",
+      "role": "Script",
+      "claims": [
+        "scriptHash"
+      ]
+    }
+  },
+  "output": {
+    "type": "Decision",
+    "about": "script",
+    "parameters": [
+      "script_digest"
+    ]
+  },
+  "policy_data": {},
+  "changes_from_today": []
+}

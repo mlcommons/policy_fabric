@@ -104,22 +104,23 @@ svg.wires { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overfl
 .wire-tool { position: absolute; transform: translate(-50%, -50%); background: var(--pf-surface); border: 1px solid var(--app-danger); color: var(--app-danger); border-radius: 999px; padding: 3px 11px; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: var(--pf-shadow); white-space: nowrap; }
 .wire-tool:hover { background: var(--app-danger); color: var(--pf-surface); }
 
-/* a component on the canvas: input credentials | Policy Component | output credential; the capability at the end
-   of the card: the outputs it requires and its parameters' credentials | the capability */
-.node { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 14px; user-select: none; -webkit-user-select: none; }
+/* a component on the canvas: input credentials or decisions | Policy Component | output credential or decision; the
+   capability: the decision it takes | the adapter | the capability. Either drags by any of its parts. */
+.node { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 14px; user-select: none; -webkit-user-select: none; cursor: move; touch-action: none; }
+.canvas.connecting .node { cursor: crosshair; }
 .n-ins { flex: none; width: 134px; display: flex; flex-direction: column; gap: 8px; }
 .n-in, .n-out { position: relative; }
-.pf-graph .n-in .vw, .pf-graph .n-out .vw, .pf-graph .n-out .vc.cap { width: 100%; }
-.n-in .vc { cursor: pointer; }
-/* a wired input, or an output the capability requires: an empty lane the wire runs through, clear of the cards */
+.pf-graph .n-in .vw, .pf-graph .n-in .vd, .pf-graph .n-out .vw, .pf-graph .n-out .vd, .pf-graph .n-out .vc.cap { width: 100%; }
+/* a wired input: an empty lane the wire runs through, clear of the cards; one per wire into an input of decisions */
 .n-in.lane { height: 14px; pointer-events: none; }
 .n-out { flex: none; width: 142px; }
-.n-out .vc { cursor: crosshair; }
-.node.capability .vc { cursor: inherit; }
 .n-comp { position: relative; flex: none; }
 .n-compbox { position: relative; }
-.pf-graph .node .pcw { width: 178px; cursor: move; touch-action: none; }
-.node.selected .pc { outline: 3px solid var(--pf-accent); outline-offset: 2px; }
+.pf-graph .node .pcw { width: 178px; }
+.node.selected .pc, .node.capability.selected .ad-box { outline: 3px solid var(--pf-accent); outline-offset: 2px; }
+/* a component, or the capability, that takes another wire on its box */
+.n-compbox.ok .pc, .n-compbox.ok .ad-box { box-shadow: 0 0 0 2px var(--pf-surface), 0 0 0 5px var(--pf-accent-soft); }
+.n-compbox.hot .pc, .n-compbox.hot .ad-box { box-shadow: 0 0 0 2px var(--pf-surface), 0 0 0 5px var(--pf-accent); }
 .port { position: absolute; top: calc(50% - 7px); z-index: 1; width: 14px; height: 14px; padding: 0; border-radius: 50%; border: 2px solid var(--pf-accent); background: var(--pf-surface); cursor: crosshair; }
 .port.in { left: -7px; }
 .port.out { right: -7px; }
@@ -143,7 +144,7 @@ svg.wires { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overfl
 .node.loose { opacity: .72; }
 .n-out.dim .vc { opacity: .45; }
 
-/* an output's accept presented and required switches: policy_graph.css's read-only row, with a real switch in it */
+/* a credential output's accept presented switch: policy_graph.css's read-only row, with a real switch in it */
 .pf-graph .n-out label.ap { color: var(--pf-ink-2); cursor: pointer; }
 .ap input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
 .pf-graph .ap input:checked + .ap-track { background: var(--pf-ok); }

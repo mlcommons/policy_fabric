@@ -148,13 +148,15 @@ We define a set of credential types in Policy Fabric. Each type's claims structu
 
 ### Policy components
 
-A policy card is a **graph of policy components**: small Rego components that pass credentials to each other. A component takes credentials — presented by the requester, or produced by the components before it — checks them, and outputs a credential of its own:
+A policy card is a **graph of policy components**: small Rego components that pass credentials and decisions to each other. A component takes credentials — presented by the requester, or produced by the components before it — checks them, and outputs a credential of its own or a **decision**: whether it allows, and the values it admits for each parameter, among them whom it is about:
 
 - **shared components** join credentials into new ones: ProjectMembership turns a requester's team and their PI's project ownership into a ProjectMembershipCredential;
-- a **card component** checks the result against the owner's parameters and outputs a data use condition about the requester, or the script;
-- the graph's **capability** requires the card components and issues the operation: `do_download` to the requester's session key, or `do_inference` for the digest of the script being run, each read from a presented credential about the same subject.
+- a **card component** checks the result against the owner's parameters and decides about the requester, or the script;
+- **ChannelKey** decides that the requester holds the session key the request names, and **ScriptDigest** that the script has the digest it names;
+- **AllowIfAll** joins decisions: it allows when all of them allow, and admits the values they have in common;
+- the graph's **capability**, a small adapter, makes one decision into the operation: `do_download` to the requester's session key, or `do_inference` for the digest of the script being run, when the decision allows, about one subject, and admits the value the request names.
 
-The ethics approval card joins seven credentials about four subjects — the requester, their PI, the project and the approving committee — in three shared components before its card component checks the project's declared use. Cards on one asset compose into one graph whose capability requires every card's component, sharing the components they have in common, so the operation is issued only when every card holds for the same subject. An authority may also issue a joined credential directly, such as an IRB clearance: a graph input that accepts it presented skips the components that would produce it. A policy therefore lists every bundle of credentials that satisfies it, its **requirement alternatives**, and a requester presents one.
+The ethics approval card joins seven credentials about four subjects — the requester, their PI, the project and the approving committee — in three shared components before its card component checks the project's declared use. Cards on one asset compose into one graph whose AllowIfAll takes every card's decision, sharing the components they have in common, so the operation is issued only when every card holds for the same subject. An authority may also issue a joined credential directly, such as an IRB clearance: a graph input that accepts it presented skips the components that would produce it. A policy therefore lists every bundle of credentials that satisfies it, its **requirement alternatives**, and a requester presents one.
 
 The asset's `rego_policy_agent` holds the graph. It validates the graph against its components' interfaces when it is set, plans per request which components run, runs them, and issues the capability only after verifying every credential they read. Every card is drawn as its graph on the webapp's **Policies** page, and the [Policy Composer](composer.md) draws new ones from the component library.
 

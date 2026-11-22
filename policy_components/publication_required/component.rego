@@ -9,9 +9,9 @@ import rego.v1
 #   affiliation        AffiliationCredential        about the requester, isMemberOf
 #   scopedAgreement    ScopedAgreementCredential    about the terms, agreementInfo.scope
 #   agreement          AgreementCredential          about the institution, agreementInfo.documentID
-# -> DataUseConditionCredential about the requester.
+# -> Decision about the requester.
 interface := {
-	"output": "DataUseConditionCredential",
+	"output": "Decision",
 	"inputs": {
 		"projectMembership": {"type": "ProjectMembershipCredential", "role": "User"},
 		"affiliation": {"type": "AffiliationCredential", "role": "User"},
@@ -28,7 +28,8 @@ interface := {
 	},
 }
 
-output := [condition |
+# for whom the condition holds
+subjects contains membership.subject if {
 	some membership in input.inputs.projectMembership
 	some affiliation in input.inputs.affiliation
 	affiliation.subject == membership.subject
@@ -39,16 +40,6 @@ output := [condition |
 	some agreement in input.inputs.agreement
 	agreement.subject == affiliation.claims.isMemberOf
 	agreement.claims.agreementInfo.documentID == scoped.subject
-	condition := {
-		"type": "DataUseConditionCredential",
-		"subject": membership.subject,
-		"claims": {},
-		"evidence": evidence([membership, affiliation, scoped, agreement]),
-	}
-]
-
-# The presented credentials an output rests on: the union of its inputs' evidence, sorted.
-evidence(creds) := result if {
-	ids := {i | some c in creds; some i in c.evidence}
-	result := sort(ids)
 }
+
+output := {"allow": count(subjects) > 0, "parameters": {"subject": sort(subjects)}}

@@ -21,22 +21,27 @@ condition(accounts) := out if {
 	}
 }
 
+# the component's decision when its condition holds for one subject, and when it holds for none
+allowed(subject) := {"allow": true, "parameters": {"subject": [subject]}}
+
+denied := {"allow": false, "parameters": {"subject": []}}
+
 test_an_approved_user if {
-	condition([account]) == [{"type": "DataUseConditionCredential", "subject": "did:example:user", "claims": {}, "evidence": [0]}]
+	condition([account]) == allowed("did:example:user")
 }
 
 test_an_allowed_account_type if {
-	count(condition([object.union(unapproved, {"claims": {"accountType": "institutional"}})])) == 1
+	count(condition([object.union(unapproved, {"claims": {"accountType": "institutional"}})]).parameters.subject) == 1
 }
 
 test_a_profile_status_the_owner_accepts if {
-	count(condition([object.union(unapproved, {"claims": {"profileStatus": "verified"}})])) == 1
+	count(condition([object.union(unapproved, {"claims": {"profileStatus": "verified"}})]).parameters.subject) == 1
 }
 
 test_one_condition_for_several_routes if {
-	count(condition([object.union(account, {"claims": {"accountType": "institutional", "profileStatus": "verified"}})])) == 1
+	count(condition([object.union(account, {"claims": {"accountType": "institutional", "profileStatus": "verified"}})]).parameters.subject) == 1
 }
 
 test_no_route if {
-	condition([unapproved]) == []
+	condition([unapproved]) == denied
 }

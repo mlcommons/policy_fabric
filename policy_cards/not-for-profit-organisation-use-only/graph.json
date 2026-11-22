@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "name": "Not-for-Profit Organisation Use Only",
   "nodes": {
     "not_for_profit_organisation_use_only": {
@@ -10,20 +10,36 @@
         }
       },
       "policy_data": {}
+    },
+    "channel_key": {
+      "component": "channel_key",
+      "inputs": {
+        "key": {
+          "from": "presented"
+        }
+      },
+      "policy_data": {}
+    },
+    "allow_if_all": {
+      "component": "allow_if_all",
+      "inputs": {
+        "decisions": {
+          "from": "nodes",
+          "nodes": [
+            "not_for_profit_organisation_use_only",
+            "channel_key"
+          ]
+        }
+      },
+      "policy_data": {}
     }
   },
   "capability": {
     "operation": "do_download",
-    "requires": [
-      "not_for_profit_organisation_use_only"
-    ],
-    "parameters": {
-      "channel_key": {
-        "type": "publicKeyCredential",
-        "role": "User",
-        "claim": "key"
-      }
-    }
+    "decision": "allow_if_all",
+    "parameters": [
+      "channel_key"
+    ]
   },
   "trusted_issuers": {
     "LegalDesignationCredential": [],

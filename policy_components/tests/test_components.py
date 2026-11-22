@@ -2,8 +2,8 @@
 
 The interface a component declares is the same on OPA and on regorus (the engine the
 contract embeds), its inputs (type, role, and whether it checks one against a key it
-supplies) and output are the ones component.json gives, and its policy data schema is the
-one the catalog derives from component.json.
+supplies; or a Decision) and output are the ones component.json gives, and its policy data
+schema is the one the catalog derives from component.json.
 """
 
 import unittest
@@ -21,6 +21,14 @@ def without_descriptions(schema):
         "required": sorted(schema["required"]),
         "properties": {k: {kk: vv for kk, vv in v.items() if kk != "description"} for k, v in schema["properties"].items()},
     }
+
+
+def input_shape(spec):
+    """An input as the interface declares it: a Decision, or a credential type, its role, and
+    whether the component checks it against a key it supplies."""
+    if spec["type"] == "Decision":
+        return (spec["type"],)
+    return (spec["type"], spec["role"], "supplied_key" in spec)
 
 
 def name_of(text):
@@ -41,11 +49,10 @@ def interface_test(cid):
         self.assertEqual(eval_rule(rego.read_text(), rule, {}), interface)
 
         self.assertEqual(
-            {name: (spec["type"], spec["role"], "supplied_key" in spec) for name, spec in interface["inputs"].items()},
-            {name: (spec["type"], spec["role"], "supplied_key" in spec) for name, spec in meta["inputs"].items()},
+            {name: input_shape(spec) for name, spec in interface["inputs"].items()},
+            {name: input_shape(spec) for name, spec in meta["inputs"].items()},
         )
-        output = meta["output"]["type"] if meta["group"] != "grant" else "Capability"
-        self.assertEqual(interface["output"], output)
+        self.assertEqual(interface["output"], meta["output"]["type"])
 
         # the same schema as the catalog derives from component.json, descriptions aside
         schema = interface["policy_data_schema"]

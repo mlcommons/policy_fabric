@@ -50,9 +50,6 @@ CREDENTIALS = [
     {"id": 6, "template_type": "AffiliationCredential", "display_name": "Affiliation",
      "meaning": "A member.", "subject_kinds": ["wallet"], "self_asserted": False, "presentable": True,
      "json_schema": {"type": "object", "properties": {"isMemberOf": {"type": "string"}}, "required": ["isMemberOf"]}},
-    {"id": 7, "template_type": "DataUseConditionCredential", "display_name": "Data use condition",
-     "meaning": "Met.", "subject_kinds": ["wallet"], "self_asserted": False, "presentable": False,
-     "json_schema": {"type": "object", "properties": {}, "required": []}},
 ]
 
 # two download cards and an inference one as graphs of components, and the catalog that
@@ -64,14 +61,23 @@ COUNTRIES = {
 }
 
 
-DOWNLOAD_PARAMETERS = {"channel_key": {"type": "publicKeyCredential", "role": "User", "claim": "key"}}
+DOWNLOAD_CAPABILITY = {"operation": "do_download", "decision": "allow_if_all", "parameters": ["channel_key"]}
+
+
+def presented_node(component, input_name):
+    return {"component": component, "inputs": {input_name: {"from": "presented"}}, "policy_data": {}}
+
+
+def allow_if_all(nodes):
+    return {"component": "allow_if_all", "inputs": {"decisions": {"from": "nodes", "nodes": nodes}}, "policy_data": {}}
 
 
 def card_graph(name, node, input_name, input_type):
     return {
-        "version": 3, "name": name,
-        "nodes": {node: {"component": node, "inputs": {input_name: {"from": "presented"}}, "policy_data": {}}},
-        "capability": {"operation": "do_download", "requires": [node], "parameters": DOWNLOAD_PARAMETERS},
+        "version": 4, "name": name,
+        "nodes": {node: presented_node(node, input_name), "channel_key": presented_node("channel_key", "key"),
+                  "allow_if_all": allow_if_all([node, "channel_key"])},
+        "capability": DOWNLOAD_CAPABILITY,
         "trusted_issuers": {input_type: [], "publicKeyCredential": []},
     }
 
@@ -80,10 +86,11 @@ GS_GRAPH = card_graph("Geographical Restriction", "geographical_restriction", "l
 IS_GRAPH = card_graph("Institution Specific Restriction", "institution_specific_restriction", "affiliation",
                       "AffiliationCredential")
 FL_GRAPH = {
-    "version": 3, "name": "Inference",
-    "nodes": {"declared_use": {"component": "declared_use", "inputs": {"use": {"from": "presented"}}, "policy_data": {}}},
-    "capability": {"operation": "do_inference", "requires": ["declared_use"],
-                   "parameters": {"script_digest": {"type": "ScriptHashCredential", "role": "Script", "claim": "scriptHash"}}},
+    "version": 4, "name": "Inference",
+    "nodes": {"declared_use": presented_node("declared_use", "use"),
+              "script_digest": presented_node("script_digest", "scriptHash"),
+              "allow_if_all": allow_if_all(["declared_use", "script_digest"])},
+    "capability": {"operation": "do_inference", "decision": "allow_if_all", "parameters": ["script_digest"]},
     "trusted_issuers": {"IntendedDataUseCredential": [], "ScriptHashCredential": []},
 }
 
@@ -92,7 +99,7 @@ def card_component(component_id, name, input_name, input_type, schema):
     return {
         "name": name, "group": "card", "policy_data_schema": schema, "rego": f"package pf.components.{component_id}",
         "inputs": {input_name: {"type": input_type, "about": "requester", "role": "User", "claims": []}},
-        "output": {"type": "DataUseConditionCredential", "about": "requester", "claims": []},
+        "output": {"type": "Decision", "about": "requester", "parameters": []},
     }
 
 
@@ -108,6 +115,15 @@ CATALOG = {
             "geographical_restriction", "GeographicalRestriction", "location", "LocationCredential", COUNTRIES),
         "institution_specific_restriction": card_component(
             "institution_specific_restriction", "InstitutionSpecificRestriction", "affiliation", "AffiliationCredential", {}),
+        "channel_key": {
+            "name": "ChannelKey", "group": "shared", "policy_data_schema": {}, "rego": "package pf.components.channel_key",
+            "inputs": {"key": {"type": "publicKeyCredential", "about": "requester", "role": "User", "claims": ["key"]}},
+            "output": {"type": "Decision", "about": "requester", "parameters": ["channel_key"]},
+        },
+        "allow_if_all": {
+            "name": "AllowIfAll", "group": "decision", "policy_data_schema": {}, "rego": "package pf.components.allow_if_all",
+            "inputs": {"decisions": {"type": "Decision"}}, "output": {"type": "Decision"},
+        },
     },
     "cards": {
         "geographical-restriction": catalog_card(
@@ -247,7 +263,9 @@ class ViewTestCase(TestCase):
 class ExposePanel(ViewTestCase):
     parameters = {
         "geographical_restriction": {"allowedCountries": ["US"]},
+        "channel_key": {},
         "institution_specific_restriction": {},
+        "allow_if_all": {},
     }
     authorities = {
         "LocationCredential": [REGISTRY_OFFICE["did"]],
@@ -275,9 +293,11 @@ class ExposePanel(ViewTestCase):
     def test_two_cards_compose_under_one_capability(self):
         body = self.compose([GS["id"], IS["id"]]).json()
         graph = body["graph"]
-        self.assertEqual(list(graph["nodes"]), ["geographical_restriction", "institution_specific_restriction"])
-        self.assertEqual(graph["capability"], {"operation": "do_download", "parameters": DOWNLOAD_PARAMETERS,
-                                               "requires": ["geographical_restriction", "institution_specific_restriction"]})
+        self.assertEqual(list(graph["nodes"]),
+                         ["geographical_restriction", "channel_key", "institution_specific_restriction", "allow_if_all"])
+        self.assertEqual(graph["nodes"]["allow_if_all"]["inputs"]["decisions"]["nodes"],
+                         ["geographical_restriction", "channel_key", "institution_specific_restriction"])
+        self.assertEqual(graph["capability"], DOWNLOAD_CAPABILITY)
         self.assertEqual(list(graph["trusted_issuers"]), ["AffiliationCredential", "LocationCredential", "publicKeyCredential"])
         self.assertEqual(body["alternatives"], [{"User": ["AffiliationCredential", "LocationCredential", "publicKeyCredential"]}])
         self.assertEqual([n["node"] for n in body["nodes"] if n["schema"]], ["geographical_restriction"])
@@ -313,7 +333,8 @@ class ExposePanel(ViewTestCase):
                                    "authorities": self.authorities})
         self.assertIn("every node", missing[1]["detail"])
         with self.assertLogs("app.views._streaming", "ERROR"):
-            unfit = self.expose({"cards": [GS["id"]], "parameters": {"geographical_restriction": {"allowedCountries": "US"}},
+            unfit = self.expose({"cards": [GS["id"]], "parameters": {"geographical_restriction": {"allowedCountries": "US"},
+                                                                       "channel_key": {}, "allow_if_all": {}},
                                  "authorities": {"LocationCredential": [REGISTRY_OFFICE["did"]], "publicKeyCredential": [SESSION_KEYS["did"]]}})
         self.assertIn("GeographicalRestriction", unfit[1]["detail"])
         self.runner["create_asset_policy"].assert_not_called()

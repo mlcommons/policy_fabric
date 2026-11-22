@@ -5,18 +5,25 @@ import unittest
 
 from app import graphs
 
-from .test_views import CATALOG, DOWNLOAD_PARAMETERS, GS_GRAPH, IS_GRAPH
+from .test_views import CATALOG, DOWNLOAD_CAPABILITY, GS_GRAPH, IS_GRAPH
 
 
 class Compose(unittest.TestCase):
     def test_one_card_is_its_own_graph(self):
         self.assertEqual(graphs.compose([GS_GRAPH])["nodes"], GS_GRAPH["nodes"])
 
-    def test_several_cards_require_one_capability(self):
+    def test_several_cards_join_their_decisions_in_one_allow_if_all(self):
         graph = graphs.compose([GS_GRAPH, IS_GRAPH])
         self.assertEqual(graph["name"], "Geographical Restriction + Institution Specific Restriction")
-        self.assertEqual(graph["capability"]["requires"], ["geographical_restriction", "institution_specific_restriction"])
-        self.assertEqual(graph["capability"]["parameters"], DOWNLOAD_PARAMETERS)
+        self.assertEqual(graph["nodes"]["allow_if_all"]["inputs"]["decisions"],
+                         {"from": "nodes", "nodes": ["geographical_restriction", "channel_key", "institution_specific_restriction"]})
+        self.assertEqual(graph["capability"], DOWNLOAD_CAPABILITY)
+
+    def test_a_card_that_does_not_end_in_allow_if_all_is_refused(self):
+        other = copy.deepcopy(IS_GRAPH)
+        other["nodes"]["allow_if_all"]["component"] = "institution_specific_restriction"
+        with self.assertRaisesRegex(ValueError, "AllowIfAll"):
+            graphs.compose([GS_GRAPH, other])
 
     def test_a_shared_node_is_kept_once(self):
         other = copy.deepcopy(IS_GRAPH)

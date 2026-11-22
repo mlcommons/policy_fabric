@@ -1,5 +1,5 @@
-/* Policy graph shapes: credentials, Policy Components, the capability, wires and legend, shared by the webapp views
-   and the docs composer (policy_graph.js draws them).
+/* Policy graph shapes: credentials, decisions, Policy Components, the adapter, the capability, wires and legend,
+   shared by the webapp views and the docs composer (policy_graph.js draws them).
 
    Everything is scoped to a .pf-graph wrapper so it neither leaks into nor picks up the host page's styles.
    Theme: the wrapper follows prefers-color-scheme unless the host sets data-theme="light" or "dark" on it.
@@ -107,6 +107,22 @@
 .pf-graph .ap.on .ap-track { background: var(--pf-ok); }
 .pf-graph .ap.on .ap-thumb { transform: translateX(9px); }
 
+/* ---------- decision: rounded, scales in its header, no seal, no fold; coloured by whom it is about */
+.pf-graph :where(.vd) { --c: var(--pf-ink-3); }
+.pf-graph .vd { flex: none; position: relative; width: var(--vw, 176px); }
+.pf-graph .vc.dec { border-radius: 14px; border-width: 2px; }
+.pf-graph .vc.dec::after { display: none; }
+.pf-graph .vc.dec .vc-h { display: flex; align-items: center; gap: 6px; padding: 6px 10px; color: var(--c); }
+.pf-graph .vc.dec .vc-h svg { flex: none; }
+.pf-graph .vc.dec .vc-t { font-family: var(--pf-font-ui); font-size: 11px; }
+
+/* ---------- adapter: a small amber box between the decision and the capability */
+.pf-graph .ad { flex: none; }
+.pf-graph .ad-tab { display: inline-block; margin-left: 6px; padding: 3px 8px 2px; background: var(--pf-grant); color: var(--pf-surface);
+  font-size: 9.5px; font-weight: 700; line-height: 1.2; clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 100%, 0 100%); }
+.pf-graph .ad-box { padding: 7px 10px; border: 3px solid var(--pf-grant); border-radius: 10px; background: var(--pf-surface);
+  box-shadow: var(--pf-shadow); color: var(--pf-grant); font-size: 11.5px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+
 /* ---------- capability: solid amber header with a key, no seal, no fold */
 .pf-graph .vc.cap { flex: none; width: var(--vw, 176px); --c: var(--pf-grant); border-width: 2px; }
 .pf-graph .vc.cap .vc-h { display: flex; align-items: flex-start; gap: 5px; padding: 7px 10px 6px 7px; background: var(--pf-grant);
@@ -148,5 +164,6 @@
   background: var(--c); box-shadow: 0 0 0 1.5px var(--pf-surface); }
 .pf-graph .lg-card { position: relative; width: 18px; height: 12px; margin-top: 3px; border: 3px solid var(--pf-logic); border-radius: 3px; }
 .pf-graph .lg-card::before { content: ""; position: absolute; left: 1px; top: -6px; width: 8px; height: 3px; background: var(--pf-logic); }
+.pf-graph .lg-dec { width: 17px; height: 12px; border: 2px solid var(--pf-ink-3); border-radius: 6px; }
 .pf-graph .lg-cap { width: 17px; height: 12px; border: 2px solid var(--pf-grant); border-radius: 3px;
   background: linear-gradient(var(--pf-grant) 0 45%, var(--pf-surface) 45%); }

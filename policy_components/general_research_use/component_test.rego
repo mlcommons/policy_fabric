@@ -13,10 +13,15 @@ condition(agreements) := out if {
 	}
 }
 
+# the component's decision when its condition holds for one subject, and when it holds for none
+allowed(subject) := {"allow": true, "parameters": {"subject": [subject]}}
+
+denied := {"allow": false, "parameters": {"subject": []}}
+
 test_the_requester_accepted_the_required_terms if {
-	condition([agreement]) == [{"type": "DataUseConditionCredential", "subject": "did:example:user", "claims": {}, "evidence": [0]}]
+	condition([agreement]) == allowed("did:example:user")
 }
 
 test_an_agreement_to_other_terms if {
-	condition([object.union(agreement, {"claims": {"agreementInfo": {"documentID": "did:example:other-terms"}}})]) == []
+	condition([object.union(agreement, {"claims": {"agreementInfo": {"documentID": "did:example:other-terms"}}})]) == denied
 }

@@ -1,7 +1,7 @@
 {
   "name": "GeneralResearchUse",
   "group": "card",
-  "summary": "The card component of General Research Use (DUO_0000042). The requester accepted the terms document the owner requires. Outputs a DataUseConditionCredential about the requester.",
+  "summary": "The card component of General Research Use (DUO_0000042). The requester accepted the terms document the owner requires. Decides about the requester.",
   "inputs": {
     "agreement": {
       "type": "AgreementCredential",
@@ -13,9 +13,9 @@
     }
   },
   "output": {
-    "type": "DataUseConditionCredential",
+    "type": "Decision",
     "about": "requester",
-    "claims": []
+    "parameters": []
   },
   "policy_data": {
     "requiredDocumentID": {

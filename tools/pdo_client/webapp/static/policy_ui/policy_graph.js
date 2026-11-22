@@ -4,7 +4,7 @@
 //   PolicyGraph.render(element, graph, catalog, theme) -> {destroy}  draws it, refits on resize
 //   PolicyGraph.shapes                                               the shapes, for the composer
 //
-// graph is a policy graph (version 3) and catalog the catalog tools/policy_catalog builds. theme is
+// graph is a policy graph (version 4) and catalog the catalog tools/policy_catalog builds. theme is
 // "light", "dark", or "auto" to follow prefers-color-scheme. policy_graph.css holds the look, the docs
 // composer's too.
 
@@ -14,10 +14,11 @@
     var SEAL = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7.2a2.2 2.2 0 0 1 2.2-2.2h1a2.2 2.2 0 0 0 1.55-.64l.7-.7a2.2 2.2 0 0 1 3.12 0l.7.7c.41.41.97.64 1.55.64h1a2.2 2.2 0 0 1 2.2 2.2v1c0 .58.23 1.14.64 1.55l.7.7a2.2 2.2 0 0 1 0 3.12l-.7.7a2.2 2.2 0 0 0-.64 1.55v1a2.2 2.2 0 0 1-2.2 2.2h-1a2.2 2.2 0 0 0-1.55.64l-.7.7a2.2 2.2 0 0 1-3.12 0l-.7-.7a2.2 2.2 0 0 0-1.55-.64h-1a2.2 2.2 0 0 1-2.2-2.2v-1a2.2 2.2 0 0 0-.64-1.55l-.7-.7a2.2 2.2 0 0 1 0-3.12l.7-.7A2.2 2.2 0 0 0 5 8.2v-1"/><path d="m9 12 2 2 4-4"/></svg>';
     var KEY = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="5" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.2 8H15M12.6 8v3M14.6 8v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
     var SLIDERS = '<svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6a2 2 0 1 0 4 0 2 2 0 1 0-4 0M4 6h8M16 6h4M6 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0M4 12h2M10 12h10M15 18a2 2 0 1 0 4 0 2 2 0 1 0-4 0M4 18h11M19 18h1"/></svg>';
+    var SCALE = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M7 21h10M5 7h14M5 7l-3 7a3.5 3.5 0 0 0 6 0zM19 7l-3 7a3.5 3.5 0 0 0 6 0z"/></svg>';
     var LIST = '<svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11M5 6v.01M5 12v.01M5 18v.01"/></svg>';
 
     var DEFAULTS = { '--vw': 176, '--pcw': 200, '--colgap': 36 };
-    var MINIMUMS = { '--vw': 116, '--pcw': 124, '--colgap': 8 };
+    var MINIMUMS = { '--vw': 100, '--pcw': 108, '--colgap': 8 };
 
     function esc(s) {
         return String(s).replace(/[&<>"']/g, function (c) {
@@ -55,6 +56,23 @@
             '</div></div>';
     }
 
+    // a decision: whom it is about (null while that is not known) and the parameters it admits besides
+    // its subject; no seal, since nobody signs it
+    function decision(about, parameters, subjects, attrs) {
+        var subject = about === null ? '' : '<div class="sec subj">subject: <b>' + esc(subjects[about].word) + '</b></div>';
+        var admits = parameters.length
+            ? '<div class="sec"><div class="lbl">' + LIST + 'admits</div><ul class="cl">' +
+              parameters.map(function (p) { return '<li>' + brk(p) + '</li>'; }).join('') + '</ul></div>'
+            : '';
+        return '<div class="vd' + (about === null ? '' : ' s-' + esc(about)) + '"' + attrs + '><div class="vc dec">' +
+            '<div class="vc-h">' + SCALE + '<div class="vc-t">Decision</div></div>' + subject + admits + '</div></div>';
+    }
+
+    // the adapter that makes a decision into the capability
+    function adapter(attrs) {
+        return '<div class="ad"' + attrs + '><div class="ad-tab">Adapter</div><div class="ad-box">ToCapability</div></div>';
+    }
+
     // a Policy Component: its name, and the keys of its policy data when it takes some
     function component(name, policyData, attrs) {
         var data = policyData.length
@@ -77,12 +95,30 @@
         var items = Object.keys(subjects).filter(function (k) { return subjectsUsed.indexOf(k) !== -1; }).map(function (k) {
             return '<span><i class="lg lg-vc s-' + esc(k) + '"></i>credential about ' + esc(subjects[k].legend) + '</span>';
         });
+        items.push('<span><i class="lg lg-dec"></i>decision</span>');
         items.push('<span><i class="lg lg-card"></i>Policy Component</span>');
         items.push('<span><i class="lg lg-cap"></i>capability</span>');
         return '<div class="legend">' + items.concat(extra).join('') + '</div>';
     }
 
     // ------------------------------------------------------------------ layout
+    // Whom a node's decision is about and the parameters it admits besides its subject: its
+    // component's, or for a component that combines decisions, those of the decisions it takes
+    // (about null when they are not about one kind of subject).
+    function decisionOf(graph, catalog, n) {
+        var c = catalog.components[graph.nodes[n].component];
+        if (c.group !== 'decision') return { about: c.output.about, parameters: c.output.parameters };
+        var abouts = [], parameters = [];
+        Object.keys(c.inputs).forEach(function (name) {
+            graph.nodes[n].inputs[name].nodes.forEach(function (m) {
+                var d = decisionOf(graph, catalog, m);
+                if (abouts.indexOf(d.about) === -1) abouts.push(d.about);
+                d.parameters.forEach(function (p) { if (parameters.indexOf(p) === -1) parameters.push(p); });
+            });
+        });
+        return { about: abouts.length === 1 ? abouts[0] : null, parameters: parameters.sort() };
+    }
+
     // The items a graph expands into, the wires between them, and the columns they sit in, left to
     // right by their longest path to the capability; within a column, by the average position of
     // their neighbours (three sweeps each way).
@@ -96,7 +132,9 @@
             Object.keys(node.inputs).forEach(function (name) {
                 var spec = c.inputs[name];
                 var source = node.inputs[name];
-                if (source.from === 'presented') {
+                if (source.from === 'nodes') {
+                    source.nodes.forEach(function (m) { wires.push(['o:' + m, 'c:' + n]); });
+                } else if (source.from === 'presented') {
                     items['p:' + n + ':' + name] = {
                         kind: 'credential', type: spec.type, about: spec.about, claims: spec.claims,
                         newClaims: 'new_claims' in spec ? spec.new_claims : [], acceptedPresented: false,
@@ -106,10 +144,15 @@
                     wires.push(['o:' + source.node, 'c:' + n]);
                 }
             });
-            items['o:' + n] = {
-                kind: 'credential', type: c.output.type, about: c.output.about, claims: c.output.claims,
-                newClaims: [], acceptedPresented: false,
-            };
+            if (c.output.type === 'Decision') {
+                var d = decisionOf(graph, catalog, n);
+                items['o:' + n] = { kind: 'decision', about: d.about, parameters: d.parameters };
+            } else {
+                items['o:' + n] = {
+                    kind: 'credential', type: c.output.type, about: c.output.about, claims: c.output.claims,
+                    newClaims: [], acceptedPresented: false,
+                };
+            }
             wires.push(['c:' + n, 'o:' + n]);
         });
         Object.keys(graph.nodes).forEach(function (n) {
@@ -118,20 +161,12 @@
                 if (source.from === 'node' && source.accept_presented) items['o:' + source.node].acceptedPresented = true;
             });
         });
-        // the capability, fed by the output of every node it requires and by the presented
-        // credential each parameter of its operation is read from, about the operation's subject
+        // the adapter makes the capability's decision into the capability: the operation, with its parameters
         var capability = graph.capability;
-        var about = catalog.operations[capability.operation].about;
-        items.cap = { kind: 'capability', operation: capability.operation, parameters: Object.keys(capability.parameters) };
-        capability.requires.forEach(function (n) { wires.push(['o:' + n, 'cap']); });
-        Object.keys(capability.parameters).forEach(function (p) {
-            var spec = capability.parameters[p];
-            items['cap:' + p] = {
-                kind: 'credential', type: spec.type, about: about, claims: [spec.claim],
-                newClaims: [], acceptedPresented: false,
-            };
-            wires.push(['cap:' + p, 'cap']);
-        });
+        items.adapter = { kind: 'adapter' };
+        items.cap = { kind: 'capability', operation: capability.operation, parameters: capability.parameters };
+        wires.push(['o:' + capability.decision, 'adapter']);
+        wires.push(['adapter', 'cap']);
         return { items: items, wires: wires, columns: columns(Object.keys(items), wires, 'cap') };
     }
 
@@ -177,6 +212,8 @@
     function itemHtml(id, item, catalog) {
         var attrs = ' data-item="' + esc(id) + '"';
         if (item.kind === 'component') return component(item.name, item.policyData, attrs);
+        if (item.kind === 'decision') return decision(item.about, item.parameters, catalog.subjects, attrs);
+        if (item.kind === 'adapter') return adapter(attrs);
         if (item.kind === 'capability') return capability(item.operation, item.parameters, attrs);
         return credential(item.type, item.about, item.claims, item.newClaims, catalog.subjects, item.acceptedPresented, attrs);
     }
@@ -202,6 +239,7 @@
         function anchor(id) {
             var n = graphEl.querySelector('[data-item="' + id.replace(/"/g, '\\"') + '"]');
             if (n.classList.contains('pcw')) n = n.querySelector('.pc');
+            if (n.classList.contains('ad')) n = n.querySelector('.ad-box');
             var r = n.getBoundingClientRect();
             return { x: r.left - box.left, y: r.top - box.top, w: r.width, h: r.height };
         }
@@ -240,7 +278,7 @@
         var used = [];
         Object.keys(laid.items).forEach(function (id) {
             var item = laid.items[id];
-            if (item.kind === 'credential' && used.indexOf(item.about) === -1) used.push(item.about);
+            if ((item.kind === 'credential' || item.kind === 'decision') && item.about !== null && used.indexOf(item.about) === -1) used.push(item.about);
         });
         element.classList.add('pf-graph');
         if (theme === 'auto') element.removeAttribute('data-theme');
@@ -273,7 +311,7 @@
     var api = {
         layout: layout,
         render: render,
-        shapes: { credential: credential, component: component, capability: capability, legend: legend },
+        shapes: { credential: credential, decision: decision, adapter: adapter, component: component, capability: capability, legend: legend },
         icons: { SEAL: SEAL, KEY: KEY, SLIDERS: SLIDERS, LIST: LIST },
         esc: esc,
         brk: brk,

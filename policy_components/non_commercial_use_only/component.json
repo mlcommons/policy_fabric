@@ -1,7 +1,7 @@
 {
   "name": "NonCommercialUseOnly",
   "group": "card",
-  "summary": "The card component of Non-Commercial Use Only (DUO_0000046). The requester's project intends to use the data for no purpose the owner prohibits, such as commercial use, and the requester accepted the terms. Outputs a DataUseConditionCredential about the requester.",
+  "summary": "The card component of Non-Commercial Use Only (DUO_0000046). The requester's project intends to use the data for no purpose the owner prohibits, such as commercial use, and the requester accepted the terms. Decides about the requester.",
   "inputs": {
     "projectMembership": {
       "type": "ProjectMembershipCredential",
@@ -27,9 +27,9 @@
     }
   },
   "output": {
-    "type": "DataUseConditionCredential",
+    "type": "Decision",
     "about": "requester",
-    "claims": []
+    "parameters": []
   },
   "policy_data": {
     "prohibitedPurposes": {
