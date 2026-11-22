@@ -9,7 +9,7 @@
 <script src="theme.js"></script>
 </head>
 <body>
-<!-- Layout: one-screen workbench. Component library | canvas, legend and a results tray | side panel (the capability's operation and required switches, and the accept-presented switches, or the simulation settings). Stacks to one column on phones. -->
+<!-- Layout: one-screen workbench. Component library | canvas, legend and a results tray | on the Simulate tab, a side panel with its settings. Stacks to one column on phones. -->
 <div class="app">
   <header class="topbar">
     <div class="brand"><small>Policy Fabric</small><strong>Policy Composer</strong></div>
@@ -20,21 +20,20 @@
     <div class="bar-actions">
       <label for="load-select">Load</label>
       <select id="load-select">
-        <option value="">Choose a starting point…</option>
+        <option value="">Choose…</option>
       </select>
       <input id="load-file" type="file" accept=".json,application/json" hidden>
       <button type="button" class="bar-btn" id="download" title="Download the graph.json of this card">Download</button>
     </div>
   </header>
 
-  <div class="workbench">
+  <div class="workbench no-side">
     <aside class="panel library" aria-label="Component library">
       <div class="lib-head">
         <h2>Components</h2>
-        <input id="lib-search" type="search" placeholder="Filter by name or credential" aria-label="Filter components">
+        <input id="lib-search" type="search" placeholder="Filter" aria-label="Filter components">
       </div>
       <div class="lib-list" id="lib-list"></div>
-      <div class="lib-foot">Click a component to see its inputs, output and Rego. Add puts it on the canvas; dragging it there works too.</div>
     </aside>
 
     <main class="stage">
@@ -44,8 +43,7 @@
           <div id="nodes"></div>
           <div id="wire-tools"></div>
         </div>
-        <div class="canvas-hint" id="canvas-hint">Loading the components…</div>
-        <div class="banner" id="banner" hidden></div>
+        <div class="canvas-hint" id="canvas-hint">Loading…</div>
         <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
         <div class="zoom">
           <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
@@ -59,14 +57,14 @@
       <section class="panel tray" aria-label="Results">
         <div class="tabs" role="tablist">
           <button class="tab" role="tab" id="tab-checks" data-tab="checks" aria-controls="tray-body">Checks <span class="count" id="count-checks">0</span></button>
-          <button class="tab" role="tab" id="tab-sim" data-tab="sim" aria-controls="tray-body">Simulate <span class="tag">preview</span></button>
+          <button class="tab" role="tab" id="tab-sim" data-tab="sim" aria-controls="tray-body">Simulate</button>
           <button class="tab" role="tab" id="tab-json" data-tab="json" aria-controls="tray-body">Graph JSON</button>
         </div>
         <div class="tray-body" id="tray-body" role="tabpanel"></div>
       </section>
     </main>
 
-    <aside class="side" id="side" aria-label="Settings"></aside>
+    <aside class="side" id="side" aria-label="Simulation settings" hidden></aside>
   </div>
 </div>
 

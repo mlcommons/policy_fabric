@@ -5,10 +5,13 @@ It serves the built site over HTTP (a page opened from file:// cannot fetch cata
   - the library lists the catalog's components: Shared 3, Cards 23;
   - Load opens each of the 23 cards with no check errors, and draws its capability;
   - building the IRB card from the library, choosing its operation and requiring its card component, with
-    accept presented on for its two shortcut inputs, gives JSON equal to
+    accept presented on at the two outputs a wallet may also present, gives JSON equal to
     policy_cards/ethics-approval-required/graph.json, and Download saves that file;
   - Load followed by Download gives back each card's graph.json byte for byte, even after values are typed on
     the Simulate tab, whose values never reach the JSON;
+  - the canvas carries no text it does not need: no subtitle under a credential's type, a wired input drawn as
+    an empty lane the wire runs through into its component, no blurbs or notes, and the side panel only on the
+    Simulate tab;
 and the interactions: the details popup, wiring, accept presented, the capability's operation and required
 components, Simulate, Arrange, two cards the capability requires, a local graph.json, the draft kept on reload,
 the docs page that frames the app and its theme, and phone width. It takes light and dark screenshots.
@@ -33,7 +36,9 @@ from playwright.sync_api import sync_playwright
 REPO = Path(__file__).resolve().parents[3]   # tools/tests/policy_ui/ -> the repo root
 IRB = "ethics-approval-required"
 IRB_ORDER = ["project_membership", "institutional_irb_approval", "irb_clearance", "ethics_approval_required"]
-IRB_SHORTCUTS = [("irb_clearance", "membership"), ("ethics_approval_required", "clearance")]
+IRB_SHORTCUTS = [("irb_clearance", "membership"), ("ethics_approval_required", "clearance")]   # input, read from:
+IRB_ACCEPTED = ["irb_clearance", "project_membership"]                                          # these outputs
+IRB_LANES = ["ethics_approval_required.clearance", "irb_clearance.approval", "irb_clearance.membership"]
 DS = "disease-specific-research"
 GROUPS = [["Shared", 3], ["Cards", 23]]                  # the library: policy_components/README.md
 AMBER = "rgb(148, 88, 10)"                               # --pf-grant, light
@@ -145,16 +150,15 @@ def toast(page):
 
 
 def wire_by_clicks(page, src, dst, inp):
-    """Click the source's output, then the input's header: a wired input is a short socket whose middle is
-    its accept presented switch."""
-    page.locator(f'.n-out[data-node="{src}"] .vc').click()
+    """Click the source's output, then the header of the credential presented to the input."""
+    page.locator(f'.n-out[data-node="{src}"] .vc-h').click()
     page.locator(f'.n-in[data-node="{dst}"][data-input="{inp}"] .vc-h').click()
     page.wait_for_timeout(60)
 
 
 def choose_operation(page, op):
-    """pick the capability's operation under Capability, beside the canvas (Checks and Graph JSON tabs)"""
-    page.locator(f'label[for="op-{op}"]').click()
+    """pick the capability's operation on its card"""
+    page.select_option("#cap-operation", op)
     page.wait_for_timeout(60)
 
 
@@ -228,10 +232,11 @@ try:
               rows == {t: [k for k, c in comps.items() if c["group"] == g] for t, g in (("Shared", "shared"), ("Cards", "card"))}, rows)
         abouts = {op["about"] for op in CATALOG["operations"].values()}
         outs = page.evaluate("Object.values(COMPONENTS).filter(c => c.group === 'card').map(c => [c.output.type, c.output.about])")
-        blurb = page.locator('.lib-group[aria-label="Cards"] .lib-blurb').inner_text()
-        check("every card component outputs a credential about the subject of an operation, and the Cards blurb names each",
-              outs and all(a in abouts for _, a in outs) and all(f"{t} about the {CATALOG['subjects'][a]['word']}" in blurb for t, a in outs),
-              f"{outs} / {blurb}")
+        check("every card component outputs a credential about the subject of an operation", outs and all(a in abouts for _, a in outs), outs)
+        check("the library is its groups and components: no blurbs, no footer",
+              page.locator(".lib-blurb, .lib-foot, .lib-group p").count() == 0)
+        check("while building, the side panel is hidden and the canvas takes its place",
+              page.locator("#side").is_hidden() and page.evaluate("document.querySelector('.workbench').classList.contains('no-side')"))
         load_values = page.evaluate("[...document.querySelectorAll('#load-select option')].map(o => o.value)")
         check("the Load menu lists every card of the catalog, an empty canvas and a local graph.json",
               sorted(v[5:] for v in load_values if v.startswith("card:")) == sorted(CATALOG["cards"]) and "empty" in load_values and "file" in load_values, load_values)
@@ -267,18 +272,18 @@ try:
                 n: document.querySelectorAll('#modal-inputs .vw').length,
                 out: document.querySelector('#modal-output').innerText,
                 pd: [...document.querySelectorAll('#modal .pd-list dt')].map(d => d.firstChild.textContent),
-                changes: [...document.querySelectorAll('#modal .changed')].map(p => p.textContent),
                 rego: !!document.querySelector('#modal [data-act="toggle-rego"]'),
                 none: (document.querySelector('#modal-no-rego') || {textContent: ''}).textContent,
-                desc: document.querySelector('#modal .modal-desc').textContent })""")
-            ok = (got["n"] == len(c["inputs"]) and got["pd"] == list(c["policy_data"]) and got["changes"] == c["changes_from_today"]
-                  and got["desc"].startswith(c["summary"])
+                desc: document.querySelector('#modal .modal-desc').textContent,
+                paras: document.querySelectorAll('#modal .modal-body > p').length })""")
+            ok = (got["n"] == len(c["inputs"]) and got["pd"] == list(c["policy_data"]) and got["desc"] == c["summary"]
                   and c["output"]["type"] in got["out"].replace("\n", "")
-                  and (got["rego"] if c["rego"] is not None else "not written yet" in got["none"]))
+                  and (got["rego"] if c["rego"] is not None else "Not written yet" in got["none"])
+                  and got["paras"] == 1 + (not c["policy_data"]) + (c["rego"] is None))
             if not ok:
                 bad.append(cid)
             page.locator('#modal-box .modal-foot [data-act="close-modal"]').click()
-        check("details of every component: its inputs, output, policy data, changes from today, and its Rego or that it is not written yet",
+        check("details of every component: its summary and nothing more, its inputs, output, policy data, and its Rego or that it is not written yet",
               not bad, bad)
         page.locator('.lib-item[data-component="disease_specific_research_for_inference"] .lib-open').click()
         out = page.evaluate("[document.querySelector('#modal-output').innerText.replace(/\\n/g, ''), document.querySelectorAll('#modal .vc.cap').length, [...document.querySelector('#modal-output .vw').classList]]")
@@ -308,10 +313,11 @@ try:
         overlap = sum(1 for i, a in enumerate(boxes) for b in boxes[i + 1:] if a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3])
         check("added components and the capability do not overlap", overlap == 0 and len(boxes) == 5, f"{overlap} / {len(boxes)}")
         cap = page.evaluate("""(() => { const c = document.querySelector('#nodes .node.capability');
-            return [c.querySelector('.vc.cap').innerText.replace(/\\n/g, ' '), c.querySelectorAll('.n-in').length,
+            return [c.querySelector('#cap-operation').value, [...c.querySelectorAll('#cap-operation option')].map(o => o.value), c.querySelectorAll('.n-in').length,
                     Math.min(...[...document.querySelectorAll('#nodes .node[data-node]')].map(n => c.getBoundingClientRect().left - n.getBoundingClientRect().right))]; })()""")
-        check("with no operation chosen and no component required, the capability is drawn right of every component, with no inputs",
-              "no operation yet" in cap[0] and cap[1] == 0 and cap[2] > 0, cap)
+        check("with no operation chosen and no component required, the capability is drawn right of every component, with no inputs, "
+              "and its card offers the catalog's operations",
+              cap[0] == "" and cap[1] == ["", *CATALOG["operations"]] and cap[2] == 0 and cap[3] > 0, cap)
         page.screenshot(path=SHOTS / "composer-light-added.png")
 
         # drag them into columns by their Policy Component shapes
@@ -334,9 +340,10 @@ try:
         off = max(abs(moved[n][0] - (ox + tx)) + abs(moved[n][1] - (oy + ty)) for n, (tx, ty) in layout.items())
         check("components dragged by their shapes into columns", off < 6, off)
         card = page.evaluate("""(() => { const n = document.querySelector('.node[data-node="ethics_approval_required"]');
-            return [!!n.querySelector('.pc'), n.querySelector('.pc-tab').textContent, (n.querySelector('.pc .lbl')).textContent,
+            return [!!n.querySelector('.pc'), n.querySelector('.pc-tab').textContent, n.querySelector('.pc').innerText.trim(),
                     getComputedStyle(n.querySelector('.pc')).borderTopWidth, n.querySelectorAll('[class*="hex"], [data-hex]').length]; })()""")
-        check("the card component is a Policy Component with its tab and no policy data", card == [True, "Policy Component", "no policy data", "4px", 0], card)
+        check("the card component is a Policy Component with its tab; it takes no policy data, so it shows its name only",
+              card == [True, "Policy Component", "EthicsApprovalRequired", "4px", 0], card)
         seals = page.evaluate("[...document.querySelectorAll('#nodes .vw')].every(w => { const s = w.querySelector(':scope > .seal').getBoundingClientRect(), c = w.querySelector('.vc').getBoundingClientRect(); return s.left < c.left && s.top < c.top && s.right > c.left && s.bottom > c.top; })")
         subj = page.evaluate("[...document.querySelectorAll('#nodes .vc .subj')].length === document.querySelectorAll('#nodes .vw').length")
         check("every credential has its seal on the top-left corner and a subject section", seals and subj, [seals, subj])
@@ -348,61 +355,67 @@ try:
         text = toast(page)
         check("a wire between different credential types is refused with a toast",
               "takes InstitutionalIRBApprovalCredential" in text and page.evaluate("S.wires.length") == 0, text)
-        page.locator('.n-out[data-node="project_membership"] .vc').click()
+        page.locator('.n-out[data-node="project_membership"] .vc-h').click()
         hl = page.evaluate("[...document.querySelectorAll('.n-in.ok')].map(e => e.dataset.node + '.' + e.dataset.input)")
         check("while wiring, only inputs of the same credential type are highlighted", hl == ["irb_clearance.membership"], hl)
+        check("while wiring, nothing but the highlight says so: no banner", page.locator("#banner, .banner").count() == 0)
         page.keyboard.press("Escape")
+        page.locator("#toast").evaluate("t => { t.hidden = true; }")   # the refused wire's
         for src, dst, inp in [("project_membership", "irb_clearance", "membership"), ("institutional_irb_approval", "irb_clearance", "approval"),
                               ("irb_clearance", "ethics_approval_required", "clearance")]:
             wire_by_clicks(page, src, dst, inp)
-        check("three wires made by clicking", page.evaluate("S.wires.length") == 3)
+        check("three wires made by clicking, with no toast for each", page.evaluate("S.wires.length") == 3 and page.locator("#toast").is_hidden())
+        lanes = page.evaluate("""[...document.querySelectorAll('#nodes .n-in.lane[data-node]')].map(e => [e.dataset.node + '.' + e.dataset.input, e.children.length, e.innerText]).sort()""")
+        check("a wired input is an empty lane, no card: the credential is drawn once, at the output it comes from",
+              lanes == [[x, 0, ""] for x in IRB_LANES], lanes)
+        ends = page.evaluate("""S.wires.map(w => {
+            const path = document.querySelector(`.wire-hit[data-wire="${w.id}"]`), p = path.getPointAtLength(path.getTotalLength()).matrixTransform(path.getScreenCTM());
+            const pc = document.querySelector(`.node[data-node="${w.to}"] .pc`).getBoundingClientRect();
+            const out = document.querySelector(`.n-out[data-node="${w.from}"] .vc`).getBoundingClientRect();
+            const q = path.getPointAtLength(0).matrixTransform(path.getScreenCTM());
+            return [w.to, Math.round(pc.left - p.x), p.y > pc.top && p.y < pc.bottom, Math.round(q.x - out.right), Math.abs(q.y - (out.top + out.height / 2)) < 2]; })""")
+        check("each wire runs from the output credential straight into the Policy Component that reads it",
+              all(0 < dx < 12 and inside and -1 <= ox <= 8 and level for _, dx, inside, ox, level in ends) and len(ends) == 3, ends)
         issues = page.locator("#tray-body .issue .txt").all_inner_texts()
-        check("before the capability is set, Checks asks for its operation and a required component, and flags the card's unwired output",
-              page.locator("#count-checks").inner_text() == "3" and any("Choose the operation" in t for t in issues)
-              and any("requires no component" in t for t in issues)
-              and any(t.startswith("EthicsApprovalRequired's output") and "switch required on" in t for t in issues), issues)
-        cap_rows = page.evaluate("[...document.querySelectorAll('#side-capability [data-act=require]')].map(i => i.dataset.node)")
-        check("with no operation chosen, every component has a required switch, on the canvas and under Capability",
-              sorted(cap_rows) == sorted(IRB_ORDER) and page.locator('#nodes [data-act="require"]').count() == 4, cap_rows)
+        check("before the capability is set, Checks says it has no operation and requires no component, and flags the card's unused output",
+              page.locator("#count-checks").inner_text() == "3"
+              and issues == ["The capability has no operation.", "The capability requires no component.",
+                             "EthicsApprovalRequired's output is neither wired nor required."], issues)
+        check("with no operation chosen, every component's output has a required switch",
+              sorted(page.evaluate("[...document.querySelectorAll('#nodes .n-out [data-act=require]')].map(i => i.dataset.node)")) == sorted(IRB_ORDER))
         choose_operation(page, "do_download")
-        cap_rows = page.evaluate("[...document.querySelectorAll('#side-capability [data-act=require]')].map(i => i.dataset.node)")
-        fixed = page.locator("#require-fixed").inner_text()
-        check("choosing do_download leaves the required switch on the components whose output is about the requester",
-              sorted(cap_rows) == ["ethics_approval_required", "irb_clearance", "project_membership"]
-              and page.locator('#nodes .n-out[data-node="institutional_irb_approval"] [data-act="require"]').count() == 0
-              and "do_download is about the requester" in fixed and "InstitutionalIRBApproval: its output is about the project" in fixed, f"{cap_rows} / {fixed}")
-        params = page.evaluate("[...document.querySelectorAll('#nodes .node.capability [data-parameter]')].map(e => [e.dataset.parameter, e.dataset.type, e.querySelector('.vc-id').textContent])")
-        check("the capability draws the operation's parameter as a presented credential: channel_key, from a publicKeyCredential",
-              params == [["channel_key", "publicKeyCredential", "channel_key · presented"]]
-              and "do_download" in page.locator("#nodes .node.capability .vc.cap").inner_text().replace("\n", ""), params)
+        rows = page.evaluate("[...document.querySelectorAll('#nodes .n-out [data-act=require]')].map(i => i.dataset.node)")
+        check("choosing do_download on the capability's card leaves the required switch on the outputs about the requester",
+              sorted(rows) == ["ethics_approval_required", "irb_clearance", "project_membership"] and page.locator("#toast").is_hidden(), rows)
+        params = page.evaluate("[...document.querySelectorAll('#nodes .node.capability [data-parameter]')].map(e => [e.dataset.parameter, e.dataset.type, e.querySelector('.vc-t').innerText.replace(/\\n/g, '')])")
+        check("the capability draws the operation's parameter as the credential it is read from, a publicKeyCredential, with no subtitle",
+              params == [["channel_key", "publicKeyCredential", "publicKeyCredential"]]
+              and "channel_key" in page.locator("#nodes .node.capability .vc.cap .cl").inner_text(), params)
         require(page, "ethics_approval_required")
-        check("switching required on at the card component's output: the capability requires it, drawn as its socket; Checks says OK",
+        check("switching required on at the card component's output: the capability requires it, through an empty lane; Checks says OK",
               page.evaluate("S.requires") == ["ethics_approval_required"] and page.locator("#count-checks").inner_text() == "OK"
-              and page.evaluate("[...document.querySelectorAll('#nodes .node.capability [data-requires]')].map(e => e.dataset.requires)") == ["ethics_approval_required"]
-              and page.locator("#rq-ethics_approval_required").is_checked() and "The capability requires EthicsApprovalRequired" in toast(page),
+              and page.evaluate("[...document.querySelectorAll('#nodes .node.capability [data-requires]')].map(e => [e.dataset.requires, e.children.length])") == [["ethics_approval_required", 0]]
+              and page.locator("#rqc-ethics_approval_required").is_checked(),
               page.locator("#tray-body").inner_text()[:300])
         choose_operation(page, "do_inference")
         issues = page.locator("#tray-body .issue .txt").all_inner_texts()
         check("do_inference while the capability requires a component about the requester: Checks says so, its switch stays on to turn off, "
               "and the capability reads script_digest instead",
-              issues == ["do_inference is about the script, but the capability requires EthicsApprovalRequired, whose output is about the requester. "
-                         "Switch required off, or choose another operation."]
+              issues == ["do_inference is about the script, but EthicsApprovalRequired's output is about the requester."]
               and page.locator("#rqc-ethics_approval_required").is_checked()
               and page.evaluate("[...document.querySelectorAll('#nodes .node.capability [data-parameter]')].map(e => e.dataset.type)") == ["ScriptHashCredential"],
               issues)
         choose_operation(page, "do_download")
-        wired = page.evaluate("[...document.querySelectorAll('.n-in')].filter(e => e.querySelector('.ap')).map(e => e.dataset.node + '.' + e.dataset.input).sort()")
-        check("only a wired input whose credential a wallet may present shows the accept presented switch",
-              wired == sorted(f"{n}.{i}" for n, i in IRB_SHORTCUTS), wired)
-        fixed = page.locator("#accept-fixed").inner_text()
-        check("the side panel says which wired inputs take only their wired output, and why",
-              "IRBClearance · approval" in fixed and "only components produce InstitutionalIRBApprovalCredential" in fixed, fixed)
-        check("unwired inputs read as presented credentials",
-              page.locator('.n-in[data-node="irb_clearance"][data-input="affiliation"] .vc-id').inner_text().endswith("presented"))
+        accepting = page.evaluate("[...document.querySelectorAll('#nodes .n-out [data-act=accept]')].map(i => i.dataset.node).sort()")
+        check("accept presented is a switch on an output wired to an input, when a wallet may present its credential",
+              accepting == IRB_ACCEPTED and page.locator("#nodes .n-in [data-act=accept]").count() == 0, accepting)
+        subtitles = page.evaluate("""[document.querySelectorAll('#nodes .vc-id, #nodes .vc-sub:not(.vc.cap .vc-sub)').length,
+            [...document.querySelectorAll('#nodes .vw .vc-t')].filter(t => t.innerText.replace(/\\n/g, '') !== t.closest('.n-in, .n-out').dataset.type).length]""")
+        check("no credential has a subtitle: its type, nothing under it (no input name, no 'presented')", subtitles == [0, 0], subtitles)
         legend = page.locator("#legend").inner_text().replace("\n", " | ")
         check("legend shows only what is on the canvas",
-              all(t in legend for t in ("the requester", "the project", "the PI", "the ethics committee", "Policy Component", "capability", "wire"))
-              and not any(t in legend for t in ("the script", "compute node", "terms document", "an institution")), legend)
+              all(t in legend for t in ("the requester", "the project", "the PI", "the ethics committee", "Policy Component", "capability"))
+              and not any(t in legend for t in ("the script", "compute node", "terms document", "an institution", "wire")), legend)
         canvas_text = page.locator("#nodes").inner_text()
         claims = page.evaluate("[...document.querySelectorAll('#nodes .cl li')].map(l => l.textContent.trim())")
         check("claims are inside the cards; subject is never listed; outputs list claim names only",
@@ -428,20 +441,22 @@ try:
         # ---------- simulate
         v = verdict(page)
         titles = page.locator("#side .side-card h2").all_inner_texts()
-        check("Simulate: Policy data, Trusted issuers and Presented credentials as separate sections",
-              titles == ["Policy data", "Trusted issuers", "Presented credentials"], titles)
+        check("Simulate: the side panel opens beside the canvas with Policy data, Trusted issuers and Presented credentials, titles only",
+              titles == ["Policy data", "Trusted issuers", "Presented credentials"] and page.locator("#side").is_visible()
+              and page.locator("#side .side-card > header").all_inner_texts() == titles, titles)
         sep = page.evaluate("""(() => { const b = [...document.querySelectorAll('#side .side-card')].map(c => c.getBoundingClientRect());
             return b.every((r, i) => i === 0 || r.top >= b[i - 1].bottom + 4); })()""")
         check("the three sections do not overlap", sep)
-        check("Simulate says it is a preview that runs no Rego",
-              "preview" in page.locator("#tab-sim").inner_text() and "runs no Rego" in page.locator("#tray-body").inner_text())
+        fits = page.evaluate("""(() => { const c = document.getElementById('canvas').getBoundingClientRect();
+            return [...document.querySelectorAll('#nodes .node')].every(n => { const r = n.getBoundingClientRect(); return r.left >= c.left - 1 && r.right <= c.right + 1; }); })()""")
+        check("opening the side panel refits the card to the narrower canvas", fits)
+        check("Simulate is a tab name and a result, with no notes", page.locator("#tab-sim").inner_text() == "Simulate" and page.locator("#tray-body .note").count() == 0)
         presented = page.evaluate("[...document.querySelectorAll('[data-act=sim-present]')].filter(i => i.checked).map(i => i.dataset.type).sort()")
-        check("every required credential ticked, from a trusted issuer",
-              presented == sorted(off_graph["trusted_issuers"]) and page.locator("#side-presented .why").count() == 0, presented)
-        check("allow: the capability is issued", v.startswith("Capability issued") and "do_download" in v and "channel_key from the publicKeyCredential" in v, v)
+        check("every required credential ticked, from a trusted issuer", presented == sorted(off_graph["trusted_issuers"]), presented)
+        check("allow: the capability is issued", v == "Capability issued", v)
         check("allow: the capability says it is issued, and its parameter's credential presented",
               page.locator("#nodes .node.capability .vc.cap .st.good").inner_text() == "✓ issued"
-              and page.locator('#nodes .node.capability [data-parameter="channel_key"] .st.good').inner_text() == "✓ presented")
+              and page.locator('#nodes .node.capability [data-parameter="channel_key"] .st.good').inner_text() == "✓")
         run = chips(page, "#sim-order")
         check("allow: components run producers first, the required card component last",
               run == ["1 InstitutionalIRBApproval", "2 ProjectMembership", "3 IRBClearance", "4 EthicsApprovalRequired"], run)
@@ -451,33 +466,34 @@ try:
         page.locator("#pc-IRBApprovalCredential").uncheck()
         v = verdict(page)
         check("deny: IRBApprovalCredential dropped -> no capability, named as missing",
-              v.startswith("No capability") and "IRBApprovalCredential, not presented" in v, v)
+              v.startswith("No capability") and "IRBApprovalCredential (not presented)" in v, v)
         cannot = [c for c in chips(page, "#sim-order") if "cannot run" in c]
         check("deny: the components that depend on it cannot run", len(cannot) == 3 and cannot[0].startswith("1 InstitutionalIRBApproval"), cannot)
-        check("deny: the input says it is not presented",
-              page.locator('.n-in[data-node="institutional_irb_approval"][data-input="irb"] .st.bad').inner_text() == "not presented")
+        check("deny: the input says it is missing",
+              page.locator('.n-in[data-node="institutional_irb_approval"][data-input="irb"] .st.bad').inner_text() == "missing")
         page.screenshot(path=SHOTS / "composer-light-deny.png")
         page.locator("#pc-IRBApprovalCredential").check()
         page.locator("#pc-publicKeyCredential").uncheck()
         v = verdict(page)
         run = chips(page, "#sim-order")
         check("deny: without the credential its parameter is read from, every component runs but no capability is issued",
-              v.startswith("No capability") and "publicKeyCredential, not presented" in v and len(run) == 4
+              v.startswith("No capability") and "publicKeyCredential (not presented)" in v and len(run) == 4
               and not any("cannot run" in c for c in run)
-              and page.locator('#nodes .node.capability [data-parameter="channel_key"] .st.bad').inner_text() == "not presented"
+              and page.locator('#nodes .node.capability [data-parameter="channel_key"] .st.bad').inner_text() == "missing"
               and page.locator("#nodes .node.capability .vc.cap .st.bad").inner_text() == "not issued", f"{v} | {run}")
         page.locator("#pc-publicKeyCredential").check()
         page.select_option("#pc-IRBApprovalCredential-issuer", "did:example:unknown")
         v = verdict(page)
-        check("deny: IRBApprovalCredential from an unknown issuer does not count",
-              v.startswith("No capability") and "signed by an unknown issuer, which this policy does not trust" in v, v)
+        check("deny: IRBApprovalCredential from an unknown issuer does not count, and its input says untrusted",
+              v.startswith("No capability") and "(signed by an unknown issuer, not trusted)" in v
+              and page.locator('.n-in[data-node="institutional_irb_approval"][data-input="irb"] .st.bad').inner_text() == "untrusted", v)
         page.select_option("#pc-IRBApprovalCredential-issuer", "did:example:hospital-irb")
-        check("with none ticked, every example issuer that signs the type is trusted: City Hospital IRB counts",
-              verdict(page).startswith("Capability issued") and page.locator("#tr-state-IRBApprovalCredential").inner_text() == "None ticked, so every one is trusted.")
+        check("with none ticked, every example issuer that signs the type is trusted: City Hospital IRB counts; the panel says so once",
+              verdict(page).startswith("Capability issued") and page.locator("#side-trust .hint").all_inner_texts() == ["None ticked: all trusted."])
         page.locator('[data-act="trust"][data-type="IRBApprovalCredential"][data-issuer="did:example:dac"]').check()
         v = verdict(page)
         check("deny: trusting only the Data Access Committee turns City Hospital IRB's credential away",
-              v.startswith("No capability") and "City Hospital IRB, which this policy does not trust" in v, v)
+              v.startswith("No capability") and "(signed by City Hospital IRB, not trusted)" in v, v)
         page.select_option("#pc-IRBApprovalCredential-issuer", "did:example:dac")
         check("allow again with the trusted issuer", verdict(page).startswith("Capability issued"))
         page.locator('[data-act="trust"][data-type="IRBApprovalCredential"][data-issuer="did:example:dac"]').uncheck()
@@ -486,19 +502,16 @@ try:
               verdict(page).startswith("Capability issued") and page.locator("#count-checks").inner_text() == "OK")
         check("the Simulate values did not change the JSON", graph_json(page) == off_graph)
 
-        # ---------- accept presented on the two shortcut inputs
+        # ---------- accept presented at the two outputs a wallet may also present
         page.locator("#tab-checks").click()
-        side = page.locator("#side .side-card h2").all_inner_texts()
-        check("side panel while building: the capability, then the accept presented switches of the two shortcut inputs",
-              side == ["Capability", "Accept presented"] and page.locator('#side [data-act="accept"]').count() == 2
-              and page.locator("#op-do_download").is_checked() and page.locator("#side-capability .count").inner_text() == "1 required", side)
-        page.locator('label[for="ap-ethics_approval_required-clearance"]').click()
+        check("back on Checks, the side panel closes and the capability still issues do_download",
+              page.locator("#side").is_hidden() and page.evaluate("document.getElementById('cap-operation').value") == "do_download")
+        page.locator('label[for="apc-irb_clearance"]').click()
         page.wait_for_timeout(60)
         g = graph_json(page)
-        check("accept presented saved in the JSON, with an empty trusted_issuers list for IRBClearanceCredential",
+        check("accept presented at IRBClearance's output: saved on the input it is wired to, with an empty trusted_issuers list for IRBClearanceCredential",
               g["nodes"]["ethics_approval_required"]["inputs"]["clearance"] == {"from": "node", "node": "irb_clearance", "accept_presented": True}
-              and g["trusted_issuers"].get("IRBClearanceCredential") == [], json.dumps(g["trusted_issuers"]))
-        check("the canvas switch follows", page.locator("#apc-ethics_approval_required-clearance").is_checked())
+              and g["trusted_issuers"].get("IRBClearanceCredential") == [] and page.locator("#apc-irb_clearance").is_checked(), json.dumps(g["trusted_issuers"]))
         v = verdict(page)
         run = chips(page, "#sim-order")
         check("not presented yet: the components upstream still run", v.startswith("Capability issued") and len(run) == 4, f"{v} | {run}")
@@ -513,17 +526,18 @@ try:
         dim = page.evaluate("[...document.querySelectorAll('.node.dim')].map(n => n.dataset.node).sort()")
         check("skipped components are dimmed on the canvas", dim == ["institutional_irb_approval", "irb_clearance", "project_membership"], dim)
         check("the presented credential is listed as used instead",
-              chips(page, "#sim-instead") == ["IRBClearanceCredential → EthicsApprovalRequired · clearance"], chips(page, "#sim-instead"))
+              chips(page, "#sim-instead") == ["IRBClearanceCredential → EthicsApprovalRequired"], chips(page, "#sim-instead"))
         page.screenshot(path=SHOTS / "composer-light-accept-presented.png")
         page.locator('[data-act="trust"][data-type="IRBClearanceCredential"][data-issuer="did:example:research-office"]').check()
         page.select_option("#pc-IRBClearanceCredential-issuer", "did:example:hospital-irb")
         v = verdict(page)
         check("an IRBClearanceCredential from an untrusted issuer does not skip anything; without the other credentials: no capability",
               v.startswith("No capability") and len(chips(page, "#sim-order")) == 4, v)
-        page.locator('label[for="apc-irb_clearance-membership"]').click()
+        page.locator("#tab-checks").click()
+        page.locator('label[for="apc-project_membership"]').click()
         page.wait_for_timeout(60)
         text = graph_text(page)
-        check("the IRB card built from the library, accept presented on for its two shortcut inputs, equals policy_cards/ethics-approval-required/graph.json",
+        check("the IRB card built from the library, accept presented on at its two outputs, equals policy_cards/ethics-approval-required/graph.json",
               json.loads(text) == irb and text.encode() == COMMITTED[IRB], text[:200])
         name, data = download(page)
         check("Download saves that file: graph.json, byte for byte", name == "graph.json" and data == COMMITTED[IRB], name)
@@ -538,15 +552,16 @@ try:
         check("a component added twice gets the id _2, shown as (2)",
               "project_membership_2" in node_ids(page) and page.locator('.node[data-node="project_membership_2"] .pc-nm').inner_text().replace("\n", "") == "ProjectMembership (2)")
         page.locator("#zoom-fit").click()
-        page.locator('.n-out[data-node="project_membership_2"] .vc').click()
+        page.locator('.n-out[data-node="project_membership_2"] .vc-h').click()
         hl = page.evaluate("[...document.querySelectorAll('.n-in.ok')].map(e => e.dataset.node + '.' + e.dataset.input)")
         page.keyboard.press("Escape")
         check("while wiring, an input that already takes a wire is not highlighted", hl == [], hl)
-        wire_by_clicks(page, "project_membership_2", "irb_clearance", "membership")
+        refused = page.evaluate("tryConnect('project_membership_2', 'irb_clearance', 'membership')")
         text = toast(page)
-        check("a second wire into a wired input is refused, saying an input takes one source",
-              "already takes the output of ProjectMembership" in text and "one source" in text
+        check("a second wire into a wired input is refused, naming the output it takes",
+              refused is False and text == "That input already takes the output of ProjectMembership."
               and len([w for w in page.evaluate("S.wires") if w["to"] == "irb_clearance" and w["input"] == "membership"]) == 1, text)
+        check("an output wired to nothing has no accept presented switch", page.locator('#apc-project_membership_2').count() == 0)
         page.locator('.node[data-node="project_membership_2"] [data-act="node-remove"]').click(force=True)
         page.wait_for_timeout(60)
         check("removing it gives back the committed IRB graph", graph_text(page).encode() == COMMITTED[IRB])
@@ -568,11 +583,14 @@ try:
                 errs[folder] = page.locator("#tray-body").inner_text()[:200]
             capability = json.loads(want)["capability"]
             drawn = page.evaluate("""(() => { const c = document.querySelector('#nodes .node.capability');
-                return [c.querySelector('.vc.cap .vc-t').textContent, [...c.querySelectorAll('.vc.cap .cl li')].map(l => l.textContent),
-                        [...c.querySelectorAll('[data-requires]')].map(e => e.dataset.requires), [...c.querySelectorAll('[data-parameter]')].map(e => e.dataset.type),
-                        [...document.querySelectorAll('#nodes [data-act=require]:checked')].map(i => i.dataset.node)]; })()""")
-            if drawn != ["capability" + capability["operation"], list(capability["parameters"]), capability["requires"],
-                         [p["type"] for p in capability["parameters"].values()], capability["requires"]]:
+                return [c.querySelector('#cap-operation').value, [...c.querySelectorAll('.vc.cap .cl li')].map(l => l.textContent),
+                        [...c.querySelectorAll('.n-in.lane[data-requires]')].map(e => e.dataset.requires), [...c.querySelectorAll('[data-parameter]')].map(e => e.dataset.type),
+                        [...document.querySelectorAll('#nodes [data-act=require]:checked')].map(i => i.dataset.node),
+                        [...document.querySelectorAll('#nodes [data-act=accept]:checked')].map(i => i.dataset.node).sort()]; })()""")
+            graph = json.loads(want)
+            accepted = sorted({s["node"] for n in graph["nodes"].values() for s in n["inputs"].values() if s["from"] == "node" and s["accept_presented"]})
+            if drawn != [capability["operation"], list(capability["parameters"]), capability["requires"],
+                         [p["type"] for p in capability["parameters"].values()], capability["requires"], accepted]:
                 caps[folder] = drawn
             first = download(page)
             page.locator("#tab-sim").click()
@@ -589,8 +607,9 @@ try:
                   first == second == ("graph.json", want) and text.encode() == want and typed, f"{len(first[1])} / {len(second[1])} / {len(want)} bytes")
             page.locator("#tab-checks").click()
         check("Load opens each of the 23 cards, in the file's node order, with no check errors", not errs and len(CATALOG["cards"]) == 23, errs)
-        check("each loaded card draws its capability: the operation and its parameters, a socket for each node it requires and the "
-              "credential each parameter is read from, and required switched on at those nodes", not caps, caps)
+        check("each loaded card draws its capability: the operation and its parameters, a lane for each node it requires and the "
+              "credential each parameter is read from, required switched on at those nodes, and accept presented on at the outputs "
+              "its inputs accept presented", not caps, caps)
 
         # ---------- the DS card: policy data stays out of the JSON
         load_card(page, DS)
@@ -630,7 +649,7 @@ try:
             require(page, cid)
         page.locator("#arrange").click()
         g = graph_json(page)
-        check("required on at both cards: the capability requires both, in that order, with do_download's parameters, and draws a socket for each",
+        check("required on at both cards: the capability requires both, in that order, with do_download's parameters, and draws a lane for each",
               g["capability"] == {"operation": "do_download", "requires": both, "parameters": CATALOG["operations"]["do_download"]["parameters"]}
               and page.evaluate("[...document.querySelectorAll('#nodes .node.capability [data-requires]')].map(e => e.dataset.requires)") == both
               and list(g["trusted_issuers"]) == ["AffiliationCredential", "LocationCredential", "publicKeyCredential"], json.dumps(g["capability"]))
@@ -641,7 +660,7 @@ try:
         v = verdict(page)
         run = chips(page, "#sim-order")
         check("Simulate: without one card's credential no capability is issued, though the other card runs",
-              v.startswith("No capability") and "LocationCredential, not presented" in v and "GeographicalRestriction · cannot run" in " ".join(run)
+              v.startswith("No capability") and "LocationCredential (not presented)" in v and "GeographicalRestriction · cannot run" in " ".join(run)
               and any(c.endswith("InstitutionSpecificRestriction") for c in run), run)
         page.screenshot(path=SHOTS / "composer-light-two-required.png")
         name, two = download(page)
@@ -658,8 +677,8 @@ try:
             page.select_option("#load-select", "empty")
             page.set_input_files("#load-file", str(Path(tmp, "two.json")))
             page.wait_for_timeout(150)
-            check("Load reads a local graph.json whose capability requires two nodes",
-                  node_ids(page) == both and page.evaluate("S.requires") == both and "Opened two.json" in toast(page), toast(page))
+            check("Load reads a local graph.json whose capability requires two nodes, with no toast",
+                  node_ids(page) == both and page.evaluate("S.requires") == both and page.locator("#toast").is_hidden(), toast(page))
             check("Load then Download of that file gives it back byte for byte", download(page)[1] == two)
             kept = lambda: page.evaluate("S.requires") == both
             text = open_file("list.json", lambda b: b["nodes"]["geographical_restriction"]["inputs"].update(location=[{"from": "presented"}]))
@@ -678,11 +697,27 @@ try:
             text = open_file("requires.json", lambda b: b["capability"].update(requires=["grant_download"]))
             check("a capability that requires a node the graph does not have is refused",
                   '"grant_download", which the graph does not have' in text and kept(), text)
-            text = open_file("draft.json", lambda b: b["capability"].update(requires=[]))
+            open_file("draft.json", lambda b: b["capability"].update(requires=[]))
             page.locator("#tab-checks").click()
             check("a graph whose capability requires no node yet opens, as the composer writes a draft, and Checks says so",
-                  "Opened draft.json" in text and page.evaluate("S.requires") == [] and page.locator("#count-checks").inner_text() == "3"
-                  and "requires no component" in page.locator("#tray-body").inner_text(), text)
+                  page.evaluate("S.requires") == [] and page.locator("#count-checks").inner_text() == "3"
+                  and "requires no component" in page.locator("#tray-body").inner_text())
+            # the IRB card with a second EthicsApprovalRequired reading IRBClearance: the two inputs reading it must agree
+            irb2 = json.loads(COMMITTED[IRB])
+            irb2["nodes"]["ethics_approval_required_2"] = json.loads(json.dumps(irb2["nodes"]["ethics_approval_required"]))
+            Path(tmp, "agree.json").write_text(json.dumps(irb2, indent=2) + "\n")
+            page.set_input_files("#load-file", str(Path(tmp, "agree.json")))
+            page.wait_for_timeout(150)
+            check("an output read by two inputs that both accept it presented opens with its switch on, and Download gives the file back",
+                  node_ids(page) == list(irb2["nodes"]) and page.locator("#apc-irb_clearance").is_checked()
+                  and json.loads(download(page)[1]) == irb2)
+            irb2["nodes"]["ethics_approval_required_2"]["inputs"]["clearance"]["accept_presented"] = False
+            Path(tmp, "disagree.json").write_text(json.dumps(irb2))
+            page.set_input_files("#load-file", str(Path(tmp, "disagree.json")))
+            page.wait_for_timeout(150)
+            text = toast(page)
+            check("an output read by two inputs that disagree on accept_presented is refused: the composer sets it once per output",
+                  "Could not open disagree.json" in text and "disagree on accept_presented" in text and "ethics_approval_required_2" in node_ids(page), text)
             page.set_input_files("#load-file", str(Path(tmp, "two.json")))
             page.wait_for_timeout(150)
         page.locator("#tab-checks").click()
@@ -691,7 +726,7 @@ try:
         g = graph_json(page)
         check("switching required off at one card leaves the other required, and Checks flags the card that now leads to nothing",
               g["capability"]["requires"] == ["institution_specific_restriction"] and page.locator("#count-checks").inner_text() == "1"
-              and issues[0].startswith("GeographicalRestriction's output") and "the capability does not require it" in issues[0], issues)
+              and issues == ["GeographicalRestriction's output is neither wired nor required."], issues)
 
         # ---------- the draft survives a reload, without the Simulate values; drafts that do not read are refused
         load_card(page, DS)
@@ -777,9 +812,11 @@ try:
         check("the docs page at composer/ frames the app at composer/app/, and links to it on a page of its own",
               docs.evaluate("document.querySelector('iframe.pf-composer-frame').src") == APP and href == APP
               and urllib.request.urlopen(href).status == 200 and "own" in link.inner_text())
+        frame.locator("#tab-sim").click()
         layout_ok = frame.evaluate("""(() => { const s = document.querySelector('.stage').getBoundingClientRect(), d = document.querySelector('.side').getBoundingClientRect();
             return d.left >= s.right && document.documentElement.scrollWidth <= window.innerWidth; })()""")
-        check("at 1440px the framed composer has its full layout, the side panel beside the canvas", layout_ok)
+        frame.locator("#tab-checks").click()
+        check("at 1440px the framed composer has its full layout, on Simulate the side panel beside the canvas", layout_ok)
         frame.select_option("#load-select", "card:" + IRB)
         frame.wait_for_timeout(100)
         docs.locator("iframe.pf-composer-frame").scroll_into_view_if_needed()

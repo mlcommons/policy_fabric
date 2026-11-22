@@ -20,20 +20,8 @@ const UNKNOWN = { id: "did:example:unknown", name: "an unknown issuer" };
 const issuersFor = t => EXAMPLE_ISSUERS.filter(i => i.types.includes(t));
 const issuerName = id => (id === UNKNOWN.id ? UNKNOWN : EXAMPLE_ISSUERS.find(i => i.id === id)).name;
 
-/* the library's groups, in order: the catalog's group, its title, and what it holds */
-const GROUPS = [
-  ["shared", "Shared", () => "Used by several cards. Each joins credentials into a new credential."],
-  ["card", "Cards", () => `One per policy card. Each outputs the credential the capability requires: ${orList(cardCredentials())}.`]
-];
-/* "DataUseConditionCredential about the requester", one for each credential the card components output */
-function cardCredentials() {
-  const out = [];
-  Object.values(COMPONENTS).filter(c => c.group === "card").forEach(c => {
-    const text = `${c.output.type} about the ${CAT.subjects[c.output.about].word}`;
-    if (!out.includes(text)) out.push(text);
-  });
-  return out;
-}
+/* the library's groups, in order: the catalog's group and its title */
+const GROUPS = [["shared", "Shared"], ["card", "Cards"]];
 function orList(items) {
   return items.length < 2 ? items.join("") : items.slice(0, -1).join(", ") + " or " + items[items.length - 1];
 }
@@ -49,8 +37,9 @@ const ui = { sel: null, tab: "checks", view: { x: 40, y: 40, k: 0.8 }, drag: nul
 const GEO = {};      /* measured layout of each component on the canvas, relative to its corner */
 let CAPGEO = null;   /* the capability's: where placeCap put it, and its sockets, inputs and card */
 
-/* the canvas: the card's name, its components (with their place and accept switches), the wires, and the
-   capability: the operation it issues (null until one is chosen) and the components it requires, in order */
+/* the canvas: the card's name, its components (with their place, and whether the inputs their output is wired
+   to also accept it presented), the wires, and the capability: the operation it issues (null until one is
+   chosen) and the components it requires, in order */
 function blankState() { return { v: 5, name: "Untitled card", nodes: {}, wires: [], operation: null, requires: [], seq: 1 }; }
 /* the Simulate tab: policy data values per node, the issuers ticked per credential type (none ticked: every
    example issuer that signs it), and who signed each presented credential. Kept apart from the canvas, so
@@ -67,7 +56,7 @@ function label(id) {
 function addNode(st, componentId, x, y) {
   let id = componentId, k = 2;
   while (st.nodes[id]) id = componentId + "_" + k++;
-  const n = { id, component: componentId, x: Math.round(x), y: Math.round(y), accept: {} };
+  const n = { id, component: componentId, x: Math.round(x), y: Math.round(y), accept: false };
   st.nodes[id] = n;
   return n;
 }
@@ -79,9 +68,10 @@ const sameKeys = (o, keys) => Object.keys(o).sort().join(",") === keys.slice().s
 /* JSON with every object's keys sorted, to compare values whatever order their keys come in */
 const canonical = v => JSON.stringify(v, (k, x) => (isObj(x) ? Object.fromEntries(Object.keys(x).sort().map(key => [key, x[key]])) : x));
 /* A graph.json (version 3) as canvas state: its nodes in the file's order, one wire per node source, the
-   accept switches, and the capability's operation and the nodes it requires; node ids are kept. policy_data
-   and trusted_issuers are not read: they are the asset owner's, and what Download writes for them follows
-   from the graph. Throws, naming the problem, on anything this composer does not write. */
+   accept switches (one per output: every input an output is wired to accepts it presented, or none does), and
+   the capability's operation and the nodes it requires; node ids are kept. policy_data and trusted_issuers are
+   not read: they are the asset owner's, and what Download writes for them follows from the graph. Throws,
+   naming the problem, on anything this composer does not write. */
 function readGraph(g) {
   const fail = text => { throw new Error(text); };
   if (!isObj(g)) fail("it is not a JSON object");
@@ -98,8 +88,9 @@ function readGraph(g) {
     if (!Object.hasOwn(COMPONENTS, n.component)) fail(`node ${id} uses ${n.component}, which is not in this repository`);
     const names = Object.keys(COMPONENTS[n.component].inputs);
     if (!isObj(n.inputs) || !sameKeys(n.inputs, names)) fail(`node ${id} binds ${isObj(n.inputs) ? Object.keys(n.inputs).join(", ") : "no inputs"}, but ${n.component} takes ${names.join(", ")}`);
-    st.nodes[id] = { id, component: n.component, x: 0, y: 0, accept: {} };
+    st.nodes[id] = { id, component: n.component, x: 0, y: 0, accept: false };
   });
+  const accepted = {};   /* the accept_presented of the sources reading each node */
   const nodeSource = (id, name, s) => {
     if (!isObj(s) || !sameKeys(s, ["from", "node", "accept_presented"]) || s.from !== "node" || typeof s.accept_presented !== "boolean") fail(`${id}.${name}: a source is {"from": "presented"} or {"from": "node", "node", "accept_presented"}`);
     if (!Object.hasOwn(st.nodes, s.node)) fail(`${id}.${name} reads node ${s.node}, which the graph does not have`);
@@ -111,9 +102,14 @@ function readGraph(g) {
     } else {
       nodeSource(id, name, raw);
       wire(st, raw.node, id, name);
-      if (raw.accept_presented) st.nodes[id].accept[name] = true;
+      if (!Object.hasOwn(accepted, raw.node)) accepted[raw.node] = new Set();
+      accepted[raw.node].add(raw.accept_presented);
     }
   }));
+  Object.entries(accepted).forEach(([id, values]) => {
+    if (values.size > 1) fail(`the inputs reading ${id} disagree on accept_presented; the composer sets it once per output`);
+    st.nodes[id].accept = values.has(true);
+  });
   /* the capability: an operation of the catalog with exactly its parameters, or none (null, with no parameters)
      while the card is a draft; and the nodes it requires, each once, none while the card is a draft */
   const cap = g.capability;
@@ -131,11 +127,13 @@ function readGraph(g) {
 
 /* ---------- graph queries ---------- */
 const wiresTo = (id, input) => S.wires.filter(w => w.to === id && w.input === input);
-const accepts = (n, input) => n.accept[input] === true;
-/* A wired input has the accept presented switch when a wallet may present its type; a switch that is on stays,
-   so that a graph loaded with it on a type no wallet presents can switch it off. */
-function hasSwitch(n, input) {
-  return wiresTo(n.id, input).length === 1 && (CAT.credentials[comp(n).inputs[input].type].presentable || accepts(n, input));
+const wiresFrom = id => S.wires.filter(w => w.from === id);
+/* a wired input also takes a presented credential when the output wired into it is accepted presented */
+const accepts = (id, input) => wiresTo(id, input).some(w => S.nodes[w.from].accept);
+/* An output wired to an input has the accept presented switch when a wallet may present its type; a switch
+   that is on stays, so that a graph loaded with it on a type no wallet presents can switch it off. */
+function hasAcceptSwitch(n) {
+  return wiresFrom(n.id).length > 0 && (CAT.credentials[comp(n).output.type].presentable || n.accept);
 }
 /* A component has the required switch when its output is about the subject of the capability's operation, or
    while no operation is chosen; a switch that is on stays, so that a component the operation cannot require
@@ -166,12 +164,6 @@ function upstream(ids) {
   }
   return seen;
 }
-/* the subject a wired input receives is the subject of its source's output */
-function inputSubj(n, input) {
-  const ws = wiresTo(n.id, input), inp = comp(n).inputs[input];
-  if (!ws.length) return inp.about;
-  return comp(S.nodes[ws[0].from]).output.about;
-}
 /* every component in run order: depth first from the components the capability requires, inputs in order,
    then the rest */
 function runOrderAll() {
@@ -196,7 +188,7 @@ function presentedTypes() {
     const n = S.nodes[id];
     Object.entries(comp(n).inputs).forEach(([name, inp]) => {
       const wired = wiresTo(id, name).length > 0;
-      if (wired && !accepts(n, name)) return;
+      if (wired && !accepts(id, name)) return;
       if (!map.has(inp.type)) map.set(inp.type, { type: inp.type, required: false, registry: false, uses: [] });
       const e = map.get(inp.type);
       if (!wired) e.required = true;
@@ -260,32 +252,31 @@ function findLoop() {
 function checks() {
   const out = [];
   const ids = Object.keys(S.nodes);
-  if (!ids.length) return [{ level: "error", text: "The canvas is empty. Add a card component from the library, then the components that feed it." }];
-  if (S.operation === null) out.push({ level: "error", text: `Choose the operation the capability issues (${orList(Object.keys(CAT.operations))}), under Capability.` });
-  if (!S.requires.length) out.push({ level: "error", text: "The capability requires no component. Switch required on at the output of the card component; it issues only when every component it requires produces a credential." });
+  const word = about => CAT.subjects[about].word;
+  if (!ids.length) return [{ level: "error", text: "The canvas is empty." }];
+  if (S.operation === null) out.push({ level: "error", text: "The capability has no operation." });
+  if (!S.requires.length) out.push({ level: "error", text: "The capability requires no component." });
   ids.forEach(id => {
     const n = S.nodes[id], c = comp(n);
-    if (!required(id) && !S.wires.some(w => w.from === id)) {
-      out.push({ level: "error", node: id, text: `${label(id)}'s output, ${c.output.type}, is not wired to anything, and the capability does not require it. Wire it to an input that takes it${hasRequireSwitch(n) ? ", switch required on" : ""}, or remove the component.` });
-    }
+    if (!required(id) && !wiresFrom(id).length) out.push({ level: "error", node: id, text: `${label(id)}'s output is neither wired nor required.` });
     if (required(id) && S.operation !== null && c.output.about !== operation().about) {
-      out.push({ level: "error", node: id, text: `${S.operation} is about the ${CAT.subjects[operation().about].word}, but the capability requires ${label(id)}, whose output is about the ${CAT.subjects[c.output.about].word}. Switch required off, or choose another operation.` });
+      out.push({ level: "error", node: id, text: `${S.operation} is about the ${word(operation().about)}, but ${label(id)}'s output is about the ${word(c.output.about)}.` });
+    }
+    if (n.accept && !CAT.credentials[c.output.type].presentable) {
+      out.push({ level: "error", node: id, text: `${label(id)}'s output is accepted presented, but no wallet presents a ${c.output.type}.` });
     }
     Object.entries(c.inputs).forEach(([name, inp]) => {
       const ws = wiresTo(id, name);
-      const where = `${label(id)} · ${name}`;
-      const presentable = CAT.credentials[inp.type].presentable;
       ws.forEach(w => {
         const src = comp(S.nodes[w.from]);
-        if (src.output.type !== inp.type) out.push({ level: "error", node: id, text: `${where} takes ${inp.type}, but ${label(w.from)} outputs ${src.output.type}.` });
+        if (src.output.type !== inp.type) out.push({ level: "error", node: id, text: `${label(id)} takes ${inp.type}, not ${src.output.type}.` });
       });
-      if (ws.length && "supplied_key" in inp) out.push({ level: "error", node: id, text: `${where} is checked against a key its component supplies, so it takes a presented ${inp.type}. Disconnect its wire.` });
-      if (accepts(n, name) && !presentable) out.push({ level: "error", node: id, text: `${where} accepts a presented ${inp.type}, but only components produce one; no wallet presents it. Switch accept presented off.` });
-      if (!ws.length && !presentable) out.push({ level: "error", node: id, text: `${where} needs a ${inp.type}. Only components produce one, so wire a component that outputs it.` });
+      if (ws.length && "supplied_key" in inp) out.push({ level: "error", node: id, text: `${label(id)} takes only a presented ${inp.type}.` });
+      if (!ws.length && !CAT.credentials[inp.type].presentable) out.push({ level: "error", node: id, text: `${label(id)} needs a wired ${inp.type}.` });
     });
   });
   const loop = findLoop();
-  if (loop) out.push({ level: "error", node: loop[0], text: `These components form a loop: ${loop.map(label).join(" → ")}.` });
+  if (loop) out.push({ level: "error", node: loop[0], text: `Loop: ${loop.map(label).join(" → ")}.` });
   return out.sort((a, b) => (a.level === b.level ? 0 : a.level === "error" ? -1 : 1));
 }
 
@@ -301,7 +292,7 @@ function checks() {
 function simulate() {
   if (S.operation === null || !S.requires.length || findLoop()) return null;
   const counts = (type, keyed) => { const iss = ui.sim.presented[type]; return iss !== null && (keyed || trustedFor(type).includes(iss)); };
-  const shortcut = (id, name, inp) => wiresTo(id, name).length === 1 && accepts(S.nodes[id], name) && counts(inp.type, false);
+  const shortcut = (id, name, inp) => accepts(id, name) && counts(inp.type, false);
   const deps = id => {
     const out = new Set();
     Object.entries(comp(S.nodes[id]).inputs).forEach(([name, inp]) => { if (!shortcut(id, name, inp)) wiresTo(id, name).forEach(w => out.add(w.from)); });
@@ -350,7 +341,7 @@ function graphJson() {
     Object.keys(comp(n).inputs).forEach(name => {
       const ws = wiresTo(n.id, name);
       if (!ws.length) inputs[name] = { from: "presented" };
-      else inputs[name] = { from: "node", node: ws[0].from, accept_presented: accepts(n, name) };
+      else inputs[name] = { from: "node", node: ws[0].from, accept_presented: S.nodes[ws[0].from].accept };
     });
     nodes[n.id] = { component: n.component, inputs, policy_data: {} };
   });
@@ -367,28 +358,34 @@ const esc = PolicyGraph.esc, brk = PolicyGraph.brk;
 const sel = s => CSS.escape(s);
 const canvas = $("canvas"), world = $("world"), nodesEl = $("nodes"), wiresEl = $("wires");
 
-/* The shared shapes draw a credential and the capability as the read-only views do. The canvas also needs the
-   input's name under the type and, at the end of the card, its status and its accept presented or required
-   switch. */
-function addToCard(html, sub, extra) {
+/* The shared shapes draw a credential and the capability as the read-only views do. The canvas adds, at the end
+   of a card, its status on the Simulate tab and its switches. */
+function addToCard(html, extra) {
   const t = document.createElement("template");
   t.innerHTML = html;
-  if (sub) t.content.querySelector(".vc-t").insertAdjacentHTML("beforeend", `<span class="vc-id">${sub}</span>`);
   if (extra) t.content.querySelector(".vc").insertAdjacentHTML("beforeend", extra);
-  return t.innerHTML;
+  return t;
 }
-function credCard(type, about, claims, fresh, sub, extra) {
-  return addToCard(PolicyGraph.shapes.credential(type, about, claims, fresh, CAT.subjects, false, ""), sub, extra);
+function credCard(type, about, claims, fresh, extra) {
+  return addToCard(PolicyGraph.shapes.credential(type, about, claims, fresh, CAT.subjects, false, ""), extra).innerHTML;
 }
-/* the capability: its operation and the names of the operation's parameters, until one is chosen none */
+/* the capability: the operation it issues, picked on the card, and the names of the operation's parameters */
 function capCard(extra) {
   const params = S.operation === null ? [] : Object.keys(operation().parameters);
-  return addToCard(PolicyGraph.shapes.capability(S.operation === null ? "no operation yet" : S.operation, params, ""), "", extra);
+  const t = addToCard(PolicyGraph.shapes.capability("", params, ""), extra);
+  const options = (S.operation === null ? '<option value="" selected disabled>operation…</option>' : "") +
+    Object.keys(CAT.operations).map(op => `<option value="${esc(op)}"${op === S.operation ? " selected" : ""}>${esc(op)}</option>`).join("");
+  t.content.querySelector(".vc-t").insertAdjacentHTML("beforeend", `<select class="cap-op" id="cap-operation" data-act="operation" aria-label="Operation">${options}</select>`);
+  return t.innerHTML;
 }
-/* A wired input takes the credential drawn at the other end of its wire, so it is a socket, not a second copy
-   of that credential: its name, how many wires, its status and its accept presented switch. */
-function socketCard(type, about, sub, extra) {
-  return `<div class="vc socket s-${esc(about)}" title="Takes the ${esc(type)} wired into it"><div class="vc-h"><div class="vc-t"><span class="vc-id">${sub}</span></div></div>${extra}</div>`;
+/* a switch at the end of an output card: accept presented, or required */
+function switchRow(id, act, nodeId, on, text) {
+  return `<label class="ap" for="${esc(id)}"><input type="checkbox" role="switch" id="${esc(id)}" data-act="${act}" data-node="${esc(nodeId)}"${on ? " checked" : ""}><span class="ap-track" aria-hidden="true"><span class="ap-thumb"></span></span><span class="ap-text">${text}</span></label>`;
+}
+/* a presented credential's status on the Simulate tab */
+function presentedStatus(miss, used) {
+  if (miss) return `<span class="st bad">${miss.issuer !== null ? "untrusted" : "missing"}</span>`;
+  return used ? `<span class="st good">✓</span>` : "";
 }
 
 /* ---------- library ---------- */
@@ -402,11 +399,11 @@ function libHay(c) {
 }
 function renderLibrary() {
   const q = ui.filter.trim().toLowerCase();
-  const html = GROUPS.map(([g, title, blurb]) => {
+  const html = GROUPS.map(([g, title]) => {
     const all = Object.values(COMPONENTS).filter(c => c.group === g);
     const items = all.filter(c => !q || libHay(c).includes(q));
     if (!items.length) return "";
-    return `<section class="lib-group" aria-label="${title}"><h3><span>${title}</span><span>${items.length}</span></h3><p class="lib-blurb">${esc(blurb())}</p>${items.map(c => `
+    return `<section class="lib-group" aria-label="${title}"><h3><span>${title}</span><span>${items.length}</span></h3>${items.map(c => `
       <div class="lib-item" data-component="${esc(c.id)}">
         <button type="button" class="lib-open" data-act="open-component" data-component="${esc(c.id)}" aria-haspopup="dialog" title="${esc(c.group === "card" ? CAT.cards[c.card].name + " (" + c.duo + ")" : c.name)}"><i class="lg lg-card" aria-hidden="true"></i><span class="lib-text"><span class="n">${brk(c.name)}</span><span class="o">${c.group === "card" ? esc(libSub(c)) : brk(libSub(c))}</span></span></button>
         <button type="button" class="lib-add" data-act="add-component" data-component="${esc(c.id)}" aria-label="Add ${esc(c.name)} to the canvas">Add</button>
@@ -417,9 +414,9 @@ function renderLibrary() {
 /* the Load menu: every card in the catalog, by name, then an empty canvas and a local graph.json */
 function renderLoadMenu() {
   const cards = Object.entries(CAT.cards).sort((a, b) => a[1].name.localeCompare(b[1].name));
-  $("load-select").innerHTML = `<option value="">Choose a starting point…</option>
-    <optgroup label="Cards in this repository">${cards.map(([folder, card]) => `<option value="card:${esc(folder)}" title="policy_cards/${esc(folder)}">${esc(card.name)}</option>`).join("")}</optgroup>
-    <optgroup label="Other"><option value="empty">Empty canvas</option><option value="file">A graph.json file…</option></optgroup>`;
+  $("load-select").innerHTML = `<option value="">Choose…</option>
+    <optgroup label="Cards">${cards.map(([folder, card]) => `<option value="card:${esc(folder)}" title="policy_cards/${esc(folder)}">${esc(card.name)}</option>`).join("")}</optgroup>
+    <optgroup label="Other"><option value="empty">Empty canvas</option><option value="file">graph.json file…</option></optgroup>`;
 }
 
 /* ---------- canvas ---------- */
@@ -437,28 +434,23 @@ function nodeHtml(n, sim, live) {
     } else if (sim.skipped.includes(n.id)) { dim = true; state = `<span class="n-state">skipped</span>`; }
     else dim = true;
   } else if (live && !live.has(n.id)) loose = true;
+  /* a wired input is a lane the wire from the output it reads runs through, into the Policy Component; an
+     unwired one is the credential presented to it */
   const ins = Object.entries(c.inputs).map(([iname, inp]) => {
-    const ws = wiresTo(n.id, iname);
-    const on = accepts(n, iname);
     const iid = esc(iname);
-    let status = "";
-    if (sim && sim.order.includes(n.id)) {
-      const miss = sim.missing.find(m => m.node === n.id && m.input === iname);
-      const used = sim.used.find(u => u.node === n.id && u.input === iname);
-      if (miss) status = `<span class="st bad">${miss.issuer !== null ? "issuer not trusted" : "not presented"}</span>`;
-      else if (used) status = `<span class="st good">✓ presented</span>`;
-    }
-    const toggle = hasSwitch(n, iname) ? `<label class="ap" for="apc-${nid}-${iid}" title="Also accept a presented ${esc(inp.type)} here"><input type="checkbox" role="switch" id="apc-${nid}-${iid}" data-act="accept" data-node="${nid}" data-input="${iid}"${on ? " checked" : ""}><span class="ap-track" aria-hidden="true"><span class="ap-thumb"></span></span><span class="ap-text">accept presented</span></label>` : "";
-    const how = ws.length ? "" : !CAT.credentials[inp.type].presentable ? " · needs a wire" : "supplied_key" in inp ? " · presented, checked by key" : " · presented";
-    return `<div class="n-in" data-node="${nid}" data-input="${iid}" data-type="${esc(inp.type)}">
-        <button type="button" class="port in${ws.length ? " filled" : ""}" data-port="in" data-node="${nid}" data-input="${iid}" aria-label="${esc(name)} input ${iid}, takes ${esc(inp.type)}"></button>
-        ${ws.length ? socketCard(inp.type, inputSubj(n, iname), iid + how, status + toggle)
-                    : credCard(inp.type, inputSubj(n, iname), inp.claims, newClaims(inp), iid + how, status + toggle)}
+    const at = `data-node="${nid}" data-input="${iid}" data-type="${esc(inp.type)}"`;
+    if (wiresTo(n.id, iname).length) return `<div class="n-in lane" ${at}></div>`;
+    const ran = sim && sim.order.includes(n.id);
+    const status = ran ? presentedStatus(sim.missing.find(m => m.node === n.id && m.input === iname), sim.used.some(u => u.node === n.id && u.input === iname)) : "";
+    return `<div class="n-in" ${at}>
+        <button type="button" class="port in" data-port="in" data-node="${nid}" data-input="${iid}" aria-label="${esc(name)} input ${iid}, takes ${esc(inp.type)}"></button>
+        ${credCard(inp.type, inp.about, inp.claims, newClaims(inp), status)}
       </div>`;
   }).join("");
-  /* the required switch: the capability requires this component's output */
-  const require = hasRequireSwitch(n) ? `<label class="ap" for="rqc-${nid}" title="The capability requires this output: it issues only when ${esc(name)} produces one"><input type="checkbox" role="switch" id="rqc-${nid}" data-act="require" data-node="${nid}"${required(n.id) ? " checked" : ""}><span class="ap-track" aria-hidden="true"><span class="ap-thumb"></span></span><span class="ap-text">required</span></label>` : "";
-  const outCard = credCard(c.output.type, c.output.about, c.output.claims, [], "", require);
+  /* the output's switches: the inputs it is wired to also accept it presented; the capability requires it */
+  const switches = (hasAcceptSwitch(n) ? switchRow(`apc-${n.id}`, "accept", n.id, n.accept, "accept presented") : "") +
+    (hasRequireSwitch(n) ? switchRow(`rqc-${n.id}`, "require", n.id, required(n.id), "required") : "");
+  const outCard = credCard(c.output.type, c.output.about, c.output.claims, [], switches);
   return `<div class="node${selected ? " selected" : ""}${dim ? " dim" : ""}${loose ? " loose" : ""}" data-node="${nid}" style="transform:translate(${n.x}px,${n.y}px)">
     <div class="n-ins">${ins}</div>
     <div class="n-comp">
@@ -468,7 +460,7 @@ function nodeHtml(n, sim, live) {
       </div>
       <div class="n-compbox">
         ${order}
-        ${PolicyGraph.shapes.component(name, Object.keys(c.policy_data), ` data-comp="${nid}" title="${esc(name)}: drag to move"`)}
+        ${PolicyGraph.shapes.component(name, Object.keys(c.policy_data), ` data-comp="${nid}"`)}
         ${state}
       </div>
     </div>
@@ -478,21 +470,14 @@ function nodeHtml(n, sim, live) {
     </div>
   </div>`;
 }
-/* The capability, at the end of the card: a socket for each component it requires, into which that
-   component's output is wired, and the presented credential each parameter of its operation is read from, all
-   into the capability card. placeCap puts it in its place. */
+/* The capability, at the end of the card: a lane for each component it requires, which that component's output
+   runs through, and the presented credential each parameter of its operation is read from, all into the
+   capability card. placeCap puts it in its place. */
 function capHtml(sim) {
-  const reqs = S.requires.map(id => {
-    const out = comp(S.nodes[id]).output;
-    return `<div class="n-in" data-requires="${esc(id)}">${socketCard(out.type, out.about, "requires " + brk(label(id)), "")}</div>`;
-  }).join("");
+  const reqs = S.requires.map(id => `<div class="n-in lane" data-requires="${esc(id)}"></div>`).join("");
   const params = S.operation === null ? "" : Object.entries(operation().parameters).map(([name, p]) => {
-    let status = "";
-    if (sim) {
-      const miss = sim.missing.find(m => m.parameter === name);
-      status = miss ? `<span class="st bad">${miss.issuer !== null ? "issuer not trusted" : "not presented"}</span>` : `<span class="st good">✓ presented</span>`;
-    }
-    return `<div class="n-in" data-parameter="${esc(name)}" data-type="${esc(p.type)}">${credCard(p.type, operation().about, [p.claim], [], esc(name) + " · presented", status)}</div>`;
+    const status = sim ? presentedStatus(sim.missing.find(m => m.parameter === name), true) : "";
+    return `<div class="n-in" data-parameter="${esc(name)}" data-type="${esc(p.type)}">${credCard(p.type, operation().about, [p.claim], [], status)}</div>`;
   }).join("");
   const status = sim ? `<span class="st ${sim.issued ? "good" : "bad"}">${sim.issued ? "✓ issued" : "not issued"}</span>` : "";
   return `<div class="node capability" role="group" aria-label="The capability">
@@ -507,7 +492,7 @@ function renderNodes(sim) {
   nodesEl.innerHTML = Object.values(S.nodes).map(n => nodeHtml(n, sim, live)).join("") + (ids.length ? capHtml(sim) : "");
   const hint = $("canvas-hint");
   hint.hidden = ids.length > 0;
-  hint.textContent = "Add components from the library: a card component and the components that feed it. Then choose the capability's operation, and switch required on at the card component's output. Or load a card.";
+  hint.textContent = "Add a component, or load a card.";
 }
 
 function rel(el, root) {
@@ -527,11 +512,9 @@ function measure() {
   const cap = nodesEl.querySelector(".node.capability");
   CAPGEO = null;
   if (!cap) return;
-  CAPGEO = { x: 0, y: 0, w: cap.offsetWidth, h: cap.offsetHeight, requires: {}, ins: [], card: rel(cap.querySelector(".n-out"), cap) };
+  CAPGEO = { x: 0, y: 0, w: cap.offsetWidth, h: cap.offsetHeight, ins: [], card: rel(cap.querySelector(".n-out"), cap) };
   cap.querySelectorAll(".n-in").forEach(i => {
-    const b = rel(i, cap);
-    CAPGEO.ins.push(b);
-    if (i.dataset.requires) CAPGEO.requires[i.dataset.requires] = b;
+    CAPGEO.ins.push(Object.assign(rel(i, cap), { requires: "requires" in i.dataset ? i.dataset.requires : null }));
   });
 }
 /* The capability sits at the end of the card: right of the components it requires (of every component while it
@@ -555,49 +538,57 @@ function outPort(n) {
   return g ? { x: n.x + g.out.x + g.out.w, y: n.y + g.out.y + g.out.h / 2 } : { x: n.x, y: n.y };
 }
 const f1 = v => Math.round(v * 10) / 10;
-function curve(a, b, minDx) {
+/* a curve from a to b, leaving and arriving level; seg continues a path already at a */
+function seg(a, b, minDx) {
   const dx = Math.max(minDx, Math.abs(b.x - a.x) / 2);
-  return `M${f1(a.x)} ${f1(a.y)} C${f1(a.x + dx)} ${f1(a.y)} ${f1(b.x - dx)} ${f1(b.y)} ${f1(b.x)} ${f1(b.y)}`;
+  return ` C${f1(a.x + dx)} ${f1(a.y)} ${f1(b.x - dx)} ${f1(b.y)} ${f1(b.x)} ${f1(b.y)}`;
 }
+const curve = (a, b, minDx) => `M${f1(a.x)} ${f1(a.y)}` + seg(a, b, minDx);
+/* from an output, through a lane (its box, at x0, y0) and on into the card at t */
+function throughLane(a, x0, y0, lane, t) {
+  const left = { x: x0 + lane.x, y: y0 + lane.y + lane.h / 2 }, right = { x: left.x + lane.w, y: left.y };
+  return curve(a, left, 40) + ` L${f1(right.x)} ${f1(right.y)}` + seg(right, t, 4);
+}
+const marker = (id, colour) => `<marker id="${id}" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(${colour})"/></marker>`;
 function renderWires(sim) {
-  const parts = [`<defs><marker id="arr" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--pf-ink-3)"/></marker><marker id="arr-cap" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--pf-grant)"/></marker></defs>`];
-  /* inside each component: inputs into the Policy Component, the Policy Component into its output */
+  const parts = [`<defs>${marker("arr", "--pf-ink-3")}${marker("arr-cap", "--pf-grant")}${marker("arr-wire", "--pf-accent")}</defs>`];
+  /* inside each component: presented inputs into the Policy Component, the Policy Component into its output;
+     where each input arrives, for the wires */
+  const arrive = {};
   Object.values(S.nodes).forEach(n => {
     const g = GEO[n.id];
     if (!g) return;
     const c = comp(n);
     const hx = n.x + g.comp.x, hy = n.y + g.comp.y, hh = g.comp.h, cy = hy + hh / 2;
-    const ins = Object.keys(c.inputs).map(name => g.ins[name]).filter(Boolean);
-    const k = ins.length, span = Math.min(hh - 22, 16 * (k - 1));
-    ins.forEach((b, i) => {
-      const a = { x: n.x + b.x + b.w, y: n.y + b.y + b.h / 2 };
-      const ty = cy + (k > 1 ? (i / (k - 1) - 0.5) * span : 0);
-      const t = { x: hx - 7, y: ty };
-      parts.push(`<path class="link" d="${curve(a, t, 4)}" marker-end="url(#arr)"/>`);
+    const names = Object.keys(c.inputs).filter(name => g.ins[name]);
+    const k = names.length, span = Math.min(hh - 22, 16 * (k - 1));
+    arrive[n.id] = {};
+    names.forEach((name, i) => {
+      const b = g.ins[name];
+      const t = { x: hx - 7, y: cy + (k > 1 ? (i / (k - 1) - 0.5) * span : 0) };
+      arrive[n.id][name] = t;
+      if (!wiresTo(n.id, name).length) parts.push(`<path class="link" d="${curve({ x: n.x + b.x + b.w, y: n.y + b.y + b.h / 2 }, t, 4)}" marker-end="url(#arr)"/>`);
     });
     const o = { x: n.x + g.out.x - 7, y: n.y + g.out.y + g.out.h / 2 };
     parts.push(`<path class="link" d="${curve({ x: hx + g.comp.w, y: cy }, o, 4)}" marker-end="url(#arr)"/>`);
   });
-  /* the capability: the output of each component it requires into its socket, and every input into the card */
+  /* the capability: the output of each component it requires, through its lane, and the credential of each
+     parameter, into the card */
   if (CAPGEO) {
     const g = CAPGEO, cy = g.y + g.card.y + g.card.h / 2;
     const k = g.ins.length, span = Math.min(g.card.h - 22, 16 * (k - 1));
     g.ins.forEach((b, i) => {
-      const a = { x: g.x + b.x + b.w, y: g.y + b.y + b.h / 2 };
       const t = { x: g.x + g.card.x - 7, y: cy + (k > 1 ? (i / (k - 1) - 0.5) * span : 0) };
-      parts.push(`<path class="link cap" d="${curve(a, t, 4)}" marker-end="url(#arr-cap)"/>`);
-    });
-    S.requires.forEach(id => {
-      const b = g.requires[id];
-      parts.push(`<path class="link cap" d="${curve(outPort(S.nodes[id]), { x: g.x + b.x - 7, y: g.y + b.y + b.h / 2 }, 40)}" marker-end="url(#arr-cap)"/>`);
+      const d = b.requires === null ? curve({ x: g.x + b.x + b.w, y: g.y + b.y + b.h / 2 }, t, 4) : throughLane(outPort(S.nodes[b.requires]), g.x, g.y, b, t);
+      parts.push(`<path class="link cap" d="${d}" marker-end="url(#arr-cap)"/>`);
     });
   }
-  /* wires: an output into an input of another component */
+  /* wires: an output, through the lane of the input it is wired to, into that Policy Component */
   let tool = "";
   S.wires.forEach(w => {
     const from = S.nodes[w.from], to = S.nodes[w.to];
     const a = outPort(from), b = inPort(to, w.input);
-    const d = curve(a, b, 40);
+    const d = throughLane(a, to.x, to.y, GEO[w.to].ins[w.input], arrive[w.to][w.input]);
     let cls = "wire";
     if (ui.sel && ui.sel.kind === "wire" && ui.sel.id === w.id) {
       cls += " selected";
@@ -607,7 +598,7 @@ function renderWires(sim) {
       if (sim.shortcuts.some(s => s.node === w.to && s.input === w.input)) cls += " shortcut";
       else if (!sim.order.includes(w.to) || !sim.order.includes(w.from)) cls += " idle";
     }
-    parts.push(`<path class="wire-hit" data-wire="${w.id}" d="${d}"><title>${esc(label(w.from))} → ${esc(label(w.to))} · ${esc(w.input)}</title></path><path class="${cls}" d="${d}"/>`);
+    parts.push(`<path class="wire-hit" data-wire="${w.id}" d="${d}"/><path class="${cls}" d="${d}" marker-end="url(#arr-wire)"/>`);
   });
   if (ui.drag && ui.drag.type === "connect" && ui.drag.moved && S.nodes[ui.drag.from]) {
     parts.push(`<path class="wire temp" d="${curve(outPort(S.nodes[ui.drag.from]), ui.drag.at, 40)}"/>`);
@@ -633,8 +624,8 @@ function renderCanvas() {
   renderLegend();
 }
 
-/* the legend names only what is on the canvas: the shared legend, plus wires; the capability is drawn with the
-   first component */
+/* the legend names only what is on the canvas: the subjects of the credentials drawn; the capability is drawn
+   with the first component */
 function renderLegend() {
   const box = $("legend");
   box.hidden = !Object.keys(S.nodes).length;
@@ -642,12 +633,12 @@ function renderLegend() {
   const used = new Set();
   Object.values(S.nodes).forEach(n => {
     const c = comp(n);
-    Object.keys(c.inputs).forEach(name => used.add(inputSubj(n, name)));
+    Object.entries(c.inputs).forEach(([name, inp]) => { if (!wiresTo(n.id, name).length) used.add(inp.about); });
     used.add(c.output.about);
   });
   if (S.operation !== null) used.add(operation().about);
   const t = document.createElement("template");
-  t.innerHTML = PolicyGraph.shapes.legend([...used], CAT.subjects, S.wires.length ? ['<span><i class="lg lg-wire"></i>wire: an output into an input</span>'] : []);
+  t.innerHTML = PolicyGraph.shapes.legend([...used], CAT.subjects, []);
   box.replaceChildren(t.content);
 }
 
@@ -673,99 +664,56 @@ function renderTray() {
   const body = $("tray-body");
   body.setAttribute("aria-labelledby", "tab-" + ui.tab);
   if (ui.tab === "checks") body.innerHTML = trayChecks(issues);
-  else if (ui.tab === "sim") body.innerHTML = traySim(errors);
+  else if (ui.tab === "sim") body.innerHTML = traySim();
   else body.innerHTML = trayJson();
 }
 
 function trayChecks(issues) {
-  if (!issues.length) return `<p class="ok-line">No problems: every input is wired or can be presented, the capability issues an operation and requires components about its subject, every component leads to one it requires, there is no loop and every wire joins matching credential types.</p>`;
+  if (!issues.length) return `<p class="ok-line">No problems.</p>`;
   return issues.map(i => `<div class="issue"><span class="lvl ${i.level}">${i.level === "error" ? "Error" : "Warning"}</span><span class="txt">${esc(i.text)}</span>${i.node ? `<button type="button" class="link-btn" data-select="${esc(i.node)}">Show</button>` : ""}</div>`).join("");
 }
 
 function missingText(m) {
-  return m.issuer !== null ? `${m.type}, signed by ${issuerName(m.issuer)}, which this policy does not trust` : `${m.type}, not presented`;
+  return m.issuer !== null ? `${m.type} (signed by ${issuerName(m.issuer)}, not trusted)` : `${m.type} (not presented)`;
 }
-function traySim(errors) {
-  if (S.operation === null) return `<p class="empty">Choose the operation the capability issues first, under Capability on the Checks tab. The simulation runs back from the capability.</p>`;
-  if (!S.requires.length) return `<p class="empty">Switch required on at the output of a component first: the capability requires it. The simulation runs back from the capability.</p>`;
+/* The verdict, then what ran, what was skipped and what was presented in place of a component; a row only when
+   it has something. A preview: it runs no Rego, so it does not check that the claims join up. */
+function traySim() {
+  if (S.operation === null) return `<p class="empty">Choose an operation first.</p>`;
+  if (!S.requires.length) return `<p class="empty">Require a component first.</p>`;
   const sim = simulate();
-  if (!sim) return `<p class="empty">Remove the loop first (see Checks).</p>`;
+  if (!sim) return `<p class="empty">Remove the loop first.</p>`;
   const miss = [];
   sim.missing.forEach(m => { if (!miss.some(x => x.type === m.type)) miss.push(m); });
-  const params = Object.entries(operation().parameters).map(([name, p]) => `${esc(name)} from the ${esc(p.type)}`);
-  let verdict;
-  if (sim.issued) verdict = `<div class="verdict allow"><strong>Capability issued</strong><span>Every component it requires ran, so the capability issues <code>${esc(S.operation)}</code>, its ${orList(params)}.</span></div>`;
-  else verdict = `<div class="verdict deny"><strong>No capability</strong><span>${miss.length ? "Missing: " + esc(miss.map(missingText).join("; ")) + "." : "A component could not run."}</span></div>`;
-  const chips = sim.order.map((id, i) => `<span class="chip ${sim.blocked.has(id) ? "bad" : "run"}" title="${sim.blocked.has(id) ? "Cannot run: an input is missing" : "Runs"}">${i + 1} ${esc(label(id))}${sim.blocked.has(id) ? " · cannot run" : ""}</span>`).join("");
-  const skipped = sim.skipped.length ? `<span class="chips">${sim.skipped.map(id => `<span class="chip">${esc(label(id))}</span>`).join("")}</span>` : `<span class="empty">None</span>`;
-  const instead = sim.shortcuts.length ? `<span class="chips">${sim.shortcuts.map(s => `<span class="chip good">${esc(s.type)} → ${esc(label(s.node))} · ${esc(s.input)}</span>`).join("")}</span>` : `<span class="empty">None</span>`;
-  const missing = miss.length ? `<ul class="miss">${miss.map(m => `<li>${esc(missingText(m))}</li>`).join("")}</ul>` : `<span class="empty">Nothing</span>`;
+  const verdict = sim.issued
+    ? `<div class="verdict allow"><strong>Capability issued</strong></div>`
+    : `<div class="verdict deny"><strong>No capability</strong>${miss.length ? `<span>Missing: ${esc(miss.map(missingText).join("; "))}</span>` : ""}</div>`;
+  const chips = sim.order.map((id, i) => `<span class="chip ${sim.blocked.has(id) ? "bad" : "run"}">${i + 1} ${esc(label(id))}${sim.blocked.has(id) ? " · cannot run" : ""}</span>`).join("");
+  const row = (title, id, items) => (items.length ? `<dt>${title}</dt><dd class="chips" id="${id}">${items.join("")}</dd>` : "");
   return `${verdict}<dl class="result">
-    <dt>Runs, in order</dt><dd class="chips" id="sim-order">${chips}</dd>
-    <dt>Skipped</dt><dd id="sim-skipped">${skipped}</dd>
-    <dt>Presented instead</dt><dd id="sim-instead">${instead}</dd>
-    <dt>Missing</dt><dd id="sim-missing">${missing}</dd>
-  </dl>
-  ${errors ? `<p class="note">The Checks tab lists ${errors} ${errors === 1 ? "error" : "errors"}; fix ${errors === 1 ? "it" : "them"} before using this policy.</p>` : ""}
-  <p class="note">This is a preview, worked out in your browser: it checks which credentials are presented and whether their issuers are trusted, and runs no Rego. The components also check that the claims join up (the same project, institution and key holder) and match their policy data; that part runs in their Rego, on the contract.</p>`;
+    ${row("Runs", "sim-order", [chips])}
+    ${row("Skipped", "sim-skipped", sim.skipped.map(id => `<span class="chip">${esc(label(id))}</span>`))}
+    ${row("Presented instead", "sim-instead", sim.shortcuts.map(s => `<span class="chip good">${esc(s.type)} → ${esc(label(s.node))}</span>`))}
+  </dl>`;
 }
 
 function trayJson() {
-  return `<div class="json-bar"><span class="empty">The policy graph, version 3, as Download and Copy write it: policy data and trusted issuers stay empty for the asset owner to set.</span><span class="json-actions"><button type="button" class="small-btn" data-act="copy-json">Copy JSON</button><button type="button" class="small-btn" data-act="download-json">Download graph.json</button></span></div><pre class="code" id="json-out">${esc(JSON.stringify(graphJson(), null, 2))}</pre>`;
+  return `<div class="json-bar"><button type="button" class="small-btn" data-act="copy-json">Copy JSON</button><button type="button" class="small-btn" data-act="download-json">Download graph.json</button></div><pre class="code" id="json-out">${esc(JSON.stringify(graphJson(), null, 2))}</pre>`;
 }
 
-/* ---------- side panel ---------- */
+/* ---------- side panel: the Simulate tab's settings; while building, the canvas holds every setting ---------- */
 function renderSide() {
-  $("side").innerHTML = ui.tab === "sim" ? policyDataCard() + issuersCard() + presentedCard() : capabilityCard() + acceptCard();
+  const sim = ui.tab === "sim";
+  $("side").innerHTML = sim ? policyDataCard() + issuersCard() + presentedCard() : "";
+  /* the canvas narrows or widens with the panel: show the whole card again */
+  if ($("side").hidden === sim) {
+    $("side").hidden = !sim;
+    document.querySelector(".workbench").classList.toggle("no-side", !sim);
+    fit();
+  }
 }
-function sideCard(title, blurb, body, count, id) {
-  return `<section class="panel side-card"${id ? ` id="${id}"` : ""}><header><h2>${title}</h2>${count === undefined ? "" : `<span class="count">${count}</span>`}<p>${blurb}</p></header><div class="side-body">${body}</div></section>`;
-}
-
-/* the capability: the operation it issues, one of the catalog's, whose parameters are read from presented
-   credentials; and the required switch of every component it may require */
-function capabilityCard() {
-  const selId = ui.sel && ui.sel.kind === "node" ? ui.sel.id : null;
-  const ops = Object.entries(CAT.operations).map(([op, o]) => {
-    const rid = `op-${esc(op)}`;
-    const params = Object.entries(o.parameters).map(([name, p]) => `${name}: the ${p.claim} of a presented ${p.type}`).join("; ");
-    return `<label class="check" for="${rid}"><input type="radio" name="cap-operation" id="${rid}" data-act="operation" value="${esc(op)}"${S.operation === op ? " checked" : ""}><span>${esc(op)}<small>${esc(o.guardian)} guardian, about the ${esc(CAT.subjects[o.about].word)} · ${esc(params)}</small></span></label>`;
-  }).join("");
-  const rows = [], fixed = [];
-  runOrderAll().forEach(id => (hasRequireSwitch(S.nodes[id]) ? rows : fixed).push(id));
-  const switches = rows.map(id => {
-    const out = comp(S.nodes[id]).output, on = required(id);
-    const sid = `rq-${esc(id)}`;
-    return `<div class="sc-row${selId === id ? " is-selected" : ""}">
-      <div><span class="sc-name">${esc(label(id))}</span><span class="sc-desc"><code>${brk(out.type)}</code> about the ${esc(CAT.subjects[out.about].word)}</span></div>
-      <label class="switch" for="${sid}" title="Required"><input type="checkbox" role="switch" id="${sid}" data-act="require" data-node="${esc(id)}"${on ? " checked" : ""}><span class="track" aria-hidden="true"><span class="thumb"></span></span><span class="state">${on ? "On" : "Off"}</span></label>
-    </div>`;
-  }).join("");
-  const only = fixed.length ? `<div class="sc-fixed" id="require-fixed">${esc(S.operation)} is about the ${esc(CAT.subjects[operation().about].word)}, so it cannot require these:<ul>${fixed.map(id => `<li><b>${esc(label(id))}</b>: its output is about the ${esc(CAT.subjects[comp(S.nodes[id]).output.about].word)}</li>`).join("")}</ul></div>` : "";
-  const nodes = rows.length || fixed.length ? switches + only : `<p class="empty">No component yet. Add a card component from the library.</p>`;
-  return sideCard("Capability", "The operation the card issues, its parameters read from presented credentials, and the components it requires: it issues only when every one of them produces a credential.", `<div class="blk" id="cap-operations">${ops}</div><div class="blk" id="cap-requires">${nodes}</div>`, `${S.requires.length} required`, "side-capability");
-}
-
-function acceptCard() {
-  const selId = ui.sel && ui.sel.kind === "node" ? ui.sel.id : null;
-  const rows = [], fixed = [];
-  runOrderAll().forEach(id => Object.entries(comp(S.nodes[id]).inputs).forEach(([name, inp]) => {
-    const ws = wiresTo(id, name);
-    if (hasSwitch(S.nodes[id], name)) rows.push({ id, name, inp, w: ws[0] });
-    else if (ws.length) fixed.push({ id, name, inp, ws });
-  }));
-  const switches = rows.map(({ id, name, inp, w }) => {
-    const on = accepts(S.nodes[id], name);
-    const sid = `ap-${esc(id)}-${esc(name)}`;
-    return `<div class="sc-row${selId === id ? " is-selected" : ""}">
-      <div><span class="sc-name">${esc(label(id))} · ${esc(name)}</span><span class="sc-desc"><code>${brk(inp.type)}</code> from ${esc(label(w.from))}${on ? ", or presented" : ""}</span></div>
-      <label class="switch" for="${sid}" title="Accept presented"><input type="checkbox" role="switch" id="${sid}" data-act="accept" data-node="${esc(id)}" data-input="${esc(name)}"${on ? " checked" : ""}><span class="track" aria-hidden="true"><span class="thumb"></span></span><span class="state">${on ? "On" : "Off"}</span></label>
-    </div>`;
-  }).join("");
-  const why = ({ inp }) => `only components produce ${inp.type}`;
-  const only = fixed.length ? `<div class="sc-fixed" id="accept-fixed">These take only what is wired into them:<ul>${fixed.map(f => `<li><b>${esc(label(f.id))} · ${esc(f.name)}</b>: ${esc(why(f))}</li>`).join("")}</ul></div>` : "";
-  const body = rows.length || fixed.length ? switches + only : `<p class="empty">No wired input yet. Click a component's output, then an input that takes the same credential.</p>`;
-  return sideCard("Accept presented", "A wired input takes the output of the component wired to it. Switch one on to also accept that credential when it is presented by a trusted issuer; the components feeding it are then skipped.", body, rows.length ? `${rows.filter(r => accepts(S.nodes[r.id], r.name)).length} of ${rows.length} on` : undefined, "side-accept");
+function sideCard(title, body, id) {
+  return `<section class="panel side-card" id="${id}"><header><h2>${title}</h2></header><div class="side-body">${body}</div></section>`;
 }
 
 /* a policy data value typed on the Simulate tab; "" until one is */
@@ -780,8 +728,8 @@ function policyDataCard() {
       return `<label class="field" for="${id}" title="${esc(f.description)}"><span><code>${esc(key)}</code> · ${esc(f.type)}</span><input type="text" id="${id}" data-act="pd" data-node="${esc(n.id)}" data-key="${esc(key)}" value="${esc(pdValue(n.id, key))}" spellcheck="false"></label>`;
     }).join("");
     return `<div class="blk"><div class="blk-head"><span class="blk-name">${esc(label(n.id))}</span></div>${fields}</div>`;
-  }).join("") : `<p class="empty">No component on the canvas takes policy data.</p>`;
-  return sideCard("Policy data", "Values the components compare credentials with, per component. Here they are examples for this page only: the graph JSON keeps policy data empty, and the asset owner sets it when exposing an asset.", body, undefined, "side-pd");
+  }).join("") : `<p class="empty">None.</p>`;
+  return sideCard("Policy data", body, "side-pd");
 }
 
 function issuersCard() {
@@ -793,10 +741,10 @@ function issuersCard() {
       const id = `tr-${esc(type)}-${k}`;
       return `<label class="check" for="${id}"><input type="checkbox" id="${id}" data-act="trust" data-type="${esc(type)}" data-issuer="${esc(iss.id)}"${ticked.includes(iss.id) ? " checked" : ""}><span>${esc(iss.name)}<small>${esc(iss.id)}</small></span></label>`;
     }).join("");
-    const state = !list.length ? `No example issuer signs a ${esc(type)}.` : ticked.length ? "Only the ticked ones are trusted." : "None ticked, so every one is trusted.";
-    return `<div class="blk"><div class="blk-head"><span class="blk-name">${esc(type)}</span><span class="blk-sub" id="tr-state-${esc(type)}">${state}</span></div>${opts}</div>`;
-  }).join("") : `<p class="empty">Nothing on the canvas is presented yet.</p>`;
-  return sideCard("Trusted issuers", "For each credential type the graph takes presented: the example issuers this preview trusts. With none ticked, it trusts every one that signs the type, as the contract leaves an empty list to its registry. The graph JSON keeps every list empty.", body, undefined, "side-trust");
+    return `<div class="blk"><div class="blk-head"><span class="blk-name">${esc(type)}</span>${list.length ? "" : '<span class="blk-sub">No example issuer.</span>'}</div>${opts}</div>`;
+  }).join("") : `<p class="empty">None.</p>`;
+  /* none ticked trusts every example issuer, as the contract leaves an empty list to its registry */
+  return sideCard("Trusted issuers", (types.length ? `<p class="hint" id="trust-rule">None ticked: all trusted.</p>` : "") + body, "side-trust");
 }
 
 function presentedCard() {
@@ -805,49 +753,38 @@ function presentedCard() {
     const iss = ui.sim.presented[p.type];
     const id = "pc-" + esc(p.type);
     const box = `<input type="checkbox" id="${id}" data-act="sim-present" data-type="${esc(p.type)}"${iss !== null ? " checked" : ""}>
-      <label for="${id}">${esc(p.type)}${p.required ? "" : '<span class="tag">instead of a component</span>'}</label>`;
-    if (!p.registry) return `<div class="wallet-row">${box}<p class="hint">Its component checks it against a key it supplies, so who signed it does not matter here.</p></div>`;
+      <label for="${id}">${esc(p.type)}${p.required ? "" : '<span class="tag">optional</span>'}</label>`;
+    /* its component checks it against a key it supplies, so who signed it does not matter */
+    if (!p.registry) return `<div class="wallet-row">${box}<p class="hint">checked by key</p></div>`;
     const trusted = trustedFor(p.type);
     const opts = issuersFor(p.type).concat([UNKNOWN]).map(i => `<option value="${esc(i.id)}"${iss === i.id ? " selected" : ""}>Signed by ${esc(i.name)}${trusted.includes(i.id) ? "" : " (not trusted)"}</option>`).join("");
-    const bad = iss !== null && !trusted.includes(iss);
     return `<div class="wallet-row">${box}
-      <select id="${id}-issuer" aria-label="Issuer of the presented ${esc(p.type)}" data-act="sim-issuer" data-type="${esc(p.type)}"${iss !== null ? "" : " disabled"}>${opts}</select>
-      ${bad ? `<span class="why">Not trusted, so it does not count.</span>` : ""}</div>`;
+      <select id="${id}-issuer" aria-label="Issuer of the presented ${esc(p.type)}" data-act="sim-issuer" data-type="${esc(p.type)}"${iss !== null ? "" : " disabled"}>${opts}</select></div>`;
   }).join("");
-  const presets = `<div class="presets"><button type="button" class="small-btn" data-act="sim-preset" data-preset="required">Present what is required</button><button type="button" class="small-btn" data-act="sim-preset" data-preset="none">None</button></div>`;
-  return sideCard("Presented credentials", "Tick the credentials the requester's wallet presents, and pick who signed each.", rows ? presets + rows : `<p class="empty">Nothing on the canvas is presented yet.</p>`, undefined, "side-presented");
+  const presets = `<div class="presets"><button type="button" class="small-btn" data-act="sim-preset" data-preset="required">Required</button><button type="button" class="small-btn" data-act="sim-preset" data-preset="none">None</button></div>`;
+  return sideCard("Presented credentials", rows ? presets + rows : `<p class="empty">None.</p>`, "side-presented");
 }
 
 /* ---------- component details dialog ---------- */
-function feedsText(c) {
-  const users = Object.values(COMPONENTS).filter(x => Object.values(x.inputs).some(i => i.type === c.output.type));
-  const named = users.filter(x => x.group !== "card").map(x => x.name);
-  const cards = users.filter(x => x.group === "card").length;
-  const parts = named.slice();
-  if (cards) parts.push(cards === 1 && !named.length ? users[0].name : `${cards} card ${cards === 1 ? "component" : "components"}`);
-  return parts.length ? `Its output feeds ${parts.join(" and ")}.` : "";
-}
 function openComponent(componentId, nodeId) {
   const c = COMPONENTS[componentId];
-  const n = nodeId ? S.nodes[nodeId] : null;
-  const ins = Object.entries(c.inputs).map(([name, inp]) => credCard(inp.type, n ? inputSubj(n, name) : inp.about, inp.claims, newClaims(inp), esc(name) + ("supplied_key" in inp ? " · checked by key" : ""), "")).join("");
-  const out = credCard(c.output.type, c.output.about, c.output.claims, [], "", "");
+  const ins = Object.values(c.inputs).map(inp => credCard(inp.type, inp.about, inp.claims, newClaims(inp), "")).join("");
+  const out = credCard(c.output.type, c.output.about, c.output.claims, [], "");
   const keys = Object.keys(c.policy_data);
   const data = keys.length
     ? `<dl class="pd-list">${keys.map(k => `<div><dt>${esc(k)}<span>${esc(c.policy_data[k].type)}</span></dt><dd>${esc(c.policy_data[k].description)}</dd></div>`).join("")}</dl>`
     : `<p class="empty" style="margin:0">None.</p>`;
   const regoHtml = c.rego !== null
-    ? `<button type="button" class="small-btn" data-act="toggle-rego" aria-expanded="false" aria-controls="modal-rego">Show Rego source</button>
+    ? `<button type="button" class="small-btn" data-act="toggle-rego" aria-expanded="false" aria-controls="modal-rego">Show Rego</button>
        <div class="rego-box" id="modal-rego" hidden><pre class="code" id="modal-rego-code">${esc(c.rego)}</pre>
        <div style="margin-top:8px"><button type="button" class="small-btn" data-act="copy-modal-rego" data-component="${esc(componentId)}">Copy Rego</button></div></div>`
-    : `<p class="empty" id="modal-no-rego" style="margin:0">The Rego for this component is not written yet.</p>`;
-  const where = c.group === "card" ? `<div class="modal-sub">Card: ${esc(CAT.cards[c.card].name)} · ${esc(c.duo)}</div>` : "";
+    : `<p class="empty" id="modal-no-rego" style="margin:0">Not written yet.</p>`;
+  const where = c.group === "card" ? `<div class="modal-sub">${esc(CAT.cards[c.card].name)} · ${esc(c.duo)}</div>` : "";
   $("modal-box").innerHTML = `
-    <header class="modal-head"><div><h2 id="modal-title"><i class="lg lg-card" aria-hidden="true"></i>${brk(c.name)}</h2><div class="modal-sub">${esc(c.package)}${nodeId ? " · on the canvas as " + esc(nodeId) : ""}</div>${where}</div>
+    <header class="modal-head"><div><h2 id="modal-title"><i class="lg lg-card" aria-hidden="true"></i>${brk(c.name)}</h2><div class="modal-sub">${esc(c.package)}</div>${where}</div>
       <button type="button" class="icon-btn" data-act="close-modal" aria-label="Close">${ICON_X}</button></header>
     <div class="modal-body">
-      <p class="modal-desc">${esc(c.summary)} ${esc(feedsText(c))}</p>
-      ${c.changes_from_today.map(t => `<p class="changed">${esc(t)}</p>`).join("")}
+      <p class="modal-desc">${esc(c.summary)}</p>
       <h3>Inputs</h3>
       <div class="io-cards" id="modal-inputs">${ins}</div>
       <h3>Output</h3>
@@ -879,7 +816,7 @@ $("modal").addEventListener("click", e => {
     const box = $("modal-rego");
     box.hidden = !box.hidden;
     t.setAttribute("aria-expanded", String(!box.hidden));
-    t.textContent = box.hidden ? "Show Rego source" : "Hide Rego source";
+    t.textContent = box.hidden ? "Show Rego" : "Hide Rego";
   } else if (act === "copy-modal-rego") copyText(COMPONENTS[t.dataset.component].rego, $("modal-rego-code"));
   else if (act === "add-component") { closeModal(); addComponent(t.dataset.component); }
 });
@@ -901,14 +838,13 @@ function tryConnect(from, to, input) {
   const src = comp(S.nodes[from]);
   const inp = comp(S.nodes[to]).inputs[input];
   if (from === to) return toast("A component cannot take its own output.", true), false;
-  if (inp.type !== src.output.type) return toast(`${label(to)} · ${input} takes ${inp.type}, not ${src.output.type}.`, true), false;
-  if ("supplied_key" in inp) return toast(`${label(to)} · ${input} is checked against a key its component supplies, so it is presented, not wired.`, true), false;
+  if (inp.type !== src.output.type) return toast(`That input takes ${inp.type}, not ${src.output.type}.`, true), false;
+  if ("supplied_key" in inp) return toast(`That input takes only a presented ${inp.type}.`, true), false;
   if (reaches(to, from)) return toast("That wire would make a loop.", true), false;
   const ws = wiresTo(to, input);
   if (ws.some(w => w.from === from)) return toast("Already wired."), false;
-  if (ws.length) return toast(`${label(to)} · ${input} already takes the output of ${label(ws[0].from)}, and an input takes one source. Disconnect that wire first.`, true), false;
+  if (ws.length) return toast(`That input already takes the output of ${label(ws[0].from)}.`, true), false;
   wire(S, from, to, input);
-  toast(`Wired ${label(from)} → ${label(to)} · ${input}`);
   render();
   return true;
 }
@@ -943,54 +879,45 @@ function addComponent(componentId, at) {
   n.y = Math.round(p.y);
   render();
   if (!at && !p.inView) fit();
-  toast(comp(n).group === "card" ? `Added ${label(n.id)}. Switch required on at its output, and the capability requires it.` : `Added ${label(n.id)}. Click its output, then an input that takes ${comp(n).output.type}.`);
+}
+
+/* an output wired to nothing is accepted presented nowhere */
+function dropLooseAccepts() {
+  Object.values(S.nodes).forEach(n => { if (!wiresFrom(n.id).length) n.accept = false; });
 }
 
 function removeNode(id) {
-  const name = label(id);
   delete S.nodes[id];
   delete ui.sim.data[id];
   S.requires = S.requires.filter(r => r !== id);
-  S.wires = S.wires.filter(w => {
-    if (w.from === id && S.nodes[w.to]) delete S.nodes[w.to].accept[w.input];
-    return w.from !== id && w.to !== id;
-  });
+  S.wires = S.wires.filter(w => w.from !== id && w.to !== id);
+  dropLooseAccepts();
   ui.sel = null;
-  toast(`Removed ${name}`);
   render();
 }
 
 function disconnect(wid) {
-  const w = S.wires.find(x => x.id === wid);
   S.wires = S.wires.filter(x => x.id !== wid);
-  if (w) delete S.nodes[w.to].accept[w.input];
+  dropLooseAccepts();
   if (ui.sel && ui.sel.kind === "wire" && ui.sel.id === wid) ui.sel = null;
-  if (w) toast(`Disconnected ${label(w.from)} → ${label(w.to)} · ${w.input}. That input is now presented.`);
   render();
 }
 
-function setAccept(nodeId, input, on) {
-  const n = S.nodes[nodeId];
-  if (!n || wiresTo(nodeId, input).length !== 1) return;
-  if (on) n.accept[input] = true; else delete n.accept[input];
-  const type = comp(n).inputs[input].type;
-  toast(`${label(nodeId)} · ${input}: ${on ? "a presented " + type + " is also accepted." : "takes only the wired output."}`);
+/* every input the component's output is wired to also accepts it presented, or none does */
+function setAccept(nodeId, on) {
+  S.nodes[nodeId].accept = on;
   render();
 }
 
 /* the capability requires the component, after those it already requires, or no longer */
 function setRequired(nodeId, on) {
-  if (!S.nodes[nodeId]) return;
   S.requires = S.requires.filter(id => id !== nodeId);
   if (on) S.requires.push(nodeId);
-  toast(on ? `The capability requires ${label(nodeId)}: it issues only when ${label(nodeId)} produces a credential.` : `The capability no longer requires ${label(nodeId)}.`);
   render();
 }
 
 function setOperation(op) {
   S.operation = op;
-  const params = Object.entries(operation().parameters).map(([name, p]) => `${name} read from a presented ${p.type}`);
-  toast(`The capability issues ${op}, its ${orList(params)}.`);
   render();
 }
 
@@ -1047,8 +974,9 @@ function loadGraph(g, what) {
   let st;
   try { st = readGraph(g); } catch (err) { toast(`Could not open ${what}: ${err.message}.`, true); return; }
   load(st);
+  /* the asset owner sets policy data and trusted issuers when exposing an asset */
   const owners = Object.values(g.nodes).some(n => Object.keys(n.policy_data).length) || Object.values(g.trusted_issuers).some(l => l.length);
-  toast(owners ? `Opened ${what}. Its policy data and trusted issuers are left out: the asset owner sets them when exposing an asset.` : `Opened ${what}.`);
+  if (owners) toast("Policy data and trusted issuers left out.");
 }
 
 /* ---------- graph.json out ---------- */
@@ -1062,7 +990,7 @@ function download() {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 40000);
   const errors = checks().filter(i => i.level === "error").length;
-  toast(errors ? `Downloaded graph.json. The Checks tab lists ${errors} ${errors === 1 ? "error" : "errors"}.` : "Downloaded graph.json. Commit it as policy_cards/<card>/graph.json.", errors > 0);
+  if (errors) toast(`Downloaded with ${errors} ${errors === 1 ? "error" : "errors"}.`, true);
 }
 
 /* ---------- view ---------- */
@@ -1099,7 +1027,7 @@ function canWire(from, toId, input) {
 }
 function markPorts(hot) {
   const c = ui.drag && ui.drag.type === "connect" ? ui.drag.from : ui.connect;
-  document.querySelectorAll(".n-in[data-node]").forEach(p => {
+  document.querySelectorAll(".n-in[data-node]:not(.lane)").forEach(p => {
     p.classList.remove("ok", "no", "hot");
     if (!c || !S.nodes[c]) return;
     const good = canWire(c, p.dataset.node, p.dataset.input);
@@ -1108,16 +1036,11 @@ function markPorts(hot) {
   });
   document.querySelectorAll(".n-out").forEach(o => o.classList.toggle("from", !!c && o.dataset.node === c));
   canvas.classList.toggle("connecting", !!c);
-  const b = $("banner");
-  if (ui.connect && S.nodes[ui.connect]) {
-    b.hidden = false;
-    b.textContent = `Now click a highlighted input that takes ${comp(S.nodes[ui.connect]).output.type}. Esc cancels.`;
-  } else b.hidden = true;
 }
 
 /* ---------- pointer: canvas ---------- */
 canvas.addEventListener("pointerdown", e => {
-  if (e.button !== 0 || e.target.closest(".zoom, .banner, .toast, .n-tools, .wire-tool, .ap")) return;
+  if (e.button !== 0 || e.target.closest(".zoom, .toast, .n-tools, .wire-tool, .ap, .cap-op")) return;
   const outEl = e.target.closest(".n-out[data-node]");
   if (outEl) {
     e.preventDefault();
@@ -1212,8 +1135,9 @@ canvas.addEventListener("click", e => {
 });
 canvas.addEventListener("change", e => {
   const t = e.target;
-  if (t.dataset.act === "accept") setAccept(t.dataset.node, t.dataset.input, t.checked);
+  if (t.dataset.act === "accept") setAccept(t.dataset.node, t.checked);
   else if (t.dataset.act === "require") setRequired(t.dataset.node, t.checked);
+  else if (t.dataset.act === "operation") setOperation(t.value);
 });
 
 canvas.addEventListener("wheel", e => {
@@ -1285,9 +1209,6 @@ function handleChange(e) {
   const t = e.target;
   const act = t.dataset.act;
   if (!act) return;
-  if (act === "accept") { setAccept(t.dataset.node, t.dataset.input, t.checked); return; }
-  if (act === "require") { setRequired(t.dataset.node, t.checked); return; }
-  if (act === "operation") { setOperation(t.value); return; }
   if (act === "trust") {
     const type = t.dataset.type;
     const now = new Set(ui.sim.trusted[type]);
@@ -1319,14 +1240,14 @@ function simPreset(kind) {
 }
 
 function copyText(text, el) {
-  const done = () => toast("Copied to the clipboard.");
+  const done = () => toast("Copied.");
   const fallback = () => {
     const range = document.createRange();
     range.selectNodeContents(el);
     const s = window.getSelection();
     s.removeAllRanges();
     s.addRange(range);
-    toast("Selected. Press Ctrl+C or ⌘C to copy.");
+    toast("Selected: press Ctrl+C or ⌘C.");
   };
   try { navigator.clipboard.writeText(text).then(done, fallback); } catch (err) { fallback(); }
 }
@@ -1429,6 +1350,6 @@ boot().catch(err => {
   const hint = $("canvas-hint");
   hint.hidden = false;
   hint.classList.add("bad");
-  hint.textContent = `The composer could not start: ${err.message}. It reads catalog.json beside this page, so open it from the docs site, or serve the built site over HTTP.`;
+  hint.textContent = `Could not load catalog.json: ${err.message}.`;
   throw err;
 });

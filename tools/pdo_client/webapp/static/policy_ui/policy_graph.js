@@ -34,9 +34,10 @@
     }
 
     // ------------------------------------------------------------------ shapes
+    // the claims a credential carries; none, no section
     function claimsSection(claims, newClaims) {
         var listed = claims.filter(function (c) { return c !== 'subject'; });
-        if (!listed.length) return '<div class="sec"><div class="lbl">' + LIST + 'no claims</div></div>';
+        if (!listed.length) return '';
         return '<div class="sec"><div class="lbl">' + LIST + 'claims</div><ul class="cl">' + listed.map(function (c) {
             return '<li>' + brk(c) + (newClaims.indexOf(c) !== -1 ? ' <span class="new">new</span>' : '') + '</li>';
         }).join('') + '</ul></div>';
@@ -54,13 +55,14 @@
             '</div></div>';
     }
 
+    // a Policy Component: its name, and the keys of its policy data when it takes some
     function component(name, policyData, attrs) {
         var data = policyData.length
-            ? '<div class="lbl">' + SLIDERS + 'policy data</div><ul class="cl">' +
-              policyData.map(function (k) { return '<li>' + brk(k) + '</li>'; }).join('') + '</ul>'
-            : '<div class="lbl">' + SLIDERS + 'no policy data</div>';
+            ? '<div class="sec"><div class="lbl">' + SLIDERS + 'policy data</div><ul class="cl">' +
+              policyData.map(function (k) { return '<li>' + brk(k) + '</li>'; }).join('') + '</ul></div>'
+            : '';
         return '<div class="pcw"' + attrs + '><div class="pc-tab">Policy Component</div><div class="pc">' +
-            '<div class="pc-nm">' + brk(name) + '</div><div class="sec">' + data + '</div></div></div>';
+            '<div class="pc-nm">' + brk(name) + '</div>' + data + '</div></div>';
     }
 
     function capability(operation, parameters, attrs) {
