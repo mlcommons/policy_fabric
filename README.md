@@ -26,6 +26,17 @@ docs/           The documentation site
 
 This is a reference implementation, not a production governance system. It ships without warranty and is not legal or compliance advice.
 
+## Citation
+
+```
+@inproceedings{kassem2026decentralized,
+  title = {Decentralized AI Governance Must Decouple Policy Processing from Capability Enforcement},
+  author = {Kassem, Hasan and Anagnostopoulos, Christoforos and Aristizabal, Alejandro and Bakas, Spyridon and Banks, Orion GB and Benjelloun, Omar and Cai, Tian and Cansiz, Sergen and Chicco, Davide and Foley, Patrick and Hossain, Showkot and Jung, Taeho and Kairouz, Peter and Liu, Yanchen and Lorenzi, Marco and Mattson, Peter and Novakowski, Ann K and O’Connor, Michael and Roth, Holger R and Sannyasi, Adrish and Savvaidis, Charalampos and Sheller, Micah and Solooki, David and Stripelis, Dimitris and Umeton, Renato and Vesin, Marc and Wang, Ray and Zhang, Wenbin and Bowman, Mic and Karargyris, Alexandros},
+  booktitle = {40th Annual Conference on Neural Information Processing Systems (NeurIPS), Position Paper Track},
+  year = {2026},
+}
+```
+
 ## License
 
 Copyright MLCommons. All rights reserved. Licensing to be determined. See [LICENSE](LICENSE).
