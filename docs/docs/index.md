@@ -178,13 +178,11 @@ Policy Fabric operationalizes the architecture argued for in an accompanying pos
 The architecture is described in the position paper "Decentralized AI Governance Must Decouple Policy Processing from Capability Enforcement" (submitted to NeurIPS 2026). The submission is anonymized for peer review, so author and venue details are placeholders until publication; update this entry once the paper is public.
 
 ```
-@inproceedings{policyfabric2026,
-  title     = {Decentralized AI Governance Must Decouple Policy
-               Processing from Capability Enforcement},
-  author    = {Anonymous},   % update on publication
-  booktitle = {Proceedings of NeurIPS 2026},
-  year      = {2026},
-  note      = {Anonymous submission; details pending publication}
+@inproceedings{kassem2026decentralized,
+  title = {Decentralized AI Governance Must Decouple Policy Processing from Capability Enforcement},
+  author = {Kassem, Hasan and Anagnostopoulos, Christoforos and Aristizabal, Alejandro and Bakas, Spyridon and Banks, Orion GB and Benjelloun, Omar and Cai, Tian and Cansiz, Sergen and Chicco, Davide and Foley, Patrick and Hossain, Showkot and Jung, Taeho and Kairouz, Peter and Liu, Yanchen and Lorenzi, Marco and Mattson, Peter and Novakowski, Ann K and O’Connor, Michael and Roth, Holger R and Sannyasi, Adrish and Savvaidis, Charalampos and Sheller, Micah and Solooki, David and Stripelis, Dimitris and Umeton, Renato and Vesin, Marc and Wang, Ray and Zhang, Wenbin and Bowman, Mic and Karargyris, Alexandros},
+  booktitle = {40th Annual Conference on Neural Information Processing Systems (NeurIPS), Position Paper Track},
+  year = {2026},
 }
 ```
 
