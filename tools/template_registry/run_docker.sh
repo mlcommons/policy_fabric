@@ -53,6 +53,8 @@ POLICY_CARDS_ABS="$( cd "$POLICY_CARDS_DIR" 2>/dev/null && pwd )" || { echo "Mis
 docker rm -f template_registry_container >/dev/null 2>&1 || true
 
 docker run --rm --user "$(id -u):0" --name template_registry_container \
+    -e DJANGO_SECRET_KEY -e DJANGO_DEBUG -e DJANGO_ALLOWED_HOSTS \
+    -e REGISTRY_WRITE_TOKEN \
     -p $INTERFACE:$PORT:8000 \
     -v "$CREDENTIALS_ABS":/templates/credentials:ro \
     -v "$POLICY_CARDS_ABS":/templates/policy_cards:ro \

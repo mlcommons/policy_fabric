@@ -20,11 +20,17 @@ def list_assets():
     return resp.json()
 
 
+def asset_write_headers():
+    """Keep registry credentials server-side and attach them only to write requests."""
+    token = settings.ASSET_REGISTRY_WRITE_TOKEN
+    return {"Authorization": "Bearer " + token} if token else {}
+
+
 def register_asset(name, did, metadata=None):
     """Register a new asset in the asset registry. Returns the created asset dict."""
     url = f"{settings.ASSET_REGISTRY_URL.rstrip('/')}/api/assets/"
     payload = {"name": name, "did": did, "metadata": metadata or {}}
-    resp = requests.post(url, json=payload, timeout=10)
+    resp = requests.post(url, json=payload, headers=asset_write_headers(), timeout=10)
     resp.raise_for_status()
     return resp.json()
 
@@ -48,7 +54,7 @@ def get_asset_by_did(did):
 def update_asset_metadata(pk, metadata_updates):
     """Merge metadata_updates into an existing asset's metadata (by registry pk)."""
     url = f"{settings.ASSET_REGISTRY_URL.rstrip('/')}/api/assets/{pk}/"
-    resp = requests.patch(url, json={"metadata": metadata_updates}, timeout=10)
+    resp = requests.patch(url, json={"metadata": metadata_updates}, headers=asset_write_headers(), timeout=10)
     resp.raise_for_status()
     return resp.json()
 

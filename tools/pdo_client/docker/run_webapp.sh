@@ -130,6 +130,8 @@ fi
 # (and the rest of the config) to /webapp/run.sh as args. PDO_INSTALL_ROOT and
 # PDO_CONTRACTS_ROOT come from the image, so run.sh needs no --install-root.
 docker run --rm --user "$(id -u):0" --name policies_web_client \
+    -e DJANGO_SECRET_KEY -e DJANGO_DEBUG -e DJANGO_ALLOWED_HOSTS \
+    -e ASSET_REGISTRY_WRITE_TOKEN \
     -p $INTERFACE:$PORT:8000 \
     --add-host host.docker.internal:host-gateway \
     --env CONTAINERIZED_DEPLOYMENT=true \
